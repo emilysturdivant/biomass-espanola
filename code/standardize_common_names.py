@@ -39,10 +39,19 @@ def strip_accents(text):
     return str(text)
 
 def split_species_binomial(df, binomial_fld='by_binomial'):
+    def get_second_word(x):
+        ser = []
+        for lst in x:
+            if len(lst) > 1:
+                ser += [lst[1].strip()]
+            else:
+                ser += ['']
+        return(ser)
+    binomials_split_ser = df[binomial_fld].str.split(' ')
     df = df.assign(
-        genus=[i[0].capitalize() for i in df[binomial_fld].str.split(' ')],
-        species = [' '.join(i[1:]).strip() for i in df[binomial_fld].str.split(' ')],
-        species_abbr = [i[1].strip() for i in df[binomial_fld].str.split(' ')]
+        genus=[i[0].capitalize() for i in binomials_split_ser],
+        species=[' '.join(i[1:]).strip() for i in binomials_split_ser],
+        species_abbr=get_second_word(binomials_split_ser)
         )
     return(df)
 
@@ -144,9 +153,11 @@ name_to_alts = {
 alt_to_name = dict((v,k) for k,vs in name_to_alts.items() for v in vs)
 json.dump(alt_to_name, open(os.path.join(home, 'standardize_creole.json'), 'w'))
 
-'''---------------------------------------------------------------------------
+'''
+---------------------------------------------------------------------------
 Look at unique species in field data
----------------------------------------------------------------------------'''
+---------------------------------------------------------------------------
+'''
 #%% Create series of all species columns (labeled 'sp')
 spec_df = pd.read_excel(data_fname, 'Plots', skiprows=[0,1,2],
                         usecols=lambda x : x.startswith('sp'))
@@ -165,35 +176,34 @@ spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).re
 
 #%% Look at species table digitized from Bwa Yo, only need creole, BY_binomial, family, BY_spec_grav.
 by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
-by_df = pd.read_excel(by_fname, header=0, usecols=[0,1,2,3], names=['by_binomial', 'creole', 'BY_spec_grav', 'family'], converters={'by_binomial':lambda x : x.lower(), 'family':lambda x : x.split(' (')[0].lower().capitalize()})
+by_df = pd.read_excel(by_fname, header=0, usecols=[0,1,2,3],
+    names=['by_binomial', 'creole', 'BY_spec_grav', 'family'],
+    converters={'by_binomial':lambda x : x.lower(),
+        'family':lambda x : x.split(' (')[0].lower().capitalize()})
 by_df.replace({'Capparaceae': 'Brassicaceae', 'Sterculiaceae': 'Malvaceae'}, inplace=True)
-by_df.head()
-def split_species_binomial(df, binomial_fld='by_binomial'):
-df = by_df.copy()
-binomial_fld = 'by_binomial'
-binomials_split = df[binomial_fld].str.split(' ')
-df = df.assign(genus=[i[0].capitalize() for i in binomials_split])
-df.head()
-df = df.assign(species=[' '.join(i[1:]).strip() for i in binomials_split])
-df.head()
-def get_second_word(x):
-    for lst in x:
-        if len(lst) > 1:
-            i[1].strip()
-x = binomials_split
-ser = []
-for lst in x:
-    if len(lst) > 1:
-        ser += lst[1].strip()
-    else:
-        ser += ''
-ser
 
-df = df.assign(species_abbr=[i[1].strip() for i in binomials_split if len(binomials_split) > 1])
-df.head()
-
+# Split species binomial into genus, species, and species_abbr
 by_df = split_species_binomial(by_df, binomial_fld='by_binomial')
 by_df.head()
+#%% Create supplemental wood density from all Bwa Yo values
+by_df.head()
+bwayo_wd = by_df.loc[~by_df['BY_spec_grav'].isna(),
+    ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
+# convert WD range to mean
+def dens_mean(x):
+    try:
+        mn = np.mean([float(i) for i in x])
+    except:
+        mn = np.nan
+    return(mn)
+bwayo_wd['wd_avg'] = (bwayo_wd['BY_spec_grav']
+            .str.split('-')
+            .apply(dens_mean)
+            .fillna(bwayo_wd['BY_spec_grav'])
+            )
+bwayo_wd = bwayo_wd.assign(species_abbr=bwayo_wd['species_abbr'].replace('spp.', np.nan))
+# Export to CSV
+bwayo_wd.to_csv(os.path.join(home, 'bwayo_densities.csv'), index=False)
 
 #%% Explode DF by the creole names column. For every row with multiple creole names, duplicate species row.
 creole_df = (by_df
@@ -210,53 +220,17 @@ field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(
 
 #%% Create creole to species_name lookup and species_name to bwayo_wd lookup
 field_species.head(2)
-# Split species binomial into genus, species, and species_abbr
-field_species = split_species_binomial(field_species, binomial_fld='by_binomial')
-field_species.head()
 
 # list creole names that match more than one genus
 field_species[['genus', 'creole']]
+uniq = lambda x: x.unique()
+field_species[['genus', 'creole']].groupby('creole').agg(lambda x: x.unique())
 
 # list creole names that match more than one family
+field_species[['family', 'creole']].groupby('creole').agg(lambda x: x.unique())
 # What to do about genus spp. entries? What does the splitGenusSpecies() R function do?
 
 
-
-# create supplemental wood density dataframe in format genus, species, wd, and family (optional)
-bwayo_wd = field_species.loc[~field_species['BY_spec_grav'].isna(), ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
-# convert WD range to mean
-def dens_mean(x):
-    try:
-        mn = np.mean([float(i) for i in x])
-    except:
-        mn = np.nan
-    return(mn)
-bwayo_wd['wd_avg'] = (bwayo_wd['BY_spec_grav']
-            .str.split('-')
-            .apply(dens_mean)
-            .fillna(bwayo_wd['BY_spec_grav'])
-            )
-# bwayo_wd[['genus', 'species', 'species_abbr', 'family', 'wd_avg']]
-# bwayo_wd[bwayo_wd['species']!=bwayo_wd['species_abbr']]
-bwayo_wd.to_csv(os.path.join(home, 'bwayo_densities.csv'), index=False)
-
-by_df.head()
-bwayo_wd = by_df.loc[~by_df['BY_spec_grav'].isna(), ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
-# convert WD range to mean
-def dens_mean(x):
-    try:
-        mn = np.mean([float(i) for i in x])
-    except:
-        mn = np.nan
-    return(mn)
-bwayo_wd['wd_avg'] = (bwayo_wd['BY_spec_grav']
-            .str.split('-')
-            .apply(dens_mean)
-            .fillna(bwayo_wd['BY_spec_grav'])
-            )
-# bwayo_wd[['genus', 'species', 'species_abbr', 'family', 'wd_avg']]
-# bwayo_wd[bwayo_wd['species']!=bwayo_wd['species_abbr']]
-bwayo_wd.to_csv(os.path.join(home, 'bwayo_densities.csv'), index=False)
 
 
 #%% Write to excel

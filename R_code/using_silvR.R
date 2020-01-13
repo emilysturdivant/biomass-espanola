@@ -1,4 +1,5 @@
 library(silvr)
+library(readr)
 
 # Load data
 mstems
@@ -25,6 +26,9 @@ stocking_plot$stocking <- stocking_plot$stocking / mplots$plot_area # check this
 # 
 mstems <- cbind(mstems, splitGenusSpecies(mstems$species_name))
 
+bwayo_densities <- read_csv("~/GitHub/biomass-espanola/bwayo_densities.csv", 
+                              +     col_types = cols(BY_spec_grav = col_skip(), 
+                                                     +         wd_avg = col_double()))
 # Run Chave14 equation using BIOMASS
 # Get wood density by genus
 genus <- mstems$genus
@@ -32,7 +36,7 @@ species <- NULL
 plot <- NULL
 family <- mstems$family
 region <- 'CentralAmericaTrop'
-wd_data <- 
+wd_data <- bwayo_densities
 if (is.null(species)) species = rep('', length(genus))
 wood_density <- getWoodDensity(genus, species, stand = plot, family = family, region = region,
                                addWoodDensityData = wd_data, verbose = FALSE)

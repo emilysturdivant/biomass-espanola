@@ -189,14 +189,16 @@ by_df.head()
 #%% Create supplemental wood density from all Bwa Yo values
 bwayo_wd = by_df.loc[~by_df['BY_spec_grav'].isna(),
     ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
+# Replace spp. with NaN
 bwayo_wd = bwayo_wd.assign(species_abbr=bwayo_wd['species_abbr'].replace('spp.', np.nan))
-
 # convert WD range to mean
 bwayo_wd = bwayo_wd.assign(wd_avg=[np.mean([float(i) for i in
     re.findall(r"[0-9.]+", str(s))]) for s in bwayo_wd['BY_spec_grav']])
 
 # Export to CSV
 bwayo_wd.to_csv(os.path.join(home, 'bwayo_densities.csv'), index=False)
+bwayo_wd.head(2)
+by_df = by_df.join(bwayo_wd['wd_avg'])
 
 #%% Explode DF by the creole names column. For every row with multiple creole names, duplicate species row.
 creole_df = (by_df
@@ -218,7 +220,7 @@ field_species.head(2)
 field_species[['genus', 'creole']].groupby('creole').agg(lambda x: x.unique())
 
 # What to do about creole names that match more than one family?
-field_species[['family', 'creole']].groupby('creole').agg(lambda x: x.unique())
+field_species[['family', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())
 
 # What to do about genus spp. entries? What does the splitGenusSpecies() R function do?
 

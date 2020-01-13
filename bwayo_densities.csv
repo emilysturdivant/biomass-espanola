@@ -10,11 +10,11 @@ Guatteria,blainii,blainii,0.8,Annonaceae,0.8
 Amyris,spp.,,0.79-1.11,Rutaceae,0.9500000000000001
 Lonchocarpus,spp.,,0.62-0.76,Fabaceae,0.69
 Pimenta,racemosa,racemosa,0.9,Myrtaceae,0.9
-Cordia,spp. (dark-wooded),,0.52-0.78+,Boraginaceae,0.52-0.78+
+Cordia,spp. (dark-wooded),,0.52-0.78+,Boraginaceae,0.65
 Rheedia,spp.,,0.65-0.78,Clusiaceae,0.7150000000000001
 Guazuma,ulmifolia,ulmifolia,0.5,Malvaceae,0.5
 Petitia,domingensis,domingensis,0.66,Verbenaceae,0.66
-Piptadenia,peregrina,peregrina,"0.52, 0.8",Fabaceae,"0.52, 0.8"
+Piptadenia,peregrina,peregrina,"0.52, 0.8",Fabaceae,0.66
 Krugiodendron,ferreum,ferreum,0.96-1.04,Rhamnaceae,1.0
 Maytenus,spp.,,0.64-0.77,Celastraceae,0.7050000000000001
 Matayba,domingensis,domingensis,0.7,Sapindaceae,0.7
@@ -89,7 +89,6 @@ Casuarina,spp.,,0.78-1.2,Casuarinaceae,0.99
 Exostema,caribaem,caribaem,0.98-1.13,Rubiaceae,1.055
 Ziziphus,spp.,,0.9,Rhamnaceae,0.9
 Cordia,sebestena,sebestena,0.7,Boraginaceae,0.7
-Cocos,nucifera,nucifera,4-fold decrease from cortex to center,Arecaceae,4-fold decrease from cortex to center
 Bumelia,salicifolia,salicifolia,0.9-0.99,Sapotaceae,0.9450000000000001
 Ochroma,pyramidale,pyramidale,0.22-0.26,Bombacaceae,0.24
 Hymenaea,courbaril,courbaril,0.71-0.82,Fabaceae,0.7649999999999999

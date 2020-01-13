@@ -14,6 +14,7 @@ import os
 import unicodedata
 import json
 from platform import python_version
+import re
 
 print(python_version())
 
@@ -62,6 +63,7 @@ home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
 #%% Work with field data - Look at species in all plots
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
 gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
+by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
 
 '''
 ---------------------------------------------------------------------------
@@ -175,7 +177,6 @@ spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).re
 # spec_list_cnts.to_excel(out_lookup, 'round3', index=True)
 
 #%% Look at species table digitized from Bwa Yo, only need creole, BY_binomial, family, BY_spec_grav.
-by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
 by_df = pd.read_excel(by_fname, header=0, usecols=[0,1,2,3],
     names=['by_binomial', 'creole', 'BY_spec_grav', 'family'],
     converters={'by_binomial':lambda x : x.lower(),
@@ -186,22 +187,14 @@ by_df.replace({'Capparaceae': 'Brassicaceae', 'Sterculiaceae': 'Malvaceae'}, inp
 by_df = split_species_binomial(by_df, binomial_fld='by_binomial')
 by_df.head()
 #%% Create supplemental wood density from all Bwa Yo values
-by_df.head()
 bwayo_wd = by_df.loc[~by_df['BY_spec_grav'].isna(),
     ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
-# convert WD range to mean
-def dens_mean(x):
-    try:
-        mn = np.mean([float(i) for i in x])
-    except:
-        mn = np.nan
-    return(mn)
-bwayo_wd['wd_avg'] = (bwayo_wd['BY_spec_grav']
-            .str.split('-')
-            .apply(dens_mean)
-            .fillna(bwayo_wd['BY_spec_grav'])
-            )
 bwayo_wd = bwayo_wd.assign(species_abbr=bwayo_wd['species_abbr'].replace('spp.', np.nan))
+
+# convert WD range to mean
+bwayo_wd = bwayo_wd.assign(wd_avg=[np.mean([float(i) for i in
+    re.findall(r"[0-9.]+", str(s))]) for s in bwayo_wd['BY_spec_grav']])
+
 # Export to CSV
 bwayo_wd.to_csv(os.path.join(home, 'bwayo_densities.csv'), index=False)
 
@@ -221,15 +214,13 @@ field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(
 #%% Create creole to species_name lookup and species_name to bwayo_wd lookup
 field_species.head(2)
 
-# list creole names that match more than one genus
-field_species[['genus', 'creole']]
-uniq = lambda x: x.unique()
+# What to do about creole names that match more than one genus?
 field_species[['genus', 'creole']].groupby('creole').agg(lambda x: x.unique())
 
-# list creole names that match more than one family
+# What to do about creole names that match more than one family?
 field_species[['family', 'creole']].groupby('creole').agg(lambda x: x.unique())
-# What to do about genus spp. entries? What does the splitGenusSpecies() R function do?
 
+# What to do about genus spp. entries? What does the splitGenusSpecies() R function do?
 
 
 

@@ -73,7 +73,7 @@ home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
 # Filenames
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
 json_fname = os.path.join(home, 'standardize_creole.json')
-lookup_fname = os.path.join(home, 'lookup_creole2famavg_20191230.xlsx')
+lookup_fname = os.path.join(home, 'lookup_famAvgWD_byCreole.xlsx')
 
 # Load creole name replacement dictionary
 alt_to_name = json.load(open(json_fname))
@@ -140,6 +140,17 @@ agb_noHt =
 biomass_noHt = trees_noHt.assign(biomass=agb_noHt)
 biomass_noHt
 
+
+
+
+
+
+
+
+
+
+
+
 #%% Get value for E (combination of TS, CWD, and PS) for Hispaniola
 # Downloaded CWD from http://chave.ups-tlse.fr/pantropical_allometry.htm
 # Downloaded TS and PS from http://worldclim.org/version2
@@ -171,7 +182,8 @@ dr_fname = os.path.join(home, 'data', 'DOM_adm0.shp')
 # #first feature of the shapefile
 # print(dr.next())
 
-# Use geopandas
+
+
 import fiona
 
 haiti = gpd.read_file(haiti_fname)

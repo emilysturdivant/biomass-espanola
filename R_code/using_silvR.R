@@ -48,9 +48,7 @@ wood_density_complete <- getWoodDensity(genus, species, stand = plot, family = f
                                addWoodDensityData = wd_data, verbose = FALSE)
 wood_density = wood_density_complete$meanWD
 
-# Get height
-
-# Prepare coordinates, if required
+# Prepare coordinates, required without height
 if (!is.null(latitude)) coord = data.frame(longitude = longitude, latitude = latitude) else coord = NULL
 
 # Calculate AGB with Chave equation, return in kg
@@ -58,19 +56,47 @@ AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 100
 mstems$AGB_Chave14 <- AGB
 summary(mstems$AGB_Chave14)
 
-# aggregate AGB by plot (C tons/ha)
+# Load wood density without Bwa Yo values
+wood_density_complete <- getWoodDensity(genus, species, stand = plot, family = family, region = region, verbose = FALSE)
+wood_density = wood_density_complete$meanWD
+
+# Calculate AGB with Chave equation, return in kg
+AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 1000
+mstems$AGB_WDsFromCATrop <- AGB
+summary(mstems$AGB_WDsFromCATrop)
+
+# Load wood density without Bwa Yo values
+wood_density_complete <- getWoodDensity(genus, species, stand = plot, family = family, region = 'World', verbose = FALSE)
+wood_density = wood_density_complete$meanWD
+
+# Calculate AGB with Chave equation, return in kg
+AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 1000
+mstems$AGB_WDsFromWorld <- AGB
+summary(mstems$AGB_WDsFromWorld)
+
+# aggregate AGB by plot (C kg/ha)
 agb_plot <- aggregate(AGB_Chave14 ~ plot_no, mstems, sum)
 mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
 mplots$AGB_Chave14 <- mplots$AGB_Chave14 / mplots$plot_area
+
+# aggregate AGB by plot (C kg/ha)
+agb_plot <- aggregate(AGB_WDsFromCATrop ~ plot_no, mstems, sum)
+mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
+mplots$AGB_WDsFromCATrop <- mplots$AGB_WDsFromCATrop / mplots$plot_area
+
+# aggregate AGB by plot (C kg/ha)
+agb_plot <- aggregate(AGB_WDsFromWorld ~ plot_no, mstems, sum)
+mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
+mplots$AGB_WDsFromWorld <- mplots$AGB_WDsFromWorld / mplots$plot_area
+
+# Compare plot AGB to plot mean backscatter
+g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
+plot(g0_plots$`2007_mean`, g0_plots$AGB_WDsFromCATrop, xlab='2007 HV backscatter', ylab='2019 AGB')
 
 # Look at dominant species based on stocking densities. Add species_name (by_binomial)
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no)
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = calculateBasalArea(mstems$dbh_cm))
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = mstems$AGB_Chave14)
-
-# Compare plot AGB to plot mean backscatter
-g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
-plot(g0_plots$`2007_mean`, g0_plots$AGB_Chave14, xlab='2007 HV backscatter', ylab='2019 AGB')
 
 # Doesn't work...
 correlation <- cor(g0_plots$`2007_mean`, g0_plots$AGB_Chave14)

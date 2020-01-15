@@ -69,12 +69,10 @@ def get_plot_data(data_fname, col_ints, verbose=True):
         df = df.reindex(labels=[1], fill_value=np.nan)
     # Get plot number, shapefile name, and area for given plot
     plot = pd.read_excel(data_fname, 'Plots', header=0, usecols=col_ints, nrows=1)
-    df['plot_no']=plot.columns[0].split('#')[1]
+    df['plot_no'] = plot.columns[0].split('#')[1]
     if verbose:
         print(f'Plot number: {df['plot_no']} | {plot.iloc[0,0]} | Area: {plot.iloc[0,2]} ha')
-
-    df = df.assign(plot_shp=plot.iloc[0,0],
-                plot_area=plot.iloc[0,2])
+    df = df.assign(plot_shp=plot.iloc[0,0], plot_area=plot.iloc[0,2])
     return(df)
 
 #%%
@@ -153,9 +151,13 @@ for i in range(1,36):
 df.loc[:, 'sp_creole'] = df.sp_creole.replace(alt_to_name)
 df.loc[60:70, :]
 
+# Replace np.nan with 0 in dbh_cm column
+df.replace({np.nan:0})
+
 #%% Make and export plots DF
 mplots = df[['plot_no', 'plot_shp', 'plot_area']].groupby('plot_no').first()
 mplots.to_csv(os.path.join(home, 'data', 'haiti_biomass_v2_mplots.csv'), index=True)
+mplots
 
 #%% Join genus to field data DF
 df = df.join(lookup_genus, on='sp_creole', how='left')

@@ -70,4 +70,7 @@ dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundan
 
 # Compare plot AGB to plot mean backscatter
 g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
-plot(g0_plots$`2007_mean`, g0_plots$AGB_Chave14)
+plot(g0_plots$`2007_mean`, g0_plots$AGB_Chave14, xlab='2007 HV backscatter', ylab='2019 AGB')
+
+# Doesn't work...
+correlation <- cor(g0_plots$`2007_mean`, g0_plots$AGB_Chave14)

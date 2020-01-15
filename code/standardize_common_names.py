@@ -59,6 +59,7 @@ def split_species_binomial(df, binomial_fld='by_binomial'):
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
+home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Work with field data - Look at species in all plots
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
@@ -166,7 +167,8 @@ spec_df = pd.read_excel(data_fname, 'Plots', skiprows=[0,1,2],
 spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).replace(alt_to_name)
 
 #%% List unique species with number of occurences and write to excel sheet.
-# spec_list_cnts = spec_ser.value_counts().rename_axis(['common_name'])
+spec_list_cnts = spec_ser.value_counts().rename_axis(['common_name'])
+spec_list_cnts.sort_values()
 # field_species_uniq = pd.Series(spec_ser.unique())
 # # Look at different groupings
 # specs_mult = spec_list_cnts[spec_list_cnts > 2]
@@ -186,6 +188,7 @@ by_df.replace({'Capparaceae': 'Brassicaceae', 'Sterculiaceae': 'Malvaceae'}, inp
 # Split species binomial into genus, species, and species_abbr
 by_df = split_species_binomial(by_df, binomial_fld='by_binomial')
 by_df.head()
+
 #%% Create supplemental wood density from all Bwa Yo values
 bwayo_wd = by_df.loc[~by_df['BY_spec_grav'].isna(),
     ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
@@ -217,7 +220,23 @@ field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(
 field_species.head(2)
 
 # What to do about creole names that match more than one genus?
-field_species[['genus', 'creole']].groupby('creole').agg(lambda x: x.unique())
+field_species[['genus', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())
+
+def most_common(List):
+    if not len(List):
+        return(np.nan)
+    elif len(List) == 1:
+        return(List[0])
+    else: # list is greater than 1
+        return(mode(List))
+from statistics import mode
+l = ['Mor','Ulm', 'Set', 'Ulm', 'Set', 'Set']
+max(set(l), key = l.count)
+mode(l)
+most_common(l)
+
+lookup_genus_by_creole = field_species[['genus', 'creole']].groupby('creole').first()
+
 
 # What to do about creole names that match more than one family?
 field_species[['family', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())

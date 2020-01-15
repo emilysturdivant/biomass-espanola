@@ -26,9 +26,42 @@ print(python_version())
 #%% Initialize
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
+home = r'/home/esturdivant/code/biomass-espanola'
 
+#%% Filenames
+
+#%% Import values from output of QGIS zonal stats
+plots_zstats = pd.read_csv(os.path.join(home, 'plots_zstats_07gamma0_qgis.csv'))
+
+
+
+
+plots_zstats.plot.scatter(x='2007_count', y='2007_mean')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#%% Try extraction in python...
 # Filenames
-cwd_fname = r'/Users/emilysturdivant/Documents/CIGA/data/N19W073_18_sl_HV_F02DAR.tif'
+cwd_fname = r'/home/esturdivant/Documents/biota_out/Gamma0_2010_haiti_HVdb/Gamma0_2010_N19W073.tif'
 shp_fname = os.path.join(home, 'data', 'Augier.shp')
 
 #%%
@@ -46,3 +79,6 @@ geoms
 # help(rasterio.open)
 with rasterio.open(cwd_fname, crs='EPSG:4326') as src:
      out_image, out_transform = mask(src, geoms, crop=True)
+with rasterio.open(cwd_fname, crs='EPSG:4326') as src:
+    geom = rasterio.warp.transform_geom(dataset.crs, 'EPSG:4326', geom, precision=6)
+    out_image, out_transform = mask(src, geoms, crop=True)

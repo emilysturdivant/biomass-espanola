@@ -68,15 +68,24 @@ def get_plot_data(data_fname, col_ints, verbose=True):
 Initialize
 '''
 # Set working directory
-home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
+home = r'/Users/emilysturdivant/GitHub/biomass-espanola' # laptop
+home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 # Filenames
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
 json_fname = os.path.join(home, 'standardize_creole.json')
 lookup_fname = os.path.join(home, 'lookup_famAvgWD_byCreole.xlsx')
+zstats_csv = os.path.join(home, 'plots_zstats_07gamma0_qgis.csv')
 
 # Load creole name replacement dictionary
 alt_to_name = json.load(open(json_fname))
+
+#%% Import values from output of QGIS zonal stats
+plots_gam0 = pd.read_csv(os.path.join(home, zstats_csv))
+plots_gam0.loc[:, ['Name']]
+plots_gam0.Name
+
+
 
 #%% Load field data and convert to table of all plots stacked
 '''

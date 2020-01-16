@@ -8,6 +8,12 @@ mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", c
 bwayo_densities <- read_csv("~/code/biomass-espanola/bwayo_densities.csv", col_types = cols(wd_avg = col_double()))
 g0_plots <- read_csv("~/code/biomass-espanola/plots_zstats_07gamma0_qgis.csv")
 
+# Load data
+mstems <- read_csv("~/GitHub/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
+mplots <- read_csv("~/GitHub/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
+bwayo_densities <- read_csv("~/GitHub/biomass-espanola/bwayo_densities.csv", col_types = cols(wd = col_double()))
+g0_plots <- read_csv("~/GitHub/biomass-espanola/plots_zstats_07gamma0_qgis.csv")
+
 # calculate basal area (m^2) from DBH (cm)
 mstems$basal_area <- calculateBasalArea(mstems$dbh_cm)
 
@@ -91,7 +97,12 @@ mplots$AGB_WDsFromWorld <- mplots$AGB_WDsFromWorld / mplots$plot_area
 
 # Compare plot AGB to plot mean backscatter
 g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
-plot(g0_plots$`2007_mean`, g0_plots$AGB_WDsFromCATrop, xlab='2007 HV backscatter', ylab='2019 AGB')
+g0_plots$AGB_wdFromBY_tons <- g0_plots$AGB_Chave14/1000
+plot(g0_plots$`2007_mean`, g0_plots$AGB_wdFromBY_tons, xlab='2007 HV backscatter', ylab='2019 AGB (tC/ha)')
+write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0_07_with_AGB.csv")
+
+plot(mplots$plot_area, mplots$AGB_Chave14, xlab='area', ylab='2019 AGB')
+
 
 # Look at dominant species based on stocking densities. Add species_name (by_binomial)
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no)
@@ -100,3 +111,6 @@ dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundan
 
 # Doesn't work...
 correlation <- cor(g0_plots$`2007_mean`, g0_plots$AGB_Chave14)
+
+corr <- cor.test(x=g0_plots$`2007_mean`, y=g0_plots$AGB_wdFromBY_tons, method = 'spearman')
+View(corr)

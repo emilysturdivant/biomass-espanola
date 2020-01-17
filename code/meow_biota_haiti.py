@@ -61,6 +61,7 @@ print('Complete.')
 
 year = 2018
 shp = r'/home/esturdivant/code/biomass-espanola/data/AllPlots.shp'
+dataloc = 
 
 data_dict = extractGamma0(dataloc, year, shp, plot_field='plot_no', agb_field='AGB', buffer_size = 0, verbose = True, units = 'natural')
     # Args:

@@ -6,7 +6,7 @@ library(BIOMASS)
 mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
 bwayo_densities <- read_csv("~/code/biomass-espanola/bwayo_densities.csv", col_types = cols(wd_avg = col_double()))
-g0_plots <- read_csv("~/code/biomass-espanola/plots_zstats_07gamma0_qgis.csv")
+g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018.csv")
 
 # Load data
 mstems <- read_csv("~/GitHub/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
@@ -59,8 +59,8 @@ if (!is.null(latitude)) coord = data.frame(longitude = longitude, latitude = lat
 
 # Calculate AGB with Chave equation, return in kg
 AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 1000
-mstems$AGB_Chave14 <- AGB
-summary(mstems$AGB_Chave14)
+mstems$AGB_BYwds <- AGB
+summary(mstems$AGB_BYwds)
 
 # Load wood density without Bwa Yo values
 wood_density_complete <- getWoodDensity(genus, species, stand = plot, family = family, region = region, verbose = FALSE)
@@ -81,9 +81,9 @@ mstems$AGB_WDsFromWorld <- AGB
 summary(mstems$AGB_WDsFromWorld)
 
 # aggregate AGB by plot (C kg/ha)
-agb_plot <- aggregate(AGB_Chave14 ~ plot_no, mstems, sum)
+agb_plot <- aggregate(AGB_BYwds ~ plot_no, mstems, sum)
 mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
-mplots$AGB_Chave14 <- mplots$AGB_Chave14 / mplots$plot_area
+mplots$AGB_BYwds <- mplots$AGB_BYwds / mplots$plot_area
 
 # aggregate AGB by plot (C kg/ha)
 agb_plot <- aggregate(AGB_WDsFromCATrop ~ plot_no, mstems, sum)
@@ -97,11 +97,19 @@ mplots$AGB_WDsFromWorld <- mplots$AGB_WDsFromWorld / mplots$plot_area
 
 # Compare plot AGB to plot mean backscatter
 g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
-g0_plots$AGB_wdFromBY_tons <- g0_plots$AGB_Chave14/1000
-plot(g0_plots$`2007_mean`, g0_plots$AGB_wdFromBY_tons, xlab='2007 HV backscatter', ylab='2019 AGB (tC/ha)')
-write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0_07_with_AGB.csv")
+g0_plots$AGB_BYwds_tons <- g0_plots$AGB_BYwds/1000
+plot(g0_plots$`2018_mean`, g0_plots$AGB_BYwds_tons, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
+scatter.smooth(x=g0_plots$`2018_mean`, y=g0_plots$AGB_BYwds_tons, main="Backscatter ~ Biomass", xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)') 
+write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0nu2018_withAGB.csv")
 
-plot(mplots$plot_area, mplots$AGB_Chave14, xlab='area', ylab='2019 AGB')
+plot(mplots$plot_area, mplots$AGB_BYwds_tons, xlab='area', ylab='2019 AGB')
+
+
+lm('2018_mean' ~ AGB_BYwds_tons, g0_plots)
+
+# Get Spearman's rank correlation coefficient
+corr <- cor.test(x=g0_plots$`2018_mean`, y=g0_plots$AGB_BYwds_tons, method = 'spearman')
+corr$estimate
 
 
 # Look at dominant species based on stocking densities. Add species_name (by_binomial)
@@ -109,8 +117,4 @@ dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no)
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = calculateBasalArea(mstems$dbh_cm))
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = mstems$AGB_Chave14)
 
-# Doesn't work...
-correlation <- cor(g0_plots$`2007_mean`, g0_plots$AGB_Chave14)
 
-corr <- cor.test(x=g0_plots$`2007_mean`, y=g0_plots$AGB_wdFromBY_tons, method = 'spearman')
-View(corr)

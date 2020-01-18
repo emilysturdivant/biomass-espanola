@@ -71,7 +71,7 @@ def get_plot_data(data_fname, col_ints, verbose=True):
     plot = pd.read_excel(data_fname, 'Plots', header=0, usecols=col_ints, nrows=1)
     df['plot_no'] = plot.columns[0].split('#')[1]
     if verbose:
-        print(f'Plot number: {df['plot_no']} | {plot.iloc[0,0]} | Area: {plot.iloc[0,2]} ha')
+        print(f'Plot number: {df.plot_no} | {plot.iloc[0,0]} | Area: {plot.iloc[0,2]} ha')
     df = df.assign(plot_shp=plot.iloc[0,0], plot_area=plot.iloc[0,2])
     return(df)
 
@@ -121,7 +121,7 @@ creole_df = (by_df
         )
 creole_df['creole'] = creole_df.creole.str.strip()
 by_creole_names = creole_df.creole.unique().tolist()
-
+creole_df
 #%% Extract species in field data from BY df
 # Load creole name replacement dictionary
 alt_to_name = json.load(open(json_fname))
@@ -133,26 +133,36 @@ spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).re
 
 # Extract species in field data from BY df
 field_species_uniq = pd.Series(spec_ser.unique())
-field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
+field_species = creole_df.loc[creole_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
+# Why does this not have bayawonn for example?
+field_species['creole'].sort_index()
 
 #%% Create creole to species_name lookup and species_name to bwayo_wd lookup
 lookup_genus = field_species[['genus', 'creole']].groupby('creole').first()
 lookup_genus
+
+#%% Convert unknown species to something standardized
+unknowns = field_species_uniq[~field_species_uniq.isin(lookup_genus.index)]
+for i in unknowns:
+    print(i)
+    alt_to_name[i] = np.nan
+
 |#%% Load field data and convert to table of all plots stacked
 # Iteratively load each plot in turn and concatenate
 col_init = [0,1,2,3]
-df = get_plot_data(data_fname, col_init, verbose=False)
+df = get_plot_data(data_fname, col_init, verbose=True)
 for i in range(1,36):
     col_ints = np.add(col_init, 4*i)
-    df2 = get_plot_data(data_fname, col_ints, verbose=False)
+    df2 = get_plot_data(data_fname, col_ints, verbose=True)
     df = pd.concat([df, df2], ignore_index=True)
 
+df
 # Standardize creole names
 df.loc[:, 'sp_creole'] = df.sp_creole.replace(alt_to_name)
 df.loc[60:70, :]
 
 # Replace np.nan with 0 in dbh_cm column
-df.replace({np.nan:0})
+df.replace({np.nan:0}, inplace=True)
 
 #%% Make and export plots DF
 mplots = df[['plot_no', 'plot_shp', 'plot_area']].groupby('plot_no').first()

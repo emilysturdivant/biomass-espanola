@@ -69,7 +69,7 @@ Initialize
 '''
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola' # laptop
-home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 # Filenames
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
@@ -101,16 +101,57 @@ for i in range(1,36):
 
 # Standardize creole names
 df.loc[:, 'sp_creole'] = df.sp_creole.replace(alt_to_name)
-df
+df.columns
 
 #%% Perform QC on data
-# Check DBH measurements - look for outliers
 
-# Identify duplicate records
+#%% Check DBH measurements - look for outliers
+df.dbh_cm
+fig, ax = plt.subplots(figsize=(16,8))
+ax.scatter(df['dbh_cm'], df['plot_no'])
+ax.set_xlabel('DBH')
+ax.set_ylabel('Plot Number')
+plt.show()
+df[df['dbh_cm'] < 1]
 
-# Look at DBH and height ranges by species
+df.boxplot(column='dbh_cm', by='plot_no', figsize=(16,8))
+
+
+fig, ax = plt.subplots(figsize=(16,8))
+ax.scatter(df['dbh_cm'], df['ht_m'])
+ax.set_xlabel('DBH')
+ax.set_ylabel('Height')
+plt.show()
+
+
+fig, ax = plt.subplots(figsize=(16,8))
+ax.scatter(df['plot_no'], df['ht_m'])
+ax.set_xlabel('Plot')
+ax.set_ylabel('Height')
+plt.show()
+df[df['ht_m'] > 60]
+
+#%% Identify duplicate records
+# Look at consecutive duplicated entries
+cols = ["sp_creole", "dbh_cm", "plot_no"]
+dups1 = (df[cols].shift() == df[cols]).all(axis=1).replace({False: np.nan})
+de_dup = df[cols].loc[dups1.fillna(dups1.shift(-1)).fillna(False)]
+de_dup
+
+# All duplicates
+df[df.duplicated(subset=['sp_creole', 'dbh_cm', 'ht_m', 'plot_no'], keep=False)]
+# Duplicates within a plot (plot 9)
+df_plt9 = df[df['plot_no'] == '9']
+df_plt9[df_plt9.duplicated(subset=['sp_creole', 'dbh_cm', 'ht_m'], keep=False)]
+df_plt9_mango = df_plt9[df_plt9['sp_creole'] == 'mango']
+df_plt9_mango[df_plt9_mango.duplicated(subset=['dbh_cm', 'ht_m'], keep=False)]
+
+#%% Look at DBH and height ranges by species
+df.boxplot(column='dbh_cm', by='sp_creole', figsize=(20,8), rot=90)
+df.boxplot(column='ht_m', by='sp_creole', figsize=(20,8), rot=90)
 
 # Convert unknown species to something standardized
+
 
 # Write to CSV
 df.to_csv(os.path.join(home, 'haiti_biomass_v2_stacked.csv'), index=False)

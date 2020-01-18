@@ -28,28 +28,44 @@ for VAR in -69 -73 -74 -75
 do
     biota download -lon $VAR -lat 20 -y 2018 -r -o /home/esturdivant/Documents/ALOS
 done
+biota download -lon -72 -lat 18 -y 2018 -r -o /Users/emilysturdivant/Documents/CIGA/ALOS
 '''
 
 
 # Process data
 data_dir = r'/home/esturdivant/Documents/ALOS'
 output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV_lee'
-latrange = range(19, 21) # range(19,21) includes all of haiti
-lonrange = range(-74, -67) # range(-74, -67) includes all of haiti
-y1 = 2018
-for latitude in latrange:
-    for longitude in lonrange:
-        # Print progress
-        print('Doing latitude: {}, longitude: {}'.format(str(latitude), str(longitude)))
-        # Load the ALOS tile with specified options
-        try:
-            tile = biota.LoadTile(data_dir, latitude, longitude, y1, lee_filter = True, forest_threshold = 15., area_threshold = 1, output_dir = output_dir)
-        except:
-            print('error')
-            continue
-        # Calculate gamma0 and output to GeoTiff
-        gamma0 = tile.getGamma0(polarisation='HV', output=True)
-        print('Complete.')
+
+data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
+output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2017_v1'
+
+# Set slope and intercept of AGB-backscatter regression
+slope = 2426.26
+intercept= 10.21
+
+# Create list of tile coordinates
+coord_list = []
+for latitude in range(19, 21):
+    for longitude in range(-74, -67):
+        coord_list += [[latitude, longitude]]
+coord_list += [[18, -72], [19, -75]]
+
+y1 = 2017
+for lat, lon in coord_list:
+    # Print progress
+    print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
+    # Load the ALOS tile with specified options
+    try:
+        tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = True, output_dir = output_dir)
+    except:
+        print('error')
+        continue
+    # Calculate gamma0 and output to GeoTiff
+    # gamma0 = tile.getGamma0(polarisation='HV', output=True)
+    agb = tile.getAGB(slope= 2426.26, intercept= 10.21, output = True)
+    print('Complete.')
+
+
 
 tile = biota.LoadTile(data_dir, latitude, longitude, y1, lee_filter = True, forest_threshold = 15., area_threshold = 1, output_dir = output_dir)
 
@@ -61,7 +77,7 @@ print('Complete.')
 
 year = 2018
 shp = r'/home/esturdivant/code/biomass-espanola/data/AllPlots.shp'
-dataloc = 
+dataloc =
 
 data_dict = extractGamma0(dataloc, year, shp, plot_field='plot_no', agb_field='AGB', buffer_size = 0, verbose = True, units = 'natural')
     # Args:

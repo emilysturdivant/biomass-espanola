@@ -12,7 +12,7 @@ g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018.csv")
 mstems <- read_csv("~/GitHub/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/GitHub/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
 bwayo_densities <- read_csv("~/GitHub/biomass-espanola/bwayo_densities.csv", col_types = cols(wd = col_double()))
-g0_plots <- read_csv("~/GitHub/biomass-espanola/plots_zstats_07gamma0_qgis.csv")
+g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018.csv")
 
 # calculate basal area (m^2) from DBH (cm)
 mstems$basal_area <- calculateBasalArea(mstems$dbh_cm)
@@ -95,17 +95,16 @@ agb_plot <- aggregate(AGB_WDsFromWorld ~ plot_no, mstems, sum)
 mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
 mplots$AGB_WDsFromWorld <- mplots$AGB_WDsFromWorld / mplots$plot_area
 
-# Compare plot AGB to plot mean backscatter
+# Add AGB to 
 g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
 g0_plots$AGB_BYwds_tons <- g0_plots$AGB_BYwds/1000
-plot(g0_plots$`2018_mean`, g0_plots$AGB_BYwds_tons, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
-scatter.smooth(x=g0_plots$`2018_mean`, y=g0_plots$AGB_BYwds_tons, main="Backscatter ~ Biomass", xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)') 
 write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0nu2018_withAGB.csv")
 
-plot(mplots$plot_area, mplots$AGB_BYwds_tons, xlab='area', ylab='2019 AGB')
-
-
-lm('2018_mean' ~ AGB_BYwds_tons, g0_plots)
+# Plot AGB against backscatter
+plot(g0_plots$`2018_mean`, g0_plots$AGB_BYwds_tons, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
+linreg <- lm(g0_plots$AGB_BYwds_tons ~ g0_plots$`2018_mean`)
+abline(linreg)
+linreg
 
 # Get Spearman's rank correlation coefficient
 corr <- cor.test(x=g0_plots$`2018_mean`, y=g0_plots$AGB_BYwds_tons, method = 'spearman')

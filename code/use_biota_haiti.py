@@ -28,8 +28,7 @@ biota download -lon -72 -lat 18 -y 2010 -r -o /home/esturdivant/Documents/ALOS
 biota download -lon -75 -lat 19 -y 2010 -r -o /home/esturdivant/Documents/ALOS
 '''
 
-
-# Process data
+#%% Initialize file paths
 data_dir = r'/home/esturdivant/Documents/ALOS'
 output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV_lee'
 output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2018_v1'
@@ -37,18 +36,19 @@ output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2018_v1'
 data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
 output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2017_v1'
 
-# Set slope and intercept of AGB-backscatter regression
+#%% Set slope and intercept of AGB-backscatter regression
 slope = 2426.26
 intercept= 10.21
+y1 = 2018
 
-# Create list of tile coordinates
+#%% Create list of tile coordinates
 coord_list = []
 for latitude in range(19, 21):
     for longitude in range(-74, -67):
         coord_list += [[latitude, longitude]]
 coord_list += [[18, -72], [19, -75]]
 
-y1 = 2018
+#%% Run processing loop
 for lat, lon in coord_list:
     # Print progress
     print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
@@ -65,6 +65,9 @@ for lat, lon in coord_list:
 
 
 
+
+
+#%% Experimental...
 tile = biota.LoadTile(data_dir, latitude, longitude, y1, lee_filter = True, forest_threshold = 15., area_threshold = 1, output_dir = output_dir)
 
 # Add river lines to the mask with a 250 m buffer

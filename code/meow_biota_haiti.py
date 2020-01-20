@@ -9,32 +9,30 @@ Activate environment with biota installed ('biota')
 # years 2007-2016
 biota download -lon -73 -lat 20 -r -o /home/esturdivant/Documents/ALOS
 
-# years 2017
-biota download -lon -73 -lat 20 -y 2018 -r -o /home/esturdivant/Documents/ALOS
-
-# years 2018 and 2019 result in error
-biota download -lon -73 -lat 20 -y 2018 -r -o /home/esturdivant/Documents/ALOS
-biota download -lon -74 -lat 20 -y 2018 -r -o /home/esturdivant/Documents/ALOS
-biota download -lon -72 -lat 20 -y 2018 -r -o /home/esturdivant/Documents/ALOS
-biota download -lon -73 -lat 19 -y 2018 -r -o /home/esturdivant/Documents/ALOS
-
-for VAR in -69 -73 -74 -75
-do
-    biota download -lon $VAR -lat 20 -r -o /home/esturdivant/Documents/ALOS
-    biota download -lon $VAR -lat 20 -y 2017 -r -o /home/esturdivant/Documents/ALOS
-done
-
-for VAR in -69 -73 -74 -75
+# 2018 (ALOS-2)
+for VAR in -68 -69 -70 -71 -72 -73 -74
 do
     biota download -lon $VAR -lat 20 -y 2018 -r -o /home/esturdivant/Documents/ALOS
+    biota download -lon $VAR -lat 19 -y 2018 -r -o /home/esturdivant/Documents/ALOS
 done
-biota download -lon -72 -lat 18 -y 2018 -r -o /Users/emilysturdivant/Documents/CIGA/ALOS
+biota download -lon -72 -lat 18 -y 2018 -r -o /home/esturdivant/Documents/ALOS
+biota download -lon -75 -lat 19 -y 2018 -r -o /home/esturdivant/Documents/ALOS
+
+# 2010 (ALOS-1)
+for VAR in -68 -69 -70 -71 -72 -73 -74
+do
+    biota download -lon $VAR -lat 20 -y 2010 -r -o /home/esturdivant/Documents/ALOS
+    biota download -lon $VAR -lat 19 -y 2010 -r -o /home/esturdivant/Documents/ALOS
+done
+biota download -lon -72 -lat 18 -y 2010 -r -o /home/esturdivant/Documents/ALOS
+biota download -lon -75 -lat 19 -y 2010 -r -o /home/esturdivant/Documents/ALOS
 '''
 
 
 # Process data
 data_dir = r'/home/esturdivant/Documents/ALOS'
 output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV_lee'
+output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2018_v1'
 
 data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
 output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2017_v1'
@@ -50,7 +48,7 @@ for latitude in range(19, 21):
         coord_list += [[latitude, longitude]]
 coord_list += [[18, -72], [19, -75]]
 
-y1 = 2017
+y1 = 2018
 for lat, lon in coord_list:
     # Print progress
     print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
@@ -62,7 +60,7 @@ for lat, lon in coord_list:
         continue
     # Calculate gamma0 and output to GeoTiff
     # gamma0 = tile.getGamma0(polarisation='HV', output=True)
-    agb = tile.getAGB(slope= 2426.26, intercept= 10.21, output = True)
+    agb = tile.getAGB(slope=slope, intercept=intercept, output = True)
     print('Complete.')
 
 

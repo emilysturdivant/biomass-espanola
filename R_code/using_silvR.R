@@ -3,9 +3,9 @@ library(readr)
 library(BIOMASS)
 
 # Load data
-mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
+mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough_nans.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
-bwayo_densities <- read_csv("~/code/biomass-espanola/bwayo_densities.csv", col_types = cols(wd_avg = col_double()))
+bwayo_densities <- read_csv("~/code/biomass-espanola/bwayo_densities.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018.csv")
 
 # Load data
@@ -14,10 +14,9 @@ mplots <- read_csv("~/GitHub/biomass-espanola/data/haiti_biomass_v2_mplots.csv",
 bwayo_densities <- read_csv("~/GitHub/biomass-espanola/bwayo_densities.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018.csv")
 
+# aggregate Basal Area by plot (m^2/ha) - the area of land that is occupied by the cross-section of a tree.
 # calculate basal area (m^2) from DBH (cm)
 mstems$basal_area <- calculateBasalArea(mstems$dbh_cm)
-
-# aggregate Basal Area by plot (m^2/ha) - the area of land that is occupied by the cross-section of a tree.
 ba_plot <- aggregate(basal_area ~ plot_no, mstems, sum)
 mplots <- merge(mplots, ba_plot, by='plot_no', all=TRUE)
 mplots$basal_area <- mplots$basal_area / mplots$plot_area
@@ -57,17 +56,22 @@ wood_density = wood_density_complete$meanWD
 # Prepare coordinates, required without height
 if (!is.null(latitude)) coord = data.frame(longitude = longitude, latitude = latitude) else coord = NULL
 
-# Calculate AGB with Chave equation, return in kg
-AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 1000
+# Calculate AGB with Chave equation, return in Mg
+AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0)
 mstems$AGB_BYwds <- AGB
 summary(mstems$AGB_BYwds)
+mstems[which(AGB == max(AGB, na.rm=T)), ]
+boxplot(AGB_BYwds~plot_no, data=mstems)
+boxplot(AGB_BYwds~plot_no, data=mstems)
+plot(mstems$dbh_cm, mstems$AGB_BYwds, xlab='diam', ylab='AGB')
+
 
 # Load wood density without Bwa Yo values
 wood_density_complete <- getWoodDensity(genus, species, stand = plot, family = family, region = region, verbose = FALSE)
 wood_density = wood_density_complete$meanWD
 
-# Calculate AGB with Chave equation, return in kg
-AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 1000
+# Calculate AGB with Chave equation, return in Mg
+AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0)
 mstems$AGB_WDsFromCATrop <- AGB
 summary(mstems$AGB_WDsFromCATrop)
 
@@ -75,8 +79,8 @@ summary(mstems$AGB_WDsFromCATrop)
 wood_density_complete <- getWoodDensity(genus, species, stand = plot, family = family, region = 'World', verbose = FALSE)
 wood_density = wood_density_complete$meanWD
 
-# Calculate AGB with Chave equation, return in kg
-AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0) * 1000
+# Calculate AGB with Chave equation, return in Mg
+AGB <- computeAGB(diam, wood_density, H = height, coord = coord, Dlim = 0)
 mstems$AGB_WDsFromWorld <- AGB
 summary(mstems$AGB_WDsFromWorld)
 
@@ -97,12 +101,11 @@ mplots$AGB_WDsFromWorld <- mplots$AGB_WDsFromWorld / mplots$plot_area
 
 # Add AGB to 
 g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
-g0_plots$AGB_BYwds_tons <- g0_plots$AGB_BYwds/1000
 write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0nu2018_withAGB.csv")
 
 # Plot AGB against backscatter
 plot(g0_plots$`2018_mean`, g0_plots$AGB_BYwds_tons, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
-linreg <- lm(g0_plots$AGB_BYwds_tons ~ g0_plots$`2018_mean`)
+linreg <- lm(g0_plots$AGB_BYwds ~ g0_plots$`2018_mean`)
 abline(linreg)
 linreg
 

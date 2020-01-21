@@ -34,7 +34,7 @@ output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV_lee'
 output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2018_v1'
 
 data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
-output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2017_v1'
+output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018_v1'
 
 #%% Set slope and intercept of AGB-backscatter regression
 slope = 2426.26

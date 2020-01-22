@@ -9,7 +9,7 @@ bwayo_densities <- read_csv("~/code/biomass-espanola/bwayo_densities.csv", col_t
 g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018.csv")
 
 # Load data - Mac
-mstems <- read_csv("~/GitHub/biomass-espanola/mstems_genus_rough_nans.csv", col_types = cols(plot_no = col_integer()))
+mstems <- read_csv("~/GitHub/biomass-espanola/mstems_FamGenSpec_lookupfirst.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/GitHub/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
 bwayo_densities <- read_csv("~/GitHub/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018.csv")
@@ -39,18 +39,22 @@ mplots$stocking <- mplots$stocking / mplots$plot_area
 species <- NULL
 plot <- mstems$plot_no
 family <- NULL
-region <- 'CentralAmericaTrop'
+#region <- 'CentralAmericaTrop'
 wd_data <- bwayo_densities
 latitude <- 19
 longitude <- -72
-height <- NULL # get this... 
 
-mstems$dbh_cm <-
+# convert Nulls in DBH to...? 
+mstems$dbh_cm <- 
 
 # Load wood density
 if (is.null(species)) species = rep('', length(mstems$genus))
-wood_densities <- getWoodDensity(mstems$genus, species, stand = plot, family = family, region = 'World',
+wood_densities <- getWoodDensity(mstems$genus, species, stand = mstems$plot_no, family = family, region = 'World',
                                   addWoodDensityData = wd_data, verbose = FALSE)
+wood_densities2 <- getWoodDensity(mstems$genus, species, stand = mstems$plot_no, family = mstems$family, region = 'World',
+                                 addWoodDensityData = wd_data, verbose = FALSE)
+wood_densities2
+wd_famleve = wood_densities2[which(wood_densities2$levelWD == 'family'), ]
 wood_density = wood_densities$meanWD
 
 # Prepare coordinates, required without height

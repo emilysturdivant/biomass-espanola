@@ -149,10 +149,10 @@ print(f'{ct} species in field data not identified.')
 |#%% Load field data and convert to table of all plots stacked
 # Iteratively load each plot in turn and concatenate
 col_init = [0,1,2,3]
-df = get_plot_data(data_fname, col_init, verbose=True)
+df = get_plot_data(data_fname, col_init, verbose=False)
 for i in range(1,36):
     col_ints = np.add(col_init, 4*i)
-    df2 = get_plot_data(data_fname, col_ints, verbose=True)
+    df2 = get_plot_data(data_fname, col_ints, verbose=False)
     df = pd.concat([df, df2], ignore_index=True)
 
 df
@@ -166,6 +166,7 @@ df[df['dbh_cm'].isna()]
 # Replace np.nan with 0 in dbh_cm column
 # df.replace({np.nan:0}, inplace=True)
 df.to_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'), index=False)
+df = pd.read_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'))
 
 #%% Make and export plots DF
 mplots = df[['plot_no', 'plot_shp', 'plot_area']].groupby('plot_no').first()
@@ -174,39 +175,13 @@ mplots
 
 
 #%% Perform QC on data
-
-#%% Check DBH measurements - look for outliers
-df.dbh_cm
-fig, ax = plt.subplots(figsize=(16,8))
-ax.scatter(df['dbh_cm'], df['plot_no'])
-ax.set_xlabel('DBH')
-ax.set_ylabel('Plot Number')
-plt.show()
-df[df['dbh_cm'] < 1]
-
-df.boxplot(column='dbh_cm', by='plot_no', figsize=(16,8))
-
-
-fig, ax = plt.subplots(figsize=(16,8))
-ax.scatter(df['dbh_cm'], df['ht_m'])
-ax.set_xlabel('DBH')
-ax.set_ylabel('Height')
-plt.show()
-
-
-fig, ax = plt.subplots(figsize=(16,8))
-ax.scatter(df['plot_no'], df['ht_m'])
-ax.set_xlabel('Plot')
-ax.set_ylabel('Height')
-plt.show()
-df[df['ht_m'] > 60]
-
 #%% Identify duplicate records
 # Look at consecutive duplicated entries
-cols = ["sp_creole", "dbh_cm", "plot_no"]
+cols = ["sp_creole", "dbh_cm", 'ht_m', "plot_no"]
 dups1 = (df[cols].shift() == df[cols]).all(axis=1).replace({False: np.nan})
 de_dup = df[cols].loc[dups1.fillna(dups1.shift(-1)).fillna(False)]
 de_dup
+len(de_dup)
 
 # All duplicates
 df[df.duplicated(subset=['sp_creole', 'dbh_cm', 'ht_m', 'plot_no'], keep=False)]
@@ -216,9 +191,76 @@ df_plt9[df_plt9.duplicated(subset=['sp_creole', 'dbh_cm', 'ht_m'], keep=False)]
 df_plt9_mango = df_plt9[df_plt9['sp_creole'] == 'mango']
 df_plt9_mango[df_plt9_mango.duplicated(subset=['dbh_cm', 'ht_m'], keep=False)]
 
-#%% Look at DBH and height ranges by species
-df.boxplot(column='dbh_cm', by='sp_creole', figsize=(20,8), rot=90)
-df.boxplot(column='ht_m', by='sp_creole', figsize=(20,8), rot=90)
+#%% Check DBH measurements - look for outliers
 
-# Convert unknown species to something standardized
-# Currently, all unknown species were replaced with np.nan.
+fig, ax = plt.subplots(figsize=(16,8))
+ax.scatter(df['dbh_cm'], df['plot_no'])
+ax.set_xlabel('DBH')
+ax.set_ylabel('Plot Number')
+plt.show()
+# plt.savefig('example.pdf')
+#%%
+plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', figsize=(16, 2), whis=[1,99], notch=True, vert=False, showmeans=True, meanline=True)
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_plotno.png'))
+
+#%%
+plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', by='plot_no', figsize=(16,8), whis=[1,99], notch=True, showmeans=True)
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_plotno.png'))
+
+#%%
+plot = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(16,8), alpha=0.05)
+fig = plot.get_figure()
+fig.tight_layout()
+fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_height_suspicious_pattern.png'))
+
+df['ht_m'].plot.hist(bins=40)
+df[['dbh_cm', 'ht_m']].hist(bins=20)
+
+#%%
+plot = df[~df['ht_m'].isna()].boxplot(column='ht_m', by='plot_no', figsize=(16,8))
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_height_plotno.png'))
+
+df_lame = df[df.sp_creole=='figye']
+df_lame[df_lame.ht_m > 18]
+
+
+#%% Look at DBH and height distributions by species
+df['sp_creole'] = df['sp_creole'].fillna('UNKNOWN')
+plot = df.boxplot(column='dbh_cm', by='sp_creole', figsize=(8,16), vert=False)
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_species.png'))
+
+#%%
+df_sub = df[df['sp_creole'].isin(['mango', 'latanye lame', 'figye', 'monben', 'kaliptis'])]
+plot = df_sub.boxplot(column='dbh_cm', by='sp_creole', figsize=(8,4), vert=False)
+fig = plot.get_figure()
+fig.tight_layout()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_species_outliers.png'))
+
+#%%
+ax = df[df.sp_creole == 'mango'].plot.scatter(x='dbh_cm', y='ht_m', color='Blue', label='mango');
+df[df.sp_creole == 'latanye lame'].plot.scatter(x='dbh_cm', y='ht_m', color='Green', label='latanye lame', ax=ax);
+df[df.sp_creole == 'figye'].plot.scatter(x='dbh_cm', y='ht_m', color='Cyan', label='figye', ax=ax);
+df[df.sp_creole == 'kampech'].plot.scatter(x='dbh_cm', y='ht_m', color='Yellow', label='kampech', ax=ax);
+plot = df[df.sp_creole == 'kaliptis'].plot.scatter(x='dbh_cm', y='ht_m', color='Red', label='kaliptis', ax=ax);
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_height_outliers.png'))
+
+#%%
+plot = df.boxplot(column='ht_m', by='sp_creole', figsize=(8,16), vert=False)
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_ht_species.png'))
+#%%
+
+#%% Join genus to field data DF
+# Simplistic: take the first genus matching the creole name
+lookup_genus = field_species[['genus', 'family', 'species', 'creole']].groupby('creole').first()
+dfjoined = df.join(lookup_genus, on='sp_creole', how='left')
+
+plot = dfjoined.boxplot(column='dbh_cm', by='family', figsize=(8,16), vert=False)
+fig = plot.get_figure()
+fig.tight_layout()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_family.png'))

@@ -3,10 +3,10 @@ library(readr)
 library(BIOMASS)
 
 # Load data - Desktop
-mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough_nans.csv", col_types = cols(plot_no = col_integer()))
+mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
-bwayo_densities <- read_csv("~/code/biomass-espanola/bwayo_densities.csv", col_types = cols(wd = col_double()))
-g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018.csv")
+bwayo_densities <- read_csv("~/code/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
+g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018_HV.csv")
 
 # Load data - Mac
 mstems <- read_csv("~/GitHub/biomass-espanola/mstems_genus_rough_nans.csv", col_types = cols(plot_no = col_integer()))
@@ -37,7 +37,6 @@ mplots$stocking <- mplots$stocking / mplots$plot_area
 # Run Chave14 equation using BIOMASS
 # Get wood density by genus
 species <- NULL
-plot <- mstems$plot_no
 family <- NULL
 region <- 'CentralAmericaTrop'
 wd_data <- bwayo_densities
@@ -45,11 +44,11 @@ latitude <- 19
 longitude <- -72
 height <- NULL # get this... 
 
-mstems$dbh_cm <-
+#mstems$dbh_cm <-
 
 # Load wood density
 if (is.null(species)) species = rep('', length(mstems$genus))
-wood_densities <- getWoodDensity(mstems$genus, species, stand = plot, family = family, region = 'World',
+wood_densities <- getWoodDensity(mstems$genus, species, stand = mstems$plot_no, family = family, region = 'World',
                                   addWoodDensityData = wd_data, verbose = FALSE)
 wood_density = wood_densities$meanWD
 
@@ -67,23 +66,21 @@ plot(mstems$dbh_cm, mstems$AGB_BYwds, xlab='diam', ylab='AGB')
 
 # aggregate AGB by plot (MgC/ha)
 agb_plot <- aggregate(AGB_BYwds ~ plot_no, mstems, sum)
-
 mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
 mplots$AGB_BYwds <- mplots$AGB_BYwds / mplots$plot_area
-
 
 # Add AGB to 
 g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
 #write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0nu2018_withAGB.csv")
 
 # Plot AGB against backscatter
-plot(g0_plots$`2018_mean`, g0_plots$AGB_BYwds_tons, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
+plot(g0_plots$`2018_mean`, g0_plots$AGB_BYwds, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
 linreg <- lm(g0_plots$AGB_BYwds ~ g0_plots$`2018_mean`)
 abline(linreg)
 linreg
 
 # Get Spearman's rank correlation coefficient
-corr <- cor.test(x=g0_plots$`2018_mean`, y=g0_plots$AGB_BYwds_tons, method = 'spearman')
+corr <- cor.test(x=g0_plots$`2018_mean`, y=g0_plots$AGB_BYwds, method = 'spearman')
 corr$estimate
 
 

@@ -30,16 +30,16 @@ biota download -lon -75 -lat 19 -y 2010 -r -o /home/esturdivant/Documents/ALOS
 
 #%% Initialize file paths
 data_dir = r'/home/esturdivant/Documents/ALOS'
-output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV_lee'
-output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2018_v1'
+output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV'
+output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2010_v2'
 
 data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
-output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018_v1'
+output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018_v2'
 
 #%% Set slope and intercept of AGB-backscatter regression
-slope = 2426.26
-intercept= 10.21
-y1 = 2018
+slope = 1908.49
+intercept= 12.43
+y1 = 2010
 
 #%% Create list of tile coordinates
 coord_list = []
@@ -54,7 +54,7 @@ for lat, lon in coord_list:
     print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
     # Load the ALOS tile with specified options
     try:
-        tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = True, output_dir = output_dir)
+        tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = False, output_dir = output_dir)
     except:
         print('error')
         continue
@@ -62,10 +62,12 @@ for lat, lon in coord_list:
     # gamma0 = tile.getGamma0(polarisation='HV', output=True)
     agb = tile.getAGB(slope=slope, intercept=intercept, output = True)
     print('Complete.')
+print('ALL DONE.')
 
-
-
-
+'''
+# In QGIS:
+gdal_merge.py -ot Float32 -of GTiff -o /home/esturdivant/Documents/biota_out/AGB_2018_v2/AGB_2018_v2.tif --optfile /tmp/processing_c054cfe79c5c4e7b946b1b6603d98e7b/4e8652a2142740759b28c1fcffea58da/mergeInputFiles.txt
+'''
 
 #%% Experimental...
 tile = biota.LoadTile(data_dir, latitude, longitude, y1, lee_filter = True, forest_threshold = 15., area_threshold = 1, output_dir = output_dir)

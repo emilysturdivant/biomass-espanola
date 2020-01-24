@@ -43,13 +43,13 @@ gwd_lookup = gwd_df.loc[gwd_df['gwd_binomial'].isin(field_binoms)]
 
 # %% Experiment with groupby on GWD
 count = lambda x: x.count()
+single = lambda x: x if x.count() == 1 else np.nan
 gwd_lookup.groupby('gwd_binomial')['gwd_density'].agg(
         mean=np.mean,
         count=count,
         single_entry=single)
 
 # for each field species, get GWD values if there is only one matching GWD entry
-single = lambda x: x if x.count() == 1 else np.nan
 gwd_lookup.groupby('gwd_binomial').agg(single)
 # for each field species, list all unique values in each column
 uniq = lambda x: x.unique()

@@ -123,6 +123,7 @@ creole_df = (by_df
             .reset_index(drop=True)
         )
 creole_df['creole'] = creole_df.creole.str.strip()
+creole_df.to_csv(os.path.join(home, 'data', 'exploded_bwayolookup.csv'), index=False)
 
 #%% Extract species in field data from BY df - prep for lookup table
 # Create series of all species columns (labeled 'sp')
@@ -136,7 +137,7 @@ field_species_uniq = pd.Series(spec_ser.unique())
 field_species = creole_df.loc[creole_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
 
 # Export CSV
-field_species.to_csv(os.path.join(home, 'data', 'master_lookup.csv'))
+field_species.to_csv(os.path.join(home, 'data', 'master_lookup.csv'), index=False)
 
 #%% Convert unknown species to something standardized
 unknowns = field_species_uniq[~field_species_uniq.isin(field_species['creole'])]

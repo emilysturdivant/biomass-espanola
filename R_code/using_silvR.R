@@ -12,34 +12,29 @@ g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018_HV.csv")
 mstems <- read_csv("~/GitHub/biomass-espanola/mstems_FamGenSpec_lookupfirst.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/GitHub/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
 bwayo_densities <- read_csv("~/GitHub/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
-g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018.csv")
+g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018_HV.csv")
+creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_bwayolookup.csv")
 
-# aggregate Basal Area by plot (m^2/ha) - the area of land that is occupied by the cross-section of a tree.
-# calculate basal area (m^2) from DBH (cm)
-mstems$basal_area <- calculateBasalArea(mstems$dbh_cm)
-ba_plot <- aggregate(basal_area ~ plot_no, mstems, sum)
-mplots <- merge(mplots, ba_plot, by='plot_no', all=TRUE)
-mplots$basal_area <- mplots$basal_area / mplots$plot_area
-
-# calculate stem volume  (m^3) from DBH (cm) - an estimate of the ammount of space that the tree bole occupies.
-mstems$volume <- calculateStemVolume(mstems$dbh_cm)
-vol_plot <- aggregate(volume ~ plot_no, mstems, sum)
-mplots <- merge(mplots, vol_plot, by='plot_no', all=TRUE)
-mplots$volume <- mplots$volume / mplots$plot_area
-
-# calculate stocking density () from DBH
-mstems$stocking <- calculateStocking(mstems$dbh_cm)
-mstems$stocking_10 <- calculateStocking(mstems$dbh_cm, min_diam = 10)
-stocking_plot <- aggregate(stocking ~ plot_no, mstems, sum)
-mplots <- merge(mplots, stocking_plot, by='plot_no', all=TRUE)
-mplots$stocking <- mplots$stocking / mplots$plot_area
+# Load wood density
+wood_densities <- getWoodDensity(creole_df$genus, creole_df$species, family = creole_df$family, region = 'World',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
+write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_SpecGenFam_BY.csv", row.names=FALSE)
+species <- NULL
+if (is.null(species)) species = rep('', length(creole_df$genus))
+wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'World',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
+write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_GenFam_BY.csv", row.names=FALSE)
+family <- NULL
+wood_densities <- getWoodDensity(creole_df$genus, species, family = family, region = 'World',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
+write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_Gen_BY.csv", row.names=FALSE)
 
 # Run Chave14 equation using BIOMASS
 # Get wood density by genus
 species <- NULL
+if (is.null(species)) species = rep('', length(mstems$genus))
 family <- NULL
 #region <- 'CentralAmericaTrop'
-wd_data <- bwayo_densities
 latitude <- 19
 longitude <- -72
 
@@ -47,20 +42,14 @@ longitude <- -72
 mstems$dbh_cm <-
 
 # Load wood density
-if (is.null(species)) species = rep('', length(mstems$genus))
-wood_densities <- getWoodDensity(mstems$genus, species, stand = mstems$plot_no, family = family, region = 'World',
-                                  addWoodDensityData = wd_data, verbose = FALSE)
-wood_densities2 <- getWoodDensity(mstems$genus, species, stand = mstems$plot_no, family = mstems$family, region = 'World',
-                                 addWoodDensityData = wd_data, verbose = FALSE)
-wood_densities2
-wd_famleve = wood_densities2[which(wood_densities2$levelWD == 'family'), ]
-wood_density = wood_densities$meanWD
+wood_densities <- getWoodDensity(mstems$genus, species = mstems$species, stand = mstems$plot_no, family = mstems$family, region = 'World',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
 
 # Prepare coordinates, required without height
 if (!is.null(latitude)) coord = data.frame(longitude = longitude, latitude = latitude) else coord = NULL
 
 # Calculate AGB with Chave equation, return in Mg
-AGB <- computeAGB(mstems$dbh_cm, wood_density, H = height, coord = coord, Dlim = 0)
+AGB <- computeAGB(mstems$dbh_cm, wood_densities$meanWD, H = height, coord = coord, Dlim = 0)
 mstems$AGB_BYwds <- AGB
 summary(mstems$AGB_BYwds)
 mstems[which(AGB == max(AGB, na.rm=T)), ]
@@ -89,7 +78,28 @@ corr$estimate
 
 
 #-----------------------
+# aggregate Basal Area by plot (m^2/ha) - the area of land that is occupied by the cross-section of a tree.
+# calculate basal area (m^2) from DBH (cm)
+mstems$basal_area <- calculateBasalArea(mstems$dbh_cm)
+ba_plot <- aggregate(basal_area ~ plot_no, mstems, sum)
+mplots <- merge(mplots, ba_plot, by='plot_no', all=TRUE)
+mplots$basal_area <- mplots$basal_area / mplots$plot_area
+
+# calculate stem volume  (m^3) from DBH (cm) - an estimate of the ammount of space that the tree bole occupies.
+mstems$volume <- calculateStemVolume(mstems$dbh_cm)
+vol_plot <- aggregate(volume ~ plot_no, mstems, sum)
+mplots <- merge(mplots, vol_plot, by='plot_no', all=TRUE)
+mplots$volume <- mplots$volume / mplots$plot_area
+
+# calculate stocking density () from DBH
+mstems$stocking <- calculateStocking(mstems$dbh_cm)
+mstems$stocking_10 <- calculateStocking(mstems$dbh_cm, min_diam = 10)
+stocking_plot <- aggregate(stocking ~ plot_no, mstems, sum)
+mplots <- merge(mplots, stocking_plot, by='plot_no', all=TRUE)
+mplots$stocking <- mplots$stocking / mplots$plot_area
+
 # Look at dominant species based on stocking densities. Add species_name (by_binomial)
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no)
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = calculateBasalArea(mstems$dbh_cm))
 dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = mstems$AGB_Chave14)
+

@@ -24,9 +24,123 @@ print(python_version())
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
 home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
+#%% Get mean Bwa Yo wood density at the three levels.
+field_species = pd.read_csv(os.path.join(home, 'data', 'master_lookup.csv'))
+by_wds = field_species[['creole', 'family', 'genus', 'by_binomial', 'wd_avg']]
+
+# Species means
+wd_agg = by_wds.groupby('by_binomial')['wd_avg'].agg(mean='mean', sd='std')
+# wd_agg = creole_wds.groupby('by_binomial')['wd_avg'].mean().rename('by_spec_mean')
+by_wds = by_wds.join(wd_agg, on='by_binomial', rsuffix='_BYsp')
+# Genus means
+wd_agg = by_wds.groupby('genus')['wd_avg'].agg(mean='mean', sd='std')
+# wd_agg = creole_wds.groupby('genus')['wd_avg'].mean().rename('_by_gen')
+by_wds = by_wds.join(wd_agg, on='genus', rsuffix='_BYgn')
+# Family means
+wd_agg = by_wds.groupby('family')['wd_avg'].agg(mean='mean', sd='std')
+# wd_agg = creole_wds.groupby('family')['wd_avg'].mean().rename('by_fam_mean')
+by_wds = by_wds.join(wd_agg, on='family', rsuffix='_BYfm')
+creole_wds = by_wds.groupby('creole').mean()
+
+creole_wds = creole_wds.drop(['wd_avg'], axis=1).rename(columns={'mean':'mean_BYsp', 'sd':'sd_BYsp'})
+creole_wds.loc[['pwa valye'],:]
+creole_wds.describe()
+
+#%% Import wood densities from R
+wds_fromR = field_species[['creole', 'family', 'genus', 'species']]
+
+# GWD+BY species, genus, and family
+wds = pd.read_csv(os.path.join(home, 'getWoodDensity_SpecGenFam_BY.csv'))
+wds = wds.groupby(['family', 'genus', 'species'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDBYspgnfm', 'sdWD': 'sd_GWDBYspgnfm'})
+wds_fromR = wds_fromR.join(wds, on=['family', 'genus', 'species'])
+# GWD+BY Genus and Family
+wds = pd.read_csv(os.path.join(home, 'getWoodDensity_GenFam_BY.csv'))
+wds = wds.groupby(['family', 'genus'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDBYgnfm', 'sdWD': 'sd_GWDBYgnfm'})
+wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
+# GWD+BY Genus
+wds = pd.read_csv(os.path.join(home, 'getWoodDensity_Gen_BY.csv'))
+wds = wds.groupby(['family', 'genus'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDBYgn', 'sdWD': 'sd_GWDBYgn'})
+wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
+# GWD species, genus, and family
+wds = pd.read_csv(os.path.join(home, 'getWoodDensity_SpecGenFam.csv'))
+wds = wds.groupby(['family', 'genus', 'species'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDspgnfm', 'sdWD': 'sd_GWDspgnfm'})
+wds_fromR = wds_fromR.join(wds, on=['family', 'genus', 'species'])
+# Get mean for each creole name
+creole_wds = creole_wds.join(wds_fromR.groupby('creole').mean(), on='creole')
+
+
+#%% Look at relationships between columns
+# Correlations
+creole_wds_means = creole_wds.filter(like='mean')
+creole_wds_means.corr()
+
+# Scatter matrix
+fig, ax = plt.subplots(figsize=(12,12))
+scatter_matrix(creole_wds_means, alpha=1, ax=ax)
+fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_scatter_matrix.png'))
+
+# Correlations visualized
+fig = plt.figure(figsize=(8, 8))
+plt.matshow(creole_wds_means.corr('pearson'), fignum=fig.number)
+plt.xticks(range(creole_wds_means.shape[1]), creole_wds_means.columns, fontsize=14, rotation=45)
+plt.yticks(range(creole_wds_means.shape[1]), creole_wds_means.columns, fontsize=14)
+cb = plt.colorbar()
+cb.ax.tick_params(labelsize=14);
+fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_corrmatrix.png'))
+
+#%% QC
+# Print QC info
+# How many NaNs in each column?
+creole_wds.isna().sum()
+creole_wds_means.isna().sum()
+
+# Look at means
+nanct = creole_wds_means.isna().sum()
+nanct.name = 'NaNs'
+desc = creole_wds_means.describe(percentiles=[]).append(nanct).transpose()
+desc
+
+# Look at standard deviations
+creole_wds_sds = creole_wds.filter(like='sd')
+nanct = creole_wds_sds.isna().sum()
+nanct.name = 'nan_count'
+desc = creole_wds_sds.describe(percentiles=[]).append(nanct).transpose()
+desc
+desc4fig = desc.drop(['count', 'nan_count'], axis=1)
+
+fig = plt.figure(figsize=(5, 4))
+plt.matshow(desc4fig, fignum=fig.number)
+plt.xticks(range(desc4fig.shape[1]), desc4fig.columns, fontsize=14)
+plt.yticks(range(len(desc4fig)), desc4fig.index, fontsize=14)
+cb = plt.colorbar()
+cb.ax.tick_params(labelsize=14);
+fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_sd_summary.png'))
+
+gwd_unique_matches = gwd_lookup['gwd_binomial'].unique()
+print(f'Matching species in GWD: {len(gwd_unique_matches)}')
+unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
+print(f'Field species missing from GWD: {len(unlisted)}')
+
+creole_wds[creole_wds['by_spec_mean'].isna()].index
+creole_wds[creole_wds['by_gen_mean'].isna()].index
+creole_wds[creole_wds['by_fam_mean'].isna()].index
+creole_wds[creole_wds['gwdby_spgnfm_mean'].isna()].index
+creole_wds[creole_wds['gwdby_gnfm_mean'].isna()].index
+creole_wds[creole_wds['gwdby_gn_mean'].isna()].index
+creole_wds.loc[['pwa valye'],:]
+
 |#%% Load pre-processed field data
 df = pd.read_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'))
 df.loc[60:70, :]
+
+#%% Make wood density array (join one to many) of same form as data df for use in computeAGB()
+df.join(creole_wds, on='sp_creole')
+
+
+
+
+
+
 
 #%% Create creole to species_name lookup and species_name to bwayo_wd lookup
 field_species = pd.read_csv(os.path.join(home, 'data', 'master_lookup.csv'))
@@ -78,12 +192,6 @@ grouped.agg(
 grouped.agg(mode=lambda x: x.mode()).head()
 grouped[['genus', 'creole']].agg(mode=lambda x: x.mode())
 
-animals.groupby("kind").agg(
-min_height=pd.NamedAgg(column='height', aggfunc='min'),
-max_height=pd.NamedAgg(column='height', aggfunc='max'),
-average_weight=pd.NamedAgg(column='weight', aggfunc=np.mean),
-)
-
 
 '''
 TODO: investigate sensitivity to different creole to species matches
@@ -93,8 +201,6 @@ TODO: investigate sensitivity to different creole to species matches
 df = df.join(lookup_genus, on='sp_creole', how='left')
 df.loc[60:70, :]
 df.to_csv(os.path.join(home, 'mstems_FamGenSpec_lookupfirst.csv'), index=False)
-
-
 
 
 #%% Parse Global Wood Density
@@ -117,53 +223,6 @@ unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
 print(f'Field species missing from GWD: {len(unlisted)}')
 
 
-#%% Get mean Bwa Yo wood density at the three levels.
-creole_wds = field_species[['creole', 'family', 'genus', 'by_binomial', 'wd_avg']]
-BY_fam_mean = creole_wds.groupby('family')['wd_avg'].mean().rename('by_fam_mean')
-creole_wds = creole_wds.join(BY_fam_mean, on='family')
-BY_gen_mean = creole_wds.groupby('genus')['wd_avg'].mean().rename('by_gen_mean')
-creole_wds = creole_wds.join(BY_gen_mean, on='genus')
-BY_spec_mean = creole_wds.groupby('by_binomial')['wd_avg'].mean().rename('by_spec_mean')
-creole_wds = creole_wds.join(BY_spec_mean, on='by_binomial')
-creole_wds = creole_wds.groupby('creole').mean()
-creole_wds
-any(creole_wds['by_spec_mean'].isna())
-any(creole_wds['by_gen_mean'].isna())
-any(creole_wds['by_fam_mean'].isna())
-
-creole_wds.plot.scatter('by_spec_mean', 'by_fam_mean')
-creole_wds.plot.scatter('by_spec_mean', 'by_gen_mean')
-ax1 = creole_wds.hist('by_spec_mean', alpha=0.4)
-creole_wds.hist('by_gen_mean', ax=ax1, alpha=0.4)
-creole_wds.hist('by_fam_mean', ax=ax1, alpha=0.4)
-plt.show()
-#%% Import wood densities from R
-creole_wds2 = field_species[['creole', 'family', 'genus', 'species']]
-
-# Get unique values and join to creole in field_species
-wds = pd.read_csv(os.path.join(home, 'getWoodDensity_SpecGenFam_BY.csv'))
-wds = wds.groupby(['family', 'genus', 'species'])['meanWD'].first().rename('gwdby_spgnfm_mean')
-creole_wds2 = creole_wds2.join(wds, on=['family', 'genus', 'species'])
-# Get unique values and join to creole in field_species
-wds = pd.read_csv(os.path.join(home, 'getWoodDensity_GenFam_BY.csv'))
-wds = wds.groupby(['family', 'genus'])['meanWD'].first().rename('gwdby_gnfm_mean')
-creole_wds2 = creole_wds2.join(wds, on=['family', 'genus'])
-# Get unique values and join to creole in field_species
-wds = pd.read_csv(os.path.join(home, 'getWoodDensity_Gen_BY.csv'))
-wds = wds.groupby(['family', 'genus'])['meanWD'].first().rename('gwdby_gn_mean')
-creole_wds2 = creole_wds2.join(wds, on=['family', 'genus'])
-# Get mean for each creole name
-creole_wds2 = creole_wds2.groupby('creole').mean()
-creole_wds = creole_wds.join(creole_wds2, on='creole')
-
-#
-creole_wds.plot.scatter('by_spec_mean', 'gwdby_gnfm_mean')
-creole_wds.plot.scatter('gwdby_spgnfm_mean', 'gwdby_gnfm_mean')
-creole_wds.plot.scatter('gwdby_spgnfm_mean', 'gwdby_gn_mean')
-
-ax1 = mean_creole_wds.hist('wd_avg', alpha=0.5)
-mean_creole_wds.hist('meanWD', ax=ax1, alpha=0.5)
-plt.show()
 
 
 #%% Replicate getWoodDensity from BIOMASS - using World as region and including the Bwa Yo wood densities

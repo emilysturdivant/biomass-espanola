@@ -138,7 +138,7 @@ field_species = creole_df.loc[creole_df['creole'].isin(field_species_uniq)].rese
 
 # Export CSV
 field_species.to_csv(os.path.join(home, 'data', 'master_lookup.csv'), index=False)
-
+field_species[field_species['creole'] == 'pwa valye']
 #%% Convert unknown species to something standardized
 unknowns = field_species_uniq[~field_species_uniq.isin(field_species['creole'])]
 ct = 0

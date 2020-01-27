@@ -7,6 +7,7 @@ mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough.csv", col_types =
 mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
 bwayo_densities <- read_csv("~/code/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018_HV.csv")
+creole_df <- read_csv("~/code/biomass-espanola/data/exploded_bwayolookup.csv")
 
 # Load data - Mac
 mstems <- read_csv("~/GitHub/biomass-espanola/mstems_FamGenSpec_lookupfirst.csv", col_types = cols(plot_no = col_integer()))
@@ -28,7 +29,11 @@ family <- NULL
 wood_densities <- getWoodDensity(creole_df$genus, species, family = family, region = 'World',
                                  addWoodDensityData = bwayo_densities, verbose = FALSE)
 write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_Gen_BY.csv", row.names=FALSE)
+wood_densities <- getWoodDensity(creole_df$genus, creole_df$species, family = creole_df$family, region = 'World', verbose = FALSE)
+write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_SpecGenFam.csv", row.names=FALSE)
 
+wood_densities[which(wood_densities$family == 'Fabaceae'),]
+  mstems[which(AGB == max(AGB, na.rm=T)), ]
 # Run Chave14 equation using BIOMASS
 # Get wood density by genus
 species <- NULL

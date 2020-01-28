@@ -33,7 +33,7 @@ wd_agg = by_wds.groupby('by_binomial')['wd_avg'].agg(mean='mean', sd='std')
 # wd_agg = creole_wds.groupby('by_binomial')['wd_avg'].mean().rename('by_spec_mean')
 by_wds = by_wds.join(wd_agg, on='by_binomial', rsuffix='_BYsp')
 # Genus means
-wd_agg = by_wds.groupby('genus')['wd_avg'].agg(mean='mean', sd='std')
+wd_agg = by_wds.groupby('genus')['wd_avg'].agg(mean='mean', sd='std', med='median')
 # wd_agg = creole_wds.groupby('genus')['wd_avg'].mean().rename('_by_gen')
 by_wds = by_wds.join(wd_agg, on='genus', rsuffix='_BYgn')
 # Family means
@@ -65,22 +65,31 @@ wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
 wds = pd.read_csv(os.path.join(home, 'getWoodDensity_SpecGenFam.csv'))
 wds = wds.groupby(['family', 'genus', 'species'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDspgnfm', 'sdWD': 'sd_GWDspgnfm'})
 wds_fromR = wds_fromR.join(wds, on=['family', 'genus', 'species'])
+# GWD genus, and family
+wds = pd.read_csv(os.path.join(home, 'getWoodDensity_GenFam.csv'))
+wds = wds.groupby(['family', 'genus'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDgnfm', 'sdWD': 'sd_GWDgnfm'})
+wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
+# GWD+BY Genus and Family with CentralAmericaTrop
+wds = pd.read_csv(os.path.join(home, 'getWoodDensity_GenFam_BY_CAT.csv'))
+wds = wds.groupby(['family', 'genus'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDBYgnfm_CAT', 'sdWD': 'sd_GWDBYgnfm_CAT'})
+wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
 # Get mean for each creole name
 creole_wds = creole_wds.join(wds_fromR.groupby('creole').mean(), on='creole')
-
+creole_wds.to_csv(os.path.join(home, 'data', 'options_for_creole_wooddensity.csv'))
 
 #%% Look at relationships between columns
-# Correlations
 creole_wds_means = creole_wds.filter(like='mean')
+
+# Correlations
 creole_wds_means.corr()
 
 # Scatter matrix
 fig, ax = plt.subplots(figsize=(12,12))
-scatter_matrix(creole_wds_means, alpha=1, ax=ax)
+pd.plotting.scatter_matrix(creole_wds_means, alpha=1, ax=ax)
 fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_scatter_matrix.png'))
 
 # Correlations visualized
-fig = plt.figure(figsize=(8, 8))
+fig = plt.figure(figsize=(9, 9))
 plt.matshow(creole_wds_means.corr('pearson'), fignum=fig.number)
 plt.xticks(range(creole_wds_means.shape[1]), creole_wds_means.columns, fontsize=14, rotation=45)
 plt.yticks(range(creole_wds_means.shape[1]), creole_wds_means.columns, fontsize=14)
@@ -121,20 +130,52 @@ print(f'Matching species in GWD: {len(gwd_unique_matches)}')
 unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
 print(f'Field species missing from GWD: {len(unlisted)}')
 
-creole_wds[creole_wds['by_spec_mean'].isna()].index
-creole_wds[creole_wds['by_gen_mean'].isna()].index
-creole_wds[creole_wds['by_fam_mean'].isna()].index
-creole_wds[creole_wds['gwdby_spgnfm_mean'].isna()].index
-creole_wds[creole_wds['gwdby_gnfm_mean'].isna()].index
-creole_wds[creole_wds['gwdby_gn_mean'].isna()].index
-creole_wds.loc[['pwa valye'],:]
+creole_wds[creole_wds['mean_BYsp'].isna()].index
+creole_wds[creole_wds['mean_BYgn'].isna()].index
+creole_wds[creole_wds['mean_GWDBYspgnfm'].isna()].index
+creole_wds[creole_wds['mean_GWDBYgnfm'].isna()].index
+creole_wds[creole_wds['mean_GWDBYgn'].isna()].index
+creole_wds[creole_wds['mean_GWDspgnfm'].isna()].index
 
-|#%% Load pre-processed field data
-df = pd.read_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'))
-df.loc[60:70, :]
 
 #%% Make wood density array (join one to many) of same form as data df for use in computeAGB()
-df.join(creole_wds, on='sp_creole')
+# Load pre-processed field data
+df = pd.read_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'))
+# Join
+df = df.join(creole_wds, on='sp_creole')
+# Export
+df.to_csv(os.path.join(home, 'data', 'mstems_with_wooddensities.csv'), index=False)
+
+# QC
+df.columns
+df[df['mean_BYsp'].isna()]['sp_creole'].unique()
+df[df['mean_GWDBYspgnfm'].isna()]['sp_creole'].unique()
+
+#%% computeAGB() from BIOMASS https://github.com/AMAP-dev/BIOMASS/blob/master/R/computeAGB.R
+D = diam
+genus
+species
+family = None
+plot = None
+height
+latitude
+longitude
+
+# arguments
+D = df['dbh_cm']
+WD = df['mean_GWDBYgnfm']
+H = None
+coord = (19, -72)
+Dlim = None
+
+# Parameters verification
+
+# Compute E
+E =
+
+# Modified Eq. 7 from Chave et al. 2014 Global Change Biology
+AGB = exp(-2.023977 - 0.89563505 * E + 0.92023559 * log(WD) + 2.79495823 * log(D) - 0.04606298 * (log(D)^2)) / 1000
+
 
 
 

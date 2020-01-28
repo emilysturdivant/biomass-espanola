@@ -3,7 +3,7 @@ library(readr)
 library(BIOMASS)
 
 # Load data - Desktop
-mstems <- read_csv("~/code/biomass-espanola/mstems_genus_rough.csv", col_types = cols(plot_no = col_integer()))
+mstems <- read_csv("~/code/biomass-espanola/data/mstems_with_wooddensities.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
 bwayo_densities <- read_csv("~/code/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018_HV.csv")
@@ -16,24 +16,56 @@ bwayo_densities <- read_csv("~/GitHub/biomass-espanola/data/bwayo_densities.csv"
 g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018_HV.csv")
 creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_bwayolookup.csv")
 
-# Load wood density
+# ------------------------
+# Calculate and export wood densities with different parameters for Haiti field species.
 wood_densities <- getWoodDensity(creole_df$genus, creole_df$species, family = creole_df$family, region = 'World',
                                  addWoodDensityData = bwayo_densities, verbose = FALSE)
-write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_SpecGenFam_BY.csv", row.names=FALSE)
-species <- NULL
-if (is.null(species)) species = rep('', length(creole_df$genus))
+write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_SpecGenFam_BY.csv", row.names=FALSE)
+# Without BwaYo wood densities
+wood_densities <- getWoodDensity(creole_df$genus, creole_df$species, family = creole_df$family, region = 'World', verbose = FALSE)
+write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_SpecGenFam.csv", row.names=FALSE)
+# Without BwaYo wood densities
+wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'World', verbose = FALSE)
+write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam.csv", row.names=FALSE)
+# Null species and family
+wood_densities <- getWoodDensity(creole_df$genus, species, family = NULL, region = 'World',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
+write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_Gen_BY.csv", row.names=FALSE)
+# Null species with Bwa Yo and only regional WDs CentralAmericaTrop
+species = rep('', length(creole_df$genus))
+wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'CentralAmericaTrop',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
+write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam_BY_CAT.csv", row.names=FALSE)
+# Null species
+species = rep('', length(creole_df$genus))
 wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'World',
                                  addWoodDensityData = bwayo_densities, verbose = FALSE)
-write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_GenFam_BY.csv", row.names=FALSE)
-family <- NULL
-wood_densities <- getWoodDensity(creole_df$genus, species, family = family, region = 'World',
-                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
-write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_Gen_BY.csv", row.names=FALSE)
-wood_densities <- getWoodDensity(creole_df$genus, creole_df$species, family = creole_df$family, region = 'World', verbose = FALSE)
-write.csv(wood_densities, "~/GitHub/biomass-espanola/getWoodDensity_SpecGenFam.csv", row.names=FALSE)
+write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam_BY.csv", row.names=FALSE)
 
-wood_densities[which(wood_densities$family == 'Fabaceae'),]
-  mstems[which(AGB == max(AGB, na.rm=T)), ]
+# ------------------------
+# Merge WDs by creole with 
+creole_df$meanWD <- wood_densities$meanWD
+creole_wds <- aggregate(meanWD ~ creole, creole_df, mean)
+mstems <- merge(mstems, creole_wds, by.x='sp_creole', by.y='creole', all.x=TRUE, sort=FALSE)
+
+# ------------------------
+# Run Chave14 equation 
+# Prepare coordinates, required without height
+long <- c(19.00)
+lat <- c(-72.00)
+
+# Compute E
+computeE(cbind(long, lat))
+
+# Calculate AGB with Chave equation, return in Mg
+mstems$AGB_GWDBYgnfm <- computeAGB(mstems$dbh_cm, mstems$meanWD, H = NULL, coord = coord, Dlim = 0)
+
+# aggregate AGB by plot (MgC/ha)
+agb_plot <- aggregate(AGB_GWDBYgnfm ~ plot_no, mstems, sum)
+mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
+mplots$AGB_GWDBYgnfm <- mplots$AGB_GWDBYgnfm / mplots$plot_area
+
+# ------------------------
 # Run Chave14 equation using BIOMASS
 # Get wood density by genus
 species <- NULL

@@ -7,6 +7,7 @@ Pre-process and QC field inventory data.
 
 OUTPUT: write CSVs of field data (haiti_biomass_v2_stacked.csv and haiti_biomass_v2_mplots.csv)
 
+Python environment kernel: using py3_geo on Ubuntu and Python 3 on Mac
 """
 # Import packages
 import pandas as pd
@@ -138,16 +139,19 @@ field_species = creole_df.loc[creole_df['creole'].isin(field_species_uniq)].rese
 
 # Export CSV
 field_species.to_csv(os.path.join(home, 'data', 'master_lookup.csv'), index=False)
-field_species[field_species['creole'] == 'pwa valye']
+
 #%% Convert unknown species to something standardized
 unknowns = field_species_uniq[~field_species_uniq.isin(field_species['creole'])]
 ct = 0
-for i in unknowns:
+for val in unknowns:
     ct += 1
-    alt_to_name[i] = np.nan
+    alt_to_name[val] = np.nan
+    for key, value in alt_to_name.items():
+         if val == value:
+             alt_to_name[key] = np.nan
 print(f'{ct} species in field data not identified.')
 
-|#%% Load field data and convert to table of all plots stacked
+#%% Load field data and convert to table of all plots stacked
 # Iteratively load each plot in turn and concatenate
 col_init = [0,1,2,3]
 df = get_plot_data(data_fname, col_init, verbose=False)
@@ -159,8 +163,9 @@ for i in range(1,36):
 df
 # Standardize creole names
 df.loc[:, 'sp_creole'] = df.sp_creole.replace(alt_to_name)
-df.loc[60:70, :]
 
+# QC
+df.loc[60:70, :]
 df[df['dbh_cm'] == 0]
 df[df['dbh_cm'].isna()]
 
@@ -168,6 +173,8 @@ df[df['dbh_cm'].isna()]
 # df.replace({np.nan:0}, inplace=True)
 df.to_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'), index=False)
 df = pd.read_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'))
+
+df.join(creole_df, )
 
 #%% Make and export plots DF
 mplots = df[['plot_no', 'plot_shp', 'plot_area']].groupby('plot_no').first()

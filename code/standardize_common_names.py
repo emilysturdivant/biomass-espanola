@@ -92,7 +92,6 @@ name_to_alts = {
     'bwa nwa': ['bois noir', 'nwa', 'nua'],
     'bwa palmis': ['bwa palmia', 'bwapalmis'],
     'bwa pen': ['pin'],
-    'bwa petro': ['bwapetro'], # unlocated
     'bwa pine':['bwapini', 'pini', 'bwabwa pini', 'bwa pini', 'bwa pine'],
     'bwa poupe': ['pope', 'poupe'],
     'bwa santi': ['bwa senti'],
@@ -151,6 +150,9 @@ name_to_alts = {
     'zamann': ['amande', 'zanmann'],
     'zoranj dous': ['naranaja', 'naranja'], # more general would be sitwon, zoranj
     }
+
+name_to_alts_df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in name_to_alts.items() ])).transpose()
+name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'))
 
 # Create replacement dict to standardize inconsistencies
 alt_to_name = dict((v,k) for k,vs in name_to_alts.items() for v in vs)

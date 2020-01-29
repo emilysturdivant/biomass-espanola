@@ -136,7 +136,8 @@ spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).re
 # Extract species in field data from exploded BY df
 field_species_uniq = pd.Series(spec_ser.unique())
 field_species = creole_df.loc[creole_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
-
+any(field_species_uniq == 'gliricidia')
+alt_to_name['gliricidia']
 # Export CSV
 field_species.to_csv(os.path.join(home, 'data', 'master_lookup.csv'), index=False)
 

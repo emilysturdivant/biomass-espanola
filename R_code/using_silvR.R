@@ -43,10 +43,26 @@ wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$fa
 write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam_BY.csv", row.names=FALSE)
 
 # ------------------------
-# Merge WDs by creole with 
+# Get mean wood densities for field data - aggregate creole means and plot means.
+# Get wood density (parameters: GWD=World, Bwa Yo, genus, family)
+species = rep('', length(creole_df$genus))
+wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'World',
+                                 addWoodDensityData = bwayo_densities, verbose = FALSE)
+
+# Replace dataset means with NA
+wood_densities[which(wood_densities$levelWD == 'dataset'), c('meanWD', 'sdWD', 'levelWD', 'nInd')] <- NA
+
+# Calculate creole means and join to mstems
 creole_df$meanWD <- wood_densities$meanWD
 creole_wds <- aggregate(meanWD ~ creole, creole_df, mean)
 mstems <- merge(mstems, creole_wds, by.x='sp_creole', by.y='creole', all.x=TRUE, sort=FALSE)
+
+# Calculate plot means and use them to replace NA values. 
+plot_wds <- aggregate(meanWD ~ plot_no, mstems, mean)
+mstems <- merge(mstems, plot_wds, by='plot_no', all.x=TRUE, sort=FALSE, suffixes=c("", "_plot"))
+mstems$meanWD[is.na(mstems$meanWD)] <- mstems$meanWD_plot[is.na(mstems$meanWD)]
+mstems <- subset(mstems, select = -meanWD_plot)
+
 
 # ------------------------
 # Run Chave14 equation 

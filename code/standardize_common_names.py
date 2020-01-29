@@ -85,16 +85,16 @@ name_to_alts = {
     'bwa jambet': ['jambet', 'mayi bouyi'],
     'bwa kaka': ['bwacaca', 'bois caca'],
     'bwa kapab': ['capable', 'kapab'],
-    'bwa let': ['boislet', 'bois lait', 'letchie'],
+    'bwa let': ['boislet', 'bois lait'],
     'bwa loray': ['bois loraille', 'bois loraille', 'lorai'],
-    'bwa mabel': ['mabe'], # or mabi?
+    'bwa mabel': ['mabe'], # or mabi? # or momben?
     'bwa majo': ['mayor', 'bois major'],
     'bwa nwa': ['bois noir', 'nwa', 'nua'],
     'bwa palmis': ['bwa palmia', 'bwapalmis'],
     'bwa pen': ['pin'],
     'bwa pine':['bwapini', 'pini', 'bwabwa pini', 'bwa pini', 'bwa pine'],
     'bwa poupe': ['pope', 'poupe'],
-    'bwa santi': ['bwa senti'],
+    'bwa santi': ['bwa senti', 'bwa satsi'], # not sure...
     'bwa savann': ['bwa saban', 'bois savanne', 'saban', 'salbann', 'savann'],
     'chadek': ['chadeque'],
     'chenn': ['bwa chenn', 'chene', 'chenn'],
@@ -117,7 +117,7 @@ name_to_alts = {
     'kas': ['cass', 'casse'],
     'kasya': ['cassia', 'casseia'],
     'kaymit': ['cawimite', 'cayimit', 'kaymit', 'kaymite', 'camite'],
-    'kenep': ['quenepe', 'queneb'],
+    'kenep': ['quenepe', 'queneb', 'kuinip', 'quinipi'],
     'kokoye': ['coco'],
     'koma':['bwa koma', 'lakoma', 'akoma'],
     'kowosol': ['corosol', 'corosole', 'corolosol', 'corossol', 'collossol', 'corosore', 'corosorole', 'guanabana', 'corossolier'],

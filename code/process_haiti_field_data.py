@@ -87,7 +87,7 @@ home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Work with field data - Look at species in all plots
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
-by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
+by_fname = os.path.join(home, 'data', 'bwayo_species_2.xlsx')
 json_fname = os.path.join(home, 'standardize_creole.json')
 
 #%% Load species table digitized from Bwa Yo and split binomial into genus and species
@@ -96,6 +96,16 @@ by_df = pd.read_excel(by_fname, header=0, usecols=[0,1,2,3],
     converters={'by_binomial':lambda x : x.lower(),
         'family':lambda x : x.split(' (')[0].lower().capitalize()})
 by_df.replace({'Capparaceae': 'Brassicaceae', 'Sterculiaceae': 'Malvaceae'}, inplace=True)
+
+# Split species binomial into genus, species, and species_abbr
+by_df = split_species_binomial(by_df, binomial_fld='by_binomial')
+
+#%% v2
+# Load species table digitized from Bwa Yo and split binomial into genus and species
+by_df = pd.read_excel(by_fname, header=0, usecols=[0,1,2,3],
+    names=['by_binomial', 'creole', 'BY_spec_grav', 'family'],
+    converters={'by_binomial':lambda x : x.lower(),
+        'family':lambda x : x.split(' (')[0].lower().capitalize()})
 
 # Split species binomial into genus, species, and species_abbr
 by_df = split_species_binomial(by_df, binomial_fld='by_binomial')

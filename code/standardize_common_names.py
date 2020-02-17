@@ -153,7 +153,7 @@ Create dictionary to standardize creole names
 name_to_alts = {
     'bayawonn': ['buayawonn'],
     'bresillet': ['bouziyet', 'bwabusiet', 'brissiet', 'breziyet'],
-    'bwa blan': ['biosblanc', 'boiblanc', 'boisblanc', 'bois blac', 'bos blanc'],
+    'bois blanc': ['biosblanc', 'boiblanc', 'boisblanc', 'bois blac', 'bos blanc'],
     'bois bleu': ['bwa bleu', 'bwableu', 'baubleu'],
     'bwa dom': ['buadom', 'boadon', 'bwa don'],
     "bois d'homme": ['boisdhomme']
@@ -168,13 +168,12 @@ name_to_alts = {
     'bwa petro': ['bopetro', 'boapreta', 'paupreta', 'parpreto']
     'bwa pini':['bwapini', 'bwabwa pini', 'guapini'],
     'poupe': ['pope'],
-    'bwa santi': ['bwa senti', 'bwa satsi'], # not sure...
-    'bwa savann': ['bwa saban'],
+    'bwa santi': ['bwa senti'],
     'savann': ['saban', 'salbann'],
-    'bwa savane': ['bois savanne']
+    'bois savane': ['bois savanne']
     'bwa chenn': ['boachen'],
-    'dalmarie': ['dalmari', 'delmari'],
-    'delen': ['de lin', 'dele', 'delin', 'madeleine', 'madlenn'],
+    'dalmari': ['delmari'],
+    'delen': ['de lin', 'dele', 'delin'],
     'madlenn': ['madeleine'],
     'divi divi': ['divi'],
     'kaliptis': ['eucaliptos', 'eucalypto', 'eucalipto'],
@@ -191,7 +190,7 @@ name_to_alts = {
     'acajou': ['acayu', 'acayou'],
     'casse': ['cass'],
     'cassia': ['casseia'],
-    'kaymit': ['cawimite', 'cayimit', 'kaymit', 'kaymite', 'camite'],
+    'kaymit': ['cawimite', 'cayimit', 'kaymite', 'camite'],
     'kenep': ['queneb', 'kuinip', 'quinipi'],
     'kokoye': ['coco'],
     'koma':['bwa koma', 'lakoma'],
@@ -201,7 +200,7 @@ name_to_alts = {
     'madam yas': ['madame jass'],
     'magerit': ['magritte'],
     'mango': ['mnago', 'mangos', 'mamgo'],
-    'monben': ['mombe','momber','monbein','monbin', 'monben', 'momben', 'monbenr', 'mombin'],
+    'monben': ['mombe','momber','monbein','monbin', 'momben', 'monbenr'],
     'papay': ['papaya'],
     'pendoula': ['pandola'],
     'pistach': ['pistache'],
@@ -213,12 +212,13 @@ name_to_alts = {
     'citron': ['citroin'],
     'tamarenn': ['tamarindo', 'tamarin'],
     'tcha tcha': ['chacha', 'bwachacha'],
-    'twompet': ['trompete', 'trompette'],
+    'twompet': ['trompete'],
     'twa pawol': ['twa parol', 'twa palol'],
     'zaboka': ['aguacates', 'aguacate'],
     'acacia': ['acassia'],
     'zamann': ['zanmann'],
-    'naranja': ['naranaja'], # more general would be sitwon, zoranj
+    'zoranj dous': ['naranja', 'naranaja'], # more general would be sitwon, zoranj
+    'limon frans': ['limon']
     }
 name_to_alts_df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in name_to_alts.items() ])).transpose()
 name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'))

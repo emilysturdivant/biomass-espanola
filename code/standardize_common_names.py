@@ -59,12 +59,12 @@ def split_species_binomial(df, binomial_fld='by_binomial'):
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Work with field data - Look at species in all plots
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
 gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
-by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
+by_fname = os.path.join(home, 'data', 'bwayo_species_2.xlsx')
 
 '''
 ---------------------------------------------------------------------------
@@ -153,10 +153,10 @@ Create dictionary to standardize creole names
 name_to_alts = {
     'bayawonn': ['buayawonn'],
     'bresillet': ['bouziyet', 'bwabusiet', 'brissiet', 'breziyet'],
-    'bois blanc': ['biosblanc', 'boiblanc', 'boisblanc', 'bois blac', 'bos blanc'],
+    'bois blanc': ['biosblanc', 'boiblanc', 'boisblanc', 'bois blac', 'bos blanc', 'bios blanc'],
     'bois bleu': ['bwa bleu', 'bwableu', 'baubleu'],
     'bwa dom': ['buadom', 'boadon', 'bwa don'],
-    "bois d'homme": ['boisdhomme']
+    "bois d'homme": ['boisdhomme'],
     'bwa doti': ['bwadolti'],
     'jambet': ['yambet'],
     'bwa kaka': ['bwacaca'],
@@ -165,12 +165,13 @@ name_to_alts = {
     'bwa loray': ['lorai'],
     'bois major': ['mayor'],
     'bwa palmis': ['bwa palmia', 'bwapalmis'],
-    'bwa petro': ['bopetro', 'boapreta', 'paupreta', 'parpreto']
-    'bwa pini':['bwapini', 'bwabwa pini', 'guapini'],
+    'bwa petro': ['bopetro', 'boapreta', 'paupreta', 'parpreto'],
+    'bwa pini':['bwapini', 'bwabwa pini', 'guapini', 'bwa bwa pini'],
     'poupe': ['pope'],
     'bwa santi': ['bwa senti'],
+    'bwa savann': ['bwa saban'],
     'savann': ['saban', 'salbann'],
-    'bois savane': ['bois savanne']
+    'bois savane': ['bois savanne'],
     'bwa chenn': ['boachen'],
     'dalmari': ['delmari'],
     'delen': ['de lin', 'dele', 'delin'],
@@ -180,12 +181,12 @@ name_to_alts = {
     'figye': ['fieuier', 'ficus'],
     'flambwayan': ['framboyan'],
     'fwenn': ['fruen', 'fuen'],
-    'frene': ['fren']
+    'frene': ['fren'],
     'gommier': ['gombier', 'gomier'],
     'gwayav': ['guayaba'],
     'gwenn': ['guen'],
     'kachiman': ['kashima', 'kashuma'],
-    'cachiman': ['cachimem', 'cachemam', 'cachimam']
+    'cachiman': ['cachimem', 'cachemam', 'cachimam'],
     'calebasse': ['calabase', 'calbesse', 'calbasse'],
     'acajou': ['acayu', 'acayou'],
     'casse': ['cass'],
@@ -228,23 +229,25 @@ alt_to_name = dict((v,k) for k,vs in name_to_alts.items() for v in vs)
 json.dump(alt_to_name, open(os.path.join(home, 'standardize_creole.json'), 'w'))
 
 '''
----------------------------------------------------------------------------
+--------------------------------------------------------------------------
 Look at unique species in field data
----------------------------------------------------------------------------
+--------------------------------------------------------------------------
 '''
 #%% Create series of all species columns (labeled 'sp')
 spec_df = pd.read_excel(data_fname, 'Plots', skiprows=[0,1,2],
                         usecols=lambda x : x.startswith('sp'))
 spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).replace(alt_to_name)
 
-#%% List unique species with number of occurences and write to excel sheet.
+#%% List unique species with number of occurences
 spec_list_cnts = spec_ser.value_counts().rename_axis(['common_name'])
 spec_list_cnts.sort_values()
 # field_species_uniq = pd.Series(spec_ser.unique())
-# # Look at different groupings
-# specs_mult = spec_list_cnts[spec_list_cnts > 2]
-# err_specs = spec_list_cnts[spec_list_cnts < 3]
-# err_specs.sort_index()
+
+# Look at different groupings
+specs_mult = spec_list_cnts[spec_list_cnts > 2]
+err_specs = spec_list_cnts[spec_list_cnts < 3]
+err_specs.sort_index()
+
 # # Write to excel
 # out_lookup = os.path.join(home, 'unique_species_standardized_20191218.xlsx')
 # spec_list_cnts.to_excel(out_lookup, 'round3', index=True)

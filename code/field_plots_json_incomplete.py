@@ -7,12 +7,10 @@ OVERVIEW: Getting started with processing Haiti field data
 """
 #%% Relate filenames to plot names
 fname_plotname = {
-    'Augier': {'xlsname':'FormularioDAPAugier.xls',
-                            'shapefile': 'Augier.shp',
+    'Augier': {'shapefile': 'Augier.shp',
                             'plot_id':'Augier',
-                            'qual_file': 'CualitativoDAugier.docx'},
-    'Bombardopolis Plot 1': {'xlsname':'FormularioDAP1BO.xls',
-                            'shapefile': 'Plot_1BO.shp',
+                            'plot_no': },
+    'Bombardopolis Plot 1': {'shapefile': 'Plot_1BO.shp',
                             'plot_id':'1BO',
                             'qual_file': 'CualitativoBOM1.docx'},
     'Bombardopolis Plot 2': {'xlsname':'FormatoCampo_2BO.xls',

@@ -1,0 +1,268 @@
+species_binomial,by_spec_grav,family,genus,species,species_abbr,wd_avg,all_names
+acacia  ,,Fabaceae,Acacia,,,,bayawonn
+acacia auriculiformis,0.6-0.8,Fabaceae,Acacia,auriculiformis,auriculiformis,0.7,acacia
+acacia barahonensis,,Fabaceae,Acacia,barahonensis,barahonensis,,acacia
+acacia farnesiana,0.77-0.84,Fabaceae,Acacia,farnesiana,farnesiana,0.8049999999999999,acacia
+acacia farnesiana,0.77-0.84,Fabaceae,Acacia,farnesiana,farnesiana,0.8049999999999999,casse
+acacia macracantha,0.8-1.07,Fabaceae,Acacia,macracantha,macracantha,0.935,acacia
+acacia nilotica,0.8,Fabaceae,Acacia,nilotica,nilotica,0.8,gommier
+acacia scleroxyla,0.88-0.94,Fabaceae,Acacia,scleroxyla,scleroxyla,0.91,bwa savann
+acacia scleroxyla,0.88-0.94,Fabaceae,Acacia,scleroxyla,scleroxyla,0.91,kandelon
+acacia scleroxyla,0.88-0.94,Fabaceae,Acacia,scleroxyla,scleroxyla,0.91,tandrakayou
+acacia scleroxyla,0.88-0.94,Fabaceae,Acacia,scleroxyla,scleroxyla,0.91,savann
+acacia senegal,,Fabaceae,Acacia,senegal,senegal,,gommier
+acacia tortuosa,,Fabaceae,Acacia,tortuosa,tortuosa,,acacia
+albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,tcha tcha
+albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bwa savann
+albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bwa nwa
+albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bois noir
+albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,savann
+albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,saman
+allophylus cobbe,,,Allophylus,cobbe,cobbe,,twa pawol
+allophylus cominia,,Sapindaceae,Allophylus,cominia,cominia,,twa pawol
+allophylus crassinervis,,Sapindaceae,Allophylus,crassinervis,crassinervis,,twa pawol
+allophylus occidentalis,,Sapindaceae,Allophylus,occidentalis,occidentalis,,twa pawol
+allophylus racemosus,,,Allophylus,racemosus,racemosus,,twa pawol
+allophylus rigidus,,Sapindaceae,Allophylus,rigidus,rigidus,,twa pawol
+allophylus spp.,,,Allophylus,spp.,,,twa pawol
+amyris elemifera,,Rutaceae,Amyris,elemifera,elemifera,,twa pawol
+amyris spp.,0.79-1.11,Rutaceae,Amyris,spp.,,0.95,twa pawol
+anacardium occidentale,,Anacardiaceae,Anacardium,occidentale,occidentale,,acajou
+andira inermis,,Fabaceae,Andira,inermis,inermis,,bwa palmis
+annona cherimola,,Annonaceae,Annona,cherimola,cherimola,,cachiman
+annona cherimola,,Annonaceae,Annona,cherimola,cherimola,,kachiman
+annona montana,,Annonaceae,Annona,montana,montana,,guanabana
+annona muricata,,Annonaceae,Annona,muricata,muricata,,kowosol
+annona muricata,,Annonaceae,Annona,muricata,muricata,,guanabana
+annona reticulata,,Annonaceae,Annona,reticulata,reticulata,,cachiman
+annona spp.,0.4-0.5,Annonaceae,Annona,spp.,,0.45,kowosol
+annona spp.,0.4-0.5,Annonaceae,Annona,spp.,,0.45,kachiman
+annona squamosa,,Annonaceae,Annona,squamosa,squamosa,,cachiman
+annona urbaniana,,Annonaceae,Annona,urbaniana,urbaniana,,magerit
+ateleia gummifer,,Fabaceae,Ateleia,gummifer,gummifer,,bwa santi
+ateleia gummifer,,Fabaceae,Ateleia,gummifer,gummifer,,bwa satsi
+azadirachta indica,0.52-0.65,Meliaceae,Azadirachta,indica,indica,0.585,neem
+beilschmiedia pendula,0.54,Lauraceae,Beilschmiedia,pendula,pendula,0.54,bwa nwa
+beilschmiedia pendula,0.54,Lauraceae,Beilschmiedia,pendula,pendula,0.54,bois noir
+bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.945,akoma
+bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.945,bwa satsi
+bunchosia glandulosa,,Malpighiaceae,Bunchosia,glandulosa,glandulosa,,bwa kaka
+bunchosia media,,Malpighiaceae,Bunchosia,media,media,,bwa santi
+bunchosia media,,Malpighiaceae,Bunchosia,media,media,,bwa satsi
+bunchosia nitida,,Malpighiaceae,Bunchosia,nitida,nitida,,bwa santi
+bunchosia spp.,,,Bunchosia,spp.,,,bwa santi
+bursera simaruba,0.26-0.4,Burseraceae,Bursera,simaruba,simaruba,0.33,gommier
+bursera simaruba,0.26-0.4,Burseraceae,Bursera,simaruba,simaruba,0.33,bursera
+caesalpinia barahonensis,,Fabaceae,Caesalpinia,barahonensis,barahonensis,,bresillet
+caesalpinia brasilensis,,Fabaceae,Caesalpinia,brasilensis,brasilensis,,bresillet
+caesalpinia coriaria,0.9-1.2,Fabaceae,Caesalpinia,coriaria,coriaria,1.05,divi divi
+caesalpinia spp.,,Fabaceae,Caesalpinia,spp.,,,bresillet
+calophyllum calaba,0.4-0.52,Clusiaceae,Calophyllum,calaba,calaba,0.46,damari
+calophyllum calaba,0.4-0.52,Clusiaceae,Calophyllum,calaba,calaba,0.46,dalmari
+cameraria latifolia,,Apocynaceae,Cameraria,latifolia,latifolia,,bois lait
+capparis cynophallophora,,Brassicaceae,Capparis,cynophallophora,cynophallophora,,bwa kaka
+capparis flexuosa,0.79-0.86,Brassicaceae,Capparis,flexuosa,flexuosa,0.825,bwa kaka
+capparis spp.,,,Capparis,spp.,,,bwa kaka
+carica papaya,,Caricaceae,Carica,papaya,papaya,,papay
+carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bois blanc
+carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bwa doti
+cassia fistula,0.9,Fabaceae,Cassia,fistula,fistula,0.9,casse
+cassia grandis,,Fabaceae,Cassia,grandis,grandis,,casse
+cassia javanica,,Fabaceae,Cassia,javanica,javanica,,casse
+catalpa longissima,0.6-0.8,Bignoniaceae,Catalpa,longissima,longissima,0.7,chenn
+catalpa longissima,0.6-0.8,Bignoniaceae,Catalpa,longissima,longissima,0.7,chene
+cecropia peltata,0.26-0.4,Moraceae,Cecropia,peltata,peltata,0.33,trompette
+cedrela odorata,0.37-0.6,Meliaceae,Cedrela,odorata,odorata,0.485,sed
+cedrela odorata,0.37-0.6,Meliaceae,Cedrela,odorata,odorata,0.485,cedre
+cedrela odorata,0.37-0.6,Meliaceae,Cedrela,odorata,odorata,0.485,cedrela
+cercidium praecox,,Fabaceae,Cercidium,praecox,praecox,,bayawonn
+chrysophyllum cainito,0.7,Sapotaceae,Chrysophyllum,cainito,cainito,0.7,kaymit
+chrysophyllum spp.,,Sapotaceae,Chrysophyllum,spp.,,,kaymit
+cinnamomum camphora,,Lauraceae,Cinnamomum,camphora,camphora,,lorie
+cinnamomum camphora,,Lauraceae,Cinnamomum,camphora,camphora,,loye
+cinnamomum elongatum,0.47,Lauraceae,Cinnamomum,elongatum,elongatum,0.47,lorie
+cinnamomum elongatum,0.47,Lauraceae,Cinnamomum,elongatum,elongatum,0.47,loye
+cinnamomum montanum,,Lauraceae,Cinnamomum,montanum,montanum,,lorie
+cinnamomum montanum,,Lauraceae,Cinnamomum,montanum,montanum,,loye
+cinnamomum spp.,0.43-0.61,Lauraceae,Cinnamomum,spp.,,0.52,lorie
+cinnamomum spp.,0.43-0.61,Lauraceae,Cinnamomum,spp.,,0.52,loye
+cinnamomum triplinerve,,Lauraceae,Cinnamomum,triplinerve,triplinerve,,lorie
+cinnamomum triplinerve,,Lauraceae,Cinnamomum,triplinerve,triplinerve,,loye
+citharexylum fruticosum,0.65-0.95,Verbenaceae,Citharexylum,fruticosum,fruticosum,0.8,pendoula
+citrus aurantifolia,,Rutaceae,Citrus,aurantifolia,aurantifolia,,citron
+citrus limon,,Rutaceae,Citrus,limon,limon,,limon frans
+citrus maxima,,Rutaceae,Citrus,maxima,maxima,,chadeque
+citrus medica,,Rutaceae,Citrus,medica,medica,,citron
+citrus sinensis,,Rutaceae,Citrus,sinensis,sinensis,,zoranj dous
+clusia minor,,Clusiaceae,Clusia,minor,minor,,figye
+clusia minor,,Clusiaceae,Clusia,minor,minor,,figuier
+coccoloba spp.,,,Coccoloba,spp.,,,risin
+coccothrinax argentea,,Arecaceae,Coccothrinax,argentea,argentea,,gwenn
+coccothrinax argentea,,Arecaceae,Coccothrinax,argentea,argentea,,latanye
+coccothrinax argentea,,Arecaceae,Coccothrinax,argentea,argentea,,yuem
+coccothrinax barbadensis,,Arecaceae,Coccothrinax,barbadensis,barbadensis,,gwenn
+coccothrinax barbadensis,,Arecaceae,Coccothrinax,barbadensis,barbadensis,,yuem
+coccothrinax ekmanii,,Arecaceae,Coccothrinax,ekmanii,ekmanii,,gwenn
+coccothrinax ekmanii,,Arecaceae,Coccothrinax,ekmanii,ekmanii,,yuem
+coccothrinax gracilis,,Arecaceae,Coccothrinax,gracilis,gracilis,,latanier
+coccothrinax gracilis,,Arecaceae,Coccothrinax,gracilis,gracilis,,latanye
+coccothrinax spp.,,Arecaceae,Coccothrinax,spp.,,,gwenn
+coccothrinax spp.,,Arecaceae,Coccothrinax,spp.,,,yuem
+cocos nucifera,,Arecaceae,Cocos,nucifera,nucifera,,kokoye
+colubrina arborescens,0.55-0.82,Rhamnaceae,Colubrina,arborescens,arborescens,0.685,kapab
+colubrina arborescens,0.55-0.82,Rhamnaceae,Colubrina,arborescens,arborescens,0.685,capable
+colubrina arborescens,0.55-0.82,Rhamnaceae,Colubrina,arborescens,arborescens,0.685,bwa fe
+colubrina arborescens,0.55-0.82,Rhamnaceae,Colubrina,arborescens,arborescens,0.685,bwa petro
+colubrina glandulosa,,Rhamnaceae,Colubrina,glandulosa,glandulosa,,bazek
+colubrina spp.,,Rhamnaceae,Colubrina,spp.,,,bwa fe
+comocladia cuneata,,Anacardiaceae,Comocladia,cuneata,cuneata,,bresillet
+comocladia dentata,,Anacardiaceae,Comocladia,dentata,dentata,,bresillet
+comocladia dodonaea,,Anacardiaceae,Comocladia,dodonaea,dodonaea,,bresillet
+comocladia domingensis,,Anacardiaceae,Comocladia,domingensis,domingensis,,bresillet
+comocladia glabra,,Anacardiaceae,Comocladia,glabra,glabra,,bresillet
+comocladia pinnatifolia,,Anacardiaceae,Comocladia,pinnatifolia,pinnatifolia,,bresillet
+cordia laevigata,,Boraginaceae,Cordia,laevigata,laevigata,,bwa poupe
+cordia laevigata,,Boraginaceae,Cordia,laevigata,laevigata,,poupe
+couroupita guianensis,,Lecythidaceae,Couroupita,guianensis,guianensis,,bwa dom
+crescentia cujete,0.5-0.8,Bignoniaceae,Crescentia,cujete,cujete,0.65,calebasse
+croton glabellus,,Euphorbiaceae,Croton,glabellus,glabellus,,bois blanc
+cupania americana,0.4,Sapindaceae,Cupania,americana,americana,0.4,satanye
+delonix regia ,0.8,Fabaceae,Delonix,regia,regia,0.8,flambwayan
+duranta repens,,Verbenaceae,Duranta,repens,repens,,jambet
+ehretia tinifolia,,Boraginaceae,Ehretia,tinifolia,tinifolia,,bwa nwa
+ehretia tinifolia,,Boraginaceae,Ehretia,tinifolia,tinifolia,,bois noir
+eucalyptus camaldulensis,,Myrtaceae,Eucalyptus,camaldulensis,camaldulensis,,kaliptis
+eucalyptus camaldulensis,,Myrtaceae,Eucalyptus,camaldulensis,camaldulensis,,eucalyptus
+eucalyptus globulus,0.67-0.8,Myrtaceae,Eucalyptus,globulus,globulus,0.7350000000000001,kaliptis
+eucalyptus globulus,0.67-0.8,Myrtaceae,Eucalyptus,globulus,globulus,0.7350000000000001,eucalyptus
+eucalyptus spp.,,Myrtaceae,Eucalyptus,spp.,,,kaliptis
+eucalyptus tereticornis,,Myrtaceae,Eucalyptus,tereticornis,tereticornis,,kaliptis
+eucalyptus tereticornis,,Myrtaceae,Eucalyptus,tereticornis,tereticornis,,eucalyptus
+ficus benjamina,,Moraceae,Ficus,benjamina,benjamina,,figye
+ficus benjamina,,Moraceae,Ficus,benjamina,benjamina,,figuier
+ficus carica,,Moraceae,Ficus,carica,carica,,figye
+ficus citrifolia,0.4,Moraceae,Ficus,citrifolia,citrifolia,0.4,figye
+ficus elastica,,Moraceae,Ficus,elastica,elastica,,figye
+ficus microcarpa,0.5,Moraceae,Ficus,microcarpa,microcarpa,0.5,figye
+ficus religiosa,,Moraceae,Ficus,religiosa,religiosa,,figye
+ficus spp.,,,Ficus,spp.,,,figye
+ficus trigonata,,Moraceae,Ficus,trigonata,trigonata,,figye
+ficus trigonata,,Moraceae,Ficus,trigonata,trigonata,,figuier
+garcinia humilis,,,Garcinia,humilis,humilis,,abricot
+gliricidia sepium,0.47-0.75,Fabaceae,Gliricidia,sepium,sepium,0.61,gliricidia
+guaiacum officinale,,Zygophyllaceae,Guaiacum,officinale,officinale,,gaiac
+guaiacum spp.,0.89-1.3,Zygophyllaceae,Guaiacum,spp.,,1.095,gaiac
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,palmis
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bwa dom
+guatteria blainii,0.8,Annonaceae,Guatteria,blainii,blainii,0.8,bwa nwa
+guatteria blainii,0.8,Annonaceae,Guatteria,blainii,blainii,0.8,bois noir
+guazuma ulmifolia,0.5,Malvaceae,Guazuma,ulmifolia,ulmifolia,0.5,bwa dom
+haematoxylum brasiletto,0.71-0.9,Fabaceae,Haematoxylum,brasiletto,brasiletto,0.8049999999999999,campeche
+haematoxylum campechianum,0.54-0.95,Fabaceae,Haematoxylum,campechianum,campechianum,0.745,bois bleu
+helicteres jamaicensis,,Malvaceae,Helicteres,jamaicensis,jamaicensis,,bwa dom
+hura crepitans,0.26-0.4,Euphorbiaceae,Hura,crepitans,crepitans,0.33,rabi
+inga vera spp. vera,0.57-0.75,Fabaceae,Inga,vera spp. vera,vera,0.6599999999999999,sikren
+jacquinia spp.,,Theophrastaceae,Jacquinia,spp.,,,bande
+juniperus gracilior,,Cupressaceae,Juniperus,gracilior,gracilior,,cedre
+juniperus gracilior,,Cupressaceae,Juniperus,gracilior,gracilior,,sed
+krugiodendron ferreum,0.96-1.04,Rhamnaceae,Krugiodendron,ferreum,ferreum,1.0,bwa fe
+leucaena diversifolia,,Fabaceae,Leucaena,diversifolia,diversifolia,,diversifolia
+leucaena leucocephala subsp. glabrata,0.5-0.79,Fabaceae,Leucaena,leucocephala subsp. glabrata,leucocephala,0.645,leucaena
+leucaena leucocephala subsp. leucocephala,0.7,Fabaceae,Leucaena,leucocephala subsp. leucocephala,leucocephala,0.7,delen
+leucaena leucocephala subsp. leucocephala,0.7,Fabaceae,Leucaena,leucocephala subsp. leucocephala,leucocephala,0.7,madlenn
+licaria triandra,0.68-0.96,Lauraceae,Licaria,triandra,triandra,0.8200000000000001,lorie
+mammea americana,0.62,Clusiaceae,Mammea,americana,americana,0.62,abricot
+mangifera indica,0.45-0.58,Anacardiaceae,Mangifera,indica,indica,0.515,mango
+mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,akoma
+mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,koma
+matayba scrobiculata,,Sapindaceae,Matayba,scrobiculata,scrobiculata,,satanye
+melicoccus bijugatus,,Sapindaceae,Melicoccus,bijugatus,bijugatus,,kenep
+meliosma abbreviata,,Sabiaceae,Meliosma,abbreviata,abbreviata,,koma
+meliosma abbreviata,,Sabiaceae,Meliosma,abbreviata,abbreviata,,akoma
+morinda citrifolia,,Rubiaceae,Morinda,citrifolia,citrifolia,,noni
+moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,moringa
+muntingia calabura,,Elaeocarpaceae,Muntingia,calabura,calabura,,bwa dom
+myrsine coriacea,0.7,Myrsinaceae,Myrsine,coriacea,coriacea,0.7,bwa savann
+myrsine coriacea,0.7,Myrsinaceae,Myrsine,coriacea,coriacea,0.7,savann
+ocotea coriacea,,Lauraceae,Ocotea,coriacea,coriacea,,lorie
+ocotea floribunda,,Lauraceae,Ocotea,floribunda,floribunda,,lorie
+ocotea foeniculacea,,Lauraceae,Ocotea,foeniculacea,foeniculacea,,lorie
+ocotea globosa,,Lauraceae,Ocotea,globosa,globosa,,lorie
+ocotea leucoxylon,0.45,Lauraceae,Ocotea,leucoxylon,leucoxylon,0.45,lorie
+ocotea membranacea,0.45,Lauraceae,Ocotea,membranacea,membranacea,0.45,lorie
+ocotea membranacea,0.45,Lauraceae,Ocotea,membranacea,membranacea,0.45,loye
+ocotea nemodaphne,,Lauraceae,Ocotea,nemodaphne,nemodaphne,,lorie
+ocotea nemodaphne,,Lauraceae,Ocotea,nemodaphne,nemodaphne,,loye
+ocotea oligoneura,,Lauraceae,Ocotea,oligoneura,oligoneura,,lorie
+ocotea oligoneura,,Lauraceae,Ocotea,oligoneura,oligoneura,,loye
+ocotea patens,,Lauraceae,Ocotea,patens,patens,,lorie
+ocotea patens,,Lauraceae,Ocotea,patens,patens,,loye
+ocotea sintensisii,0.55,Lauraceae,Ocotea,sintensisii,sintensisii,0.55,lorie
+ocotea sintensisii,0.55,Lauraceae,Ocotea,sintensisii,sintensisii,0.55,loye
+ocotea spp.,,Lauraceae,Ocotea,spp.,,,lorie
+ocotea wrightii,,Lauraceae,Ocotea,wrightii,wrightii,,lorie
+ocotea wrightii,,Lauraceae,Ocotea,wrightii,wrightii,,loye
+omphalea spp.,,Euphorbiaceae,Omphalea,spp.,,,lorie
+parkinsonia aculeata,0.56-0.67,Fabaceae,Parkinsonia,aculeata,aculeata,0.615,madame yass
+persea americana,0.4-0.65,Lauraceae,Persea,americana,americana,0.525,zaboka
+persea americana,0.4-0.65,Lauraceae,Persea,americana,americana,0.525,sambuca
+petitia domingensis,0.66,Verbenaceae,Petitia,domingensis,domingensis,0.66,bwa doti
+phyllostylon brasiliense,0.65-0.92,Ulmaceae,Phyllostylon,brasiliense,brasiliense,0.785,bois blanc
+picrasma excelsa,,Simaroubaceae,Picrasma,excelsa,excelsa,,fwenn
+picrasma excelsa,,Simaroubaceae,Picrasma,excelsa,excelsa,,frene
+pinus occidentalis,0.58-0.76,Pinaceae,Pinus,occidentalis,occidentalis,0.6699999999999999,pin
+piper aduncum,,Piperaceae,Piper,aduncum,aduncum,,bois major
+piper amalago,,Piperaceae,Piper,amalago,amalago,,bwa anis
+prosopis juliflora,0.8,Fabaceae,Prosopis,juliflora,juliflora,0.8,bayawonn
+pseudalbizzia berteriana,,Fabaceae,Pseudalbizzia,berteriana,berteriana,,bwa savann
+pseudalbizzia berteriana,,Fabaceae,Pseudalbizzia,berteriana,berteriana,,savann
+psidium guajava,0.8,Myrtaceae,Psidium,guajava,guajava,0.8,gwayav
+rauvolfia nitida,,Apocynaceae,Rauvolfia,nitida,nitida,,bois lait
+rheedia laterifolia,,Clusiaceae,Rheedia,laterifolia,laterifolia,,abricot
+ricinus communis,,Euphorbiaceae,Ricinus,communis,communis,,risin
+roystonea borinquena,,Arecaceae,Roystonea,borinquena,borinquena,,palmis
+samanea saman,,,Samanea,saman,saman,,saman
+sambucus spp.,,Adoxaceae,Sambucus,spp.,,,sambuca
+samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bwa dom
+samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bazek
+sapium jamaicense,,Euphorbiaceae,Sapium,jamaicense,jamaicense,,bois lait
+sapium laurifolium,,,Sapium,laurifolium,laurifolium,,bois lait
+schaefferia frutescens,,Celastraceae,Schaefferia,frutescens,frutescens,,ti gason
+schaefferia frutescens,,Celastraceae,Schaefferia,frutescens,frutescens,,capable
+schaefferia frutescens,,Celastraceae,Schaefferia,frutescens,frutescens,,kapab
+senna siamea,0.57-0.83,Fabaceae,Senna,siamea,siamea,0.7,kasya
+senna siamea,0.57-0.83,Fabaceae,Senna,siamea,siamea,0.7,cassia
+sesbania grandiflora,,Fabaceae,Sesbania,grandiflora,grandiflora,,pois vallier
+sideroxylon spp.,,,Sideroxylon,spp.,,,bois blanc
+simarouba berteroana,,Simaroubaceae,Simarouba,berteroana,berteroana,,fwenn
+simarouba berteroana,,Simaroubaceae,Simarouba,berteroana,berteroana,,frene
+simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. latifolia,glauca,,fwenn
+simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. latifolia,glauca,,bois blanc
+simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. latifolia,glauca,,frene
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,fwenn
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,bois blanc
+sloanea amygdalina,,Elaeocarpaceae,Sloanea,amygdalina,amygdalina,,koma
+sloanea amygdalina,,Elaeocarpaceae,Sloanea,amygdalina,amygdalina,,akoma
+spondias mombin,0.26-0.4,Anacardiaceae,Spondias,mombin,mombin,0.33,monben
+spondias mombin,0.26-0.4,Anacardiaceae,Spondias,mombin,mombin,0.33,mombin
+spondias purpurea,,Anacardiaceae,Spondias,purpurea,purpurea,,siwel
+sterculia apetala,0.26-0.4,Malvaceae,Sterculia,apetala,apetala,0.33,pistach
+swietenia mahagoni,0.57-0.8,Meliaceae,Swietenia,mahagoni,mahagoni,0.685,acajou
+tabebuia acrophylla,,Bignoniaceae,Tabebuia,acrophylla,acrophylla,,bwa savann
+tabebuia acrophylla,,Bignoniaceae,Tabebuia,acrophylla,acrophylla,,savann
+tabebuia berteri,,Bignoniaceae,Tabebuia,berteri,berteri,,bwa satsi
+tabernaemontana citrifolia,,Apocynaceae,Tabernaemontana,citrifolia,citrifolia,,bois lait
+tamarindus indica,0.8-0.9,Fabaceae,Tamarindus,indica,indica,0.8500000000000001,tamarenn
+terminalia catappa,0.45-0.58,Combretaceae,Terminalia,catappa,catappa,0.515,zamann
+terminalia catappa,0.45-0.58,Combretaceae,Terminalia,catappa,catappa,0.515,amande
+thrinax morrisii,,Arecaceae,Thrinax,morrisii,morrisii,,lame
+thrinax radiata,,Arecaceae,Thrinax,radiata,radiata,,lame
+trichilia havanensis,,Meliaceae,Trichilia,havanensis,havanensis,,bois loraille
+trichilia pallida,,Meliaceae,Trichilia,pallida,pallida,,twa pawol
+vitex heptaphylla,,Verbenaceae,Vitex,heptaphylla,heptaphylla,,bwa savann
+vitex heptaphylla,,Verbenaceae,Vitex,heptaphylla,heptaphylla,,savann
+vitex spp.,,Verbenaceae,Vitex,spp.,,,bwa savann
+vitex spp.,,Verbenaceae,Vitex,spp.,,,savann
+wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,risin
+zanthoxylum spp.,,Rutaceae,Zanthoxylum,spp.,,,bwa pini
+zombia antillarum,,Arecaceae,Zombia,antillarum,antillarum,,latanye

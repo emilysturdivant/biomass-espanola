@@ -124,7 +124,7 @@ lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 by_df = load_supplemental_species_data(by_fname, binomial_fld='species_binomial',
     in_wd_fld='by_spec_grav', save_wooddensities=out_wd_fname)
 # Explode Bwa Yo DF by the creole names column. For every row with multiple creole names, duplicate species row.
-creole_df = explode_names_to_specieslookup(df, collist=['by_names', 'dot_names', 'name_guesses'],
+creole_df = explode_names_to_specieslookup(by_df, collist=['by_names', 'dot_names', 'name_guesses'],
     outnames_col='all_names', remove_patterns=[r'p.p.$', r'\?'])
 # Export to CSV
 creole_df.to_csv(lookup_fname, index=False)

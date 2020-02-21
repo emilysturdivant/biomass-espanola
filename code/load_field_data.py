@@ -132,7 +132,7 @@ df.sample(5)
 len(df[df['dbh_cm'] == 0])
 len(df[df['ht_m'] == 0])
 len(df[df['dbh_cm'].isna()])
-df[df['dbh_cm'].isna()]
+df[df['dbh_cm'].isna()].sample(5)
 nans = df[pd.concat([df['dbh_cm'].isna(), df['sp_creole'].isna(), df['ht_m'].isna()], axis=1).all(axis=1)]
 if len(nans) > 8:
     print(f"WARNING: There are {len(nans)} rows with Null in all three sp, dbh, and ht, more than ther are NoBiomass plots.")
@@ -227,6 +227,13 @@ fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_species.png'))
 
 #%%
 df_sub = df[df['sp_creole'].isin(['mango', 'latanye lame', 'figye', 'monben', 'kaliptis'])]
+plot = df_sub.boxplot(column='dbh_cm', by='sp_creole', figsize=(8,4), vert=False)
+fig = plot.get_figure()
+fig.tight_layout()
+fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_species_outliers.png'))
+
+#%%
+df_sub = df[df['sp_creole'].isin(['risin'])]
 plot = df_sub.boxplot(column='dbh_cm', by='sp_creole', figsize=(8,4), vert=False)
 fig = plot.get_figure()
 fig.tight_layout()

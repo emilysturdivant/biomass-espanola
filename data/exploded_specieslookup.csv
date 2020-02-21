@@ -1,6 +1,6 @@
-species_binomial,by_spec_grav,family,genus,species,species_abbr,wd_avg,all_names
-acacia  ,,Fabaceae,Acacia,,,,bayawonn
-acacia  ,,Fabaceae,Acacia,,,,zakasya
+species_binomial,by_spec_grav,family,genus,species_extd,species,wd_avg,all_names
+acacia  ,,Fabaceae,Acacia, ,,,bayawonn
+acacia  ,,Fabaceae,Acacia, ,,,zakasya
 acacia auriculiformis,0.6-0.8,Fabaceae,Acacia,auriculiformis,auriculiformis,0.7,zakasya
 acacia auriculiformis,0.6-0.8,Fabaceae,Acacia,auriculiformis,auriculiformis,0.7,akasya
 acacia auriculiformis,0.6-0.8,Fabaceae,Acacia,auriculiformis,auriculiformis,0.7,acacia
@@ -83,6 +83,9 @@ adenanthera pavonina,0.6-0.8,Fabaceae,Adenanthera,pavonina,pavonina,0.7,reglis
 adenanthera pavonina,0.6-0.8,Fabaceae,Adenanthera,pavonina,pavonina,0.7,eglise
 adenanthera pavonina,0.6-0.8,Fabaceae,Adenanthera,pavonina,pavonina,0.7,reglisse
 adenanthera pavonina,0.6-0.8,Fabaceae,Adenanthera,pavonina,pavonina,0.7,legliz
+albizia berteriana,,Fabaceae,Albizia,berteriana,berteriana,,bwa savann
+albizia berteriana,,Fabaceae,Albizia,berteriana,berteriana,,bois savane
+albizia berteriana,,Fabaceae,Albizia,berteriana,berteriana,,savann
 albizia guachapele,0.55-0.6,Fabaceae,Albizia,guachapele,guachapele,0.575,
 albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,tcha tcha
 albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bwa savann
@@ -90,10 +93,13 @@ albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bwa nwa
 albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bois noir
 albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,bois savane
 albizia lebbeck,0.43-0.68,Fabaceae,Albizia,lebbeck,lebbeck,0.555,savann
-albizia procera ,0.6-0.9,Fabaceae,Albizia,procera,procera,0.75,
+albizia procera ,0.6-0.9,Fabaceae,Albizia,procera ,procera,0.75,
 albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,saman
 albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,gouannegoul
 albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,gwanegoul
+albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,rain-tree
+albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,arbre de pluie
+albizia saman,0.42-0.64,Fabaceae,Albizia,saman,saman,0.53,gouan-negoul
 alchornea latifolia,0.39,Euphorbiaceae,Alchornea,latifolia,latifolia,0.39,bwa krapo
 alchornea latifolia,0.39,Euphorbiaceae,Alchornea,latifolia,latifolia,0.39,fey krapo
 alchornea latifolia,0.39,Euphorbiaceae,Alchornea,latifolia,latifolia,0.39,pwa vach
@@ -164,9 +170,9 @@ alnus acuminata,0.5-0.6,Betulaceae,Alnus,acuminata,acuminata,0.55,
 alsophila hotteana,,Cyatheaceae,Alsophila,hotteana,hotteana,,
 alsophila minor,,Cyatheaceae,Alsophila,minor,minor,,
 alsophila woodwardioides,,Cyatheaceae,Alsophila,woodwardioides,woodwardioides,,
-alvaradoa  ,,Simaroubaceae,Alvaradoa,,,,alvaradoa
-alvaradoa  ,,Simaroubaceae,Alvaradoa,,,,abbe marron
-alvaradoa  ,,Simaroubaceae,Alvaradoa,,,,abi
+alvaradoa  ,,Simaroubaceae,Alvaradoa, ,,,alvaradoa
+alvaradoa  ,,Simaroubaceae,Alvaradoa, ,,,abbe marron
+alvaradoa  ,,Simaroubaceae,Alvaradoa, ,,,abi
 alvaradoa haitiensis,,Simaroubaceae,Alvaradoa,haitiensis,haitiensis,,abbe marron
 alvaradoa haitiensis,,Simaroubaceae,Alvaradoa,haitiensis,haitiensis,,petit abbe
 alvaradoa haitiensis,,Simaroubaceae,Alvaradoa,haitiensis,haitiensis,,ti abe
@@ -309,10 +315,6 @@ aspidosperma cuspa,,Apocynaceae,Aspidosperma,cuspa,cuspa,,madam jan
 aspidosperma cuspa,,Apocynaceae,Aspidosperma,cuspa,cuspa,,bwa ame blan
 aspidosperma cuspa,,Apocynaceae,Aspidosperma,cuspa,cuspa,,aspidosperma amer-blanc
 aspidosperma cuspa,,Apocynaceae,Aspidosperma,cuspa,cuspa,,bois blanc amer
-ateleia gummifer,,Fabaceae,Ateleia,gummifer,gummifer,,bwa santi
-ateleia gummifer,,Fabaceae,Ateleia,gummifer,gummifer,,bois senti
-ateleia gummifer,,Fabaceae,Ateleia,gummifer,gummifer,,bwa satsi
-ateleia microcarpa,,Fabaceae,Ateleia,microcarpa,microcarpa,,
 attalea crassispatha,,Arecaceae,Attalea,crassispatha,crassispatha,,carosse
 attalea crassispatha,,Arecaceae,Attalea,crassispatha,crassispatha,,carossier
 attalea crassispatha,,Arecaceae,Attalea,crassispatha,crassispatha,,petit coco
@@ -376,6 +378,19 @@ beilschmiedia pendula,0.54,Lauraceae,Beilschmiedia,pendula,pendula,0.54,bwa nwa
 beilschmiedia pendula,0.54,Lauraceae,Beilschmiedia,pendula,pendula,0.54,bois noir
 beilschmiedia pendula,0.54,Lauraceae,Beilschmiedia,pendula,pendula,0.54,laurier rouge
 bernardia dichotoma,,Euphorbiaceae,Bernardia,dichotoma,dichotoma,,
+berrya ameliae,,Malvaceae,Berrya,ameliae,ameliae,,bwa doti blan
+berrya ameliae,,Malvaceae,Berrya,ameliae,ameliae,,doti blanch
+berrya ameliae,,Malvaceae,Berrya,ameliae,ameliae,,doti bwa blan
+berrya ameliae,,Malvaceae,Berrya,ameliae,ameliae,,fey doti
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bois blanc
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bois d'ortie
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bois d'ortie blanche
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bois d'ortie rouge
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,feuilles d'ortie
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,ortie blanche
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bwa blan
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bwa doti
+berrya cubensis,,Malvaceae,Berrya,cubensis,cubensis,,bwa doti wouj
 bixa orellana,0.4,Bixaceae,Bixa,orellana,orellana,0.4,woukou
 bixa orellana,0.4,Bixaceae,Bixa,orellana,orellana,0.4,chiote
 bixa orellana,0.4,Bixaceae,Bixa,orellana,orellana,0.4,roucou
@@ -472,25 +487,6 @@ bucida buceras,0.75-0.93,Combretaceae,Bucida,buceras,buceras,0.8400000000000001,
 bucida buceras,0.75-0.93,Combretaceae,Bucida,buceras,buceras,0.8400000000000001,gue gue
 bucida buceras,0.75-0.93,Combretaceae,Bucida,buceras,buceras,0.8400000000000001,grigri grigri mon
 bucida spinosa,,Combretaceae,Bucida,spinosa,spinosa,,
-bumelia cubensis,,Sapotaceae,Bumelia,cubensis,cubensis,,bwa denn
-bumelia cubensis,,Sapotaceae,Bumelia,cubensis,cubensis,,bois d'inde
-bumelia cubensis,,Sapotaceae,Bumelia,cubensis,cubensis,,tiquimite
-bumelia cubensis,,Sapotaceae,Bumelia,cubensis,cubensis,,tikimit
-bumelia obovata,,Sapotaceae,Bumelia,obovata,obovata,,
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,koma wouj
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,sip
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,bwa sip
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,acomat marron
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,acomat rouge
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,m'panache
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,sapotille marron
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,sapotillier marron
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,akoma
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,akoma mawon
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,akoma wouj
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,mpanash
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,sapoti mawon
-bumelia salicifolia,0.9-0.99,Sapotaceae,Bumelia,salicifolia,salicifolia,0.9450000000000001,bwa satsi
 bunchosia glandulifera,,,Bunchosia,glandulifera,glandulifera,,bois senti
 bunchosia glandulosa,,Malpighiaceae,Bunchosia,glandulosa,glandulosa,,bwa kaka
 bunchosia glandulosa,,Malpighiaceae,Bunchosia,glandulosa,glandulosa,,bwa poulet
@@ -531,8 +527,8 @@ bursera simaruba,0.26-0.4,Burseraceae,Bursera,simaruba,simaruba,0.33,dibit-kra
 bursera simaruba,0.26-0.4,Burseraceae,Bursera,simaruba,simaruba,0.33,doritska
 bursera simaruba,0.26-0.4,Burseraceae,Bursera,simaruba,simaruba,0.33,bursera
 buxus glomerata,,Buxaceae,Buxus,glomerata,glomerata,,bois petite feuille
-buxus spp. ,,Buxaceae,Buxus,spp.,,,bwa ti fey
-buxus spp. ,,Buxaceae,Buxus,spp.,,,bwatifey
+buxus spp. ,,Buxaceae,Buxus,spp. ,,,bwa ti fey
+buxus spp. ,,Buxaceae,Buxus,spp. ,,,bwatifey
 byra buxifolia,,Fabaceae,Byra,buxifolia,buxifolia,,galle-galle
 byra buxifolia,,Fabaceae,Byra,buxifolia,buxifolia,,galgal
 byrsonima coriacea,,Malpighiaceae,Byrsonima,coriacea,coriacea,,bois come
@@ -577,6 +573,11 @@ caesalpinia coriaria,0.9-1.2,Fabaceae,Caesalpinia,coriaria,coriaria,1.05,libidib
 caesalpinia coriaria,0.9-1.2,Fabaceae,Caesalpinia,coriaria,coriaria,1.05,cesalpinie dividivi
 caesalpinia coriaria,0.9-1.2,Fabaceae,Caesalpinia,coriaria,coriaria,1.05,dividivi
 caesalpinia globulorum,,Fabaceae,Caesalpinia,globulorum,globulorum,,
+caesalpinia praecox,,Fabaceae,Caesalpinia,praecox,praecox,,prentan
+caesalpinia praecox,,Fabaceae,Caesalpinia,praecox,praecox,,baie aonde
+caesalpinia praecox,,Fabaceae,Caesalpinia,praecox,praecox,,printemps
+caesalpinia praecox,,Fabaceae,Caesalpinia,praecox,praecox,,bayawonn
+caesalpinia praecox,,Fabaceae,Caesalpinia,praecox,praecox,,baie a ondes
 caesalpinia pulcherrima,,Fabaceae,Caesalpinia,pulcherrima,pulcherrima,,francillade
 caesalpinia pulcherrima,,Fabaceae,Caesalpinia,pulcherrima,pulcherrima,,francillade afleurs jaunes
 caesalpinia pulcherrima,,Fabaceae,Caesalpinia,pulcherrima,pulcherrima,,francillade fleurs rouges
@@ -727,19 +728,6 @@ carica papaya,,Caricaceae,Carica,papaya,papaya,,papailler
 carica papaya,,Caricaceae,Carica,papaya,papaya,,papaye
 carica papaya,,Caricaceae,Carica,papaya,papaya,,papayer
 carica papaya,,Caricaceae,Carica,papaya,papaya,,papai
-carpodiptera cubensis,,Tiliaceae,Carpodiptera,cubensis,cubensis,,bwa doti blan
-carpodiptera cubensis,,Tiliaceae,Carpodiptera,cubensis,cubensis,,doti blanch
-carpodiptera cubensis,,Tiliaceae,Carpodiptera,cubensis,cubensis,,doti bwa blan
-carpodiptera cubensis,,Tiliaceae,Carpodiptera,cubensis,cubensis,,fey doti
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bois blanc
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bois d'ortie
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bois d'ortie blanche
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bois d'ortie rouge
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,feuilles d'ortie
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,ortie blanche
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bwa blan
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bwa doti
-carpodiptera spp.,,Tiliaceae,Carpodiptera,spp.,,,bwa doti wouj
 casearia aculeata,,Flacourtiaceae,Casearia,aculeata,aculeata,,piquant arada
 casearia aculeata,,Flacourtiaceae,Casearia,aculeata,aculeata,,pikan arada
 casearia arborea,,Flacourtiaceae,Casearia,arborea,arborea,,
@@ -849,11 +837,6 @@ celtis trinervia,,Ulmaceae,Celtis,trinervia,trinervia,,bois feuilles blanches
 celtis trinervia,,Ulmaceae,Celtis,trinervia,trinervia,,bois raie
 celtis trinervia,,Ulmaceae,Celtis,trinervia,trinervia,,micocoulier a trois nervures
 celtis trinervia,,Ulmaceae,Celtis,trinervia,trinervia,,fois feuilles blanches
-cercidium praecox,,Fabaceae,Cercidium,praecox,praecox,,prentan
-cercidium praecox,,Fabaceae,Cercidium,praecox,praecox,,baie aonde
-cercidium praecox,,Fabaceae,Cercidium,praecox,praecox,,printemps
-cercidium praecox,,Fabaceae,Cercidium,praecox,praecox,,bayawonn
-cercidium praecox,,Fabaceae,Cercidium,praecox,praecox,,baie a ondes
 cereus hexagonus,,Cactaceae,Cereus,hexagonus,hexagonus,,
 cestrum diurnum,,Solanaceae,Cestrum,diurnum,diurnum,,
 cestrum macrophyllum,,Solanaceae,Cestrum,macrophyllum,macrophyllum,,
@@ -1068,8 +1051,8 @@ coccoloba pubescens,1-1.1,Polygonaceae,Coccoloba,pubescens,pubescens,1.05,magne 
 coccoloba pubescens,1-1.1,Polygonaceae,Coccoloba,pubescens,pubescens,1.05,raisin grandes feuilles
 coccoloba pubescens,1-1.1,Polygonaceae,Coccoloba,pubescens,pubescens,1.05,gamel
 coccoloba pubescens,1-1.1,Polygonaceae,Coccoloba,pubescens,pubescens,1.05,mayn lame
-coccoloba spp.,,,Coccoloba,spp.,,,rezen
-coccoloba spp.,,,Coccoloba,spp.,,,risin
+coccoloba spp.,,Polygonaceae,Coccoloba,spp.,,,rezen
+coccoloba spp.,,Polygonaceae,Coccoloba,spp.,,,risin
 coccoloba swartzii,0.7,Polygonaceae,Coccoloba,swartzii,swartzii,0.7,
 coccoloba uvifera,0.7,Polygonaceae,Coccoloba,uvifera,uvifera,0.7,rezen fe
 coccoloba uvifera,0.7,Polygonaceae,Coccoloba,uvifera,uvifera,0.7,rezen lame
@@ -1082,6 +1065,7 @@ coccoloba uvifera,0.7,Polygonaceae,Coccoloba,uvifera,uvifera,0.7,rezen bodlame
 coccoloba uvifera,0.7,Polygonaceae,Coccoloba,uvifera,uvifera,0.7,bois a baguettes
 coccoloba venosa,,Polygonaceae,Coccoloba,venosa,venosa,,
 coccoloba wrightii,,Polygonaceae,Coccoloba,wrightii,wrightii,,
+coccothrinax argentata,,,Coccothrinax,argentata,argentata,,
 coccothrinax argentea,,Arecaceae,Coccothrinax,argentea,argentea,,gwenn
 coccothrinax argentea,,Arecaceae,Coccothrinax,argentea,argentea,,latanye
 coccothrinax argentea,,Arecaceae,Coccothrinax,argentea,argentea,,gouane
@@ -1410,10 +1394,10 @@ datura arborea,,,Datura,arborea,arborea,,stramoine-en-arbre
 datura suaveolens,,Solanaceae,Datura,suaveolens,suaveolens,,stramoine-en-arbre
 datura suaveolens,,Solanaceae,Datura,suaveolens,suaveolens,,stramwann
 datura suaveolens,,Solanaceae,Datura,suaveolens,suaveolens,,concombre zombi
-delonix regia ,0.8,Fabaceae,Delonix,regia,regia,0.8,flambwayan
-delonix regia ,0.8,Fabaceae,Delonix,regia,regia,0.8,poinciana royal
-delonix regia ,0.8,Fabaceae,Delonix,regia,regia,0.8,flamboyant
-delonix regia ,0.8,Fabaceae,Delonix,regia,regia,0.8,pwensiyana
+delonix regia ,0.8,Fabaceae,Delonix,regia ,regia,0.8,flambwayan
+delonix regia ,0.8,Fabaceae,Delonix,regia ,regia,0.8,poinciana royal
+delonix regia ,0.8,Fabaceae,Delonix,regia ,regia,0.8,flamboyant
+delonix regia ,0.8,Fabaceae,Delonix,regia ,regia,0.8,pwensiyana
 dendropanax arboreus,0.4-0.52,Araliaceae,Dendropanax,arboreus,arboreus,0.46,bwa neges
 dendropanax arboreus,0.4-0.52,Araliaceae,Dendropanax,arboreus,arboreus,0.46,bois negresse
 dendropanax arboreus,0.4-0.52,Araliaceae,Dendropanax,arboreus,arboreus,0.46,fausse salsepareille
@@ -1576,13 +1560,13 @@ eugenia maleolens,,Myrtaceae,Eugenia,maleolens,maleolens,,merisier
 eugenia maleolens,,Myrtaceae,Eugenia,maleolens,maleolens,,petites feuilles
 eugenia maleolens,,Myrtaceae,Eugenia,maleolens,maleolens,,malaget
 eugenia maleolens,,Myrtaceae,Eugenia,maleolens,maleolens,,maget
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,bwa dinn ti fey
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,ti bwa denn
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,bois d'ine petites feuilles
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,petit bois d'inde
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,eugenie petites-feuilles
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,bois d’ine petites feuilles
-eugenia monticola ,,Myrtaceae,Eugenia,monticola,monticola,,petit bois d’inde
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,bwa dinn ti fey
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,ti bwa denn
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,bois d'ine petites feuilles
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,petit bois d'inde
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,eugenie petites-feuilles
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,bois d’ine petites feuilles
+eugenia monticola ,,Myrtaceae,Eugenia,monticola ,monticola,,petit bois d’inde
 eugenia odorata,,Myrtaceae,Eugenia,odorata,odorata,,bois acajou
 eugenia odorata,,Myrtaceae,Eugenia,odorata,odorata,,bwa kajou
 eugenia procera,,Myrtaceae,Eugenia,procera,procera,,arbre apetites feuilles
@@ -1682,8 +1666,22 @@ garcinia humilis,,,Garcinia,humilis,humilis,,abricot batard
 garcinia humilis,,,Garcinia,humilis,humilis,,abricot bord de mer
 garcinia humilis,,,Garcinia,humilis,humilis,,abricotier de st-domingue
 garcinia humilis,,,Garcinia,humilis,humilis,,abricot st-domingue
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,zabriko
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,abricot
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,abricotier de st. domingue
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,abricot batard
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,abricot bord de mer
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,abricotier de st-domingue
+garcinia humilis,,Clusiaceae,Garcinia,humilis,humilis,,abricot st-domingue
 garcinia mangostana,,Clusiaceae,Garcinia,mangostana,mangostana,,mangosteen
 garcinia mangostana,,Clusiaceae,Garcinia,mangostana,mangostana,,mangostinn
+garcinia spp. ,0.65-0.78,Clusiaceae,Garcinia,spp. ,,0.7150000000000001,bwa diou
+garcinia spp. ,0.65-0.78,Clusiaceae,Garcinia,spp. ,,0.7150000000000001,zabriko
+garcinia verticillata,,Clusiaceae,Garcinia,verticillata,verticillata,,bois de haut
+garcinia verticillata,,Clusiaceae,Garcinia,verticillata,verticillata,,bois de roux
+garcinia verticillata,,Clusiaceae,Garcinia,verticillata,verticillata,,bois diou
+garcinia verticillata,,Clusiaceae,Garcinia,verticillata,verticillata,,bwa diou
+garcinia verticillata,,Clusiaceae,Garcinia,verticillata,verticillata,,bwa deho
 garrya fadyenii,,Garryaceae,Garrya,fadyenii,fadyenii,,bois amer
 garrya fadyenii,,Garryaceae,Garrya,fadyenii,fadyenii,,bwa ame
 genipa americana var. caruto,0.52-0.66,Rubiaceae,Genipa,americana var. caruto,americana,0.5900000000000001,jinpa
@@ -1759,15 +1757,19 @@ guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bois rouge
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,palmiste
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,palmis
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bwa wouj
-guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bois d’orme
-guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,boise rouge
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bois d'orme
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bois sec
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,casser sec
-guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,palmiste 
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,rose marron
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bwa sek
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bwa dom
-guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,kas sek
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,kase sek
 guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,woz mawon
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bois d’orme
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,boise rouge
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,palmiste 
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,kas sek
+guarea guidonia,,Meliaceae,Guarea,guidonia,guidonia,,bazek
 guarea spp.,0.4-0.65,Meliaceae,Guarea,spp.,,0.525,bwa wouj
 guatteria blainii,0.8,Annonaceae,Guatteria,blainii,blainii,0.8,bwa nwa
 guatteria blainii,0.8,Annonaceae,Guatteria,blainii,blainii,0.8,bois noir
@@ -1790,12 +1792,12 @@ guettarda multinervis,,Rubiaceae,Guettarda,multinervis,multinervis,,calle noire
 guettarda multinervis,,Rubiaceae,Guettarda,multinervis,multinervis,,kal nwa
 guettarda ovalifolia,,Rubiaceae,Guettarda,ovalifolia,ovalifolia,,
 guettarda pungens,,Rubiaceae,Guettarda,pungens,pungens,,
-guettarda spp. ,0.8-0.83,Rubiaceae,Guettarda,spp.,,0.815,kal nwa
+guettarda spp. ,0.8-0.83,Rubiaceae,Guettarda,spp. ,,0.815,kal nwa
 guettarda valenzuelana,,Rubiaceae,Guettarda,valenzuelana,valenzuelana,,
 gymindia latifolia,,Celastraceae,Gymindia,latifolia,latifolia,,
-gymnanthes lucida ,1.1,Euphorbiaceae,Gymnanthes,lucida,lucida,1.1,bwa mabre
-gymnanthes lucida ,1.1,Euphorbiaceae,Gymnanthes,lucida,lucida,1.1,bois marbre
-gymnanthes lucida ,1.1,Euphorbiaceae,Gymnanthes,lucida,lucida,1.1,mabe
+gymnanthes lucida ,1.1,Euphorbiaceae,Gymnanthes,lucida ,lucida,1.1,bwa mabre
+gymnanthes lucida ,1.1,Euphorbiaceae,Gymnanthes,lucida ,lucida,1.1,bois marbre
+gymnanthes lucida ,1.1,Euphorbiaceae,Gymnanthes,lucida ,lucida,1.1,mabe
 haematoxylum brasiletto,0.71-0.9,Fabaceae,Haematoxylum,brasiletto,brasiletto,0.8049999999999999,kampech
 haematoxylum brasiletto,0.71-0.9,Fabaceae,Haematoxylum,brasiletto,brasiletto,0.8049999999999999,campeche
 haematoxylum brasiletto,0.71-0.9,Fabaceae,Haematoxylum,brasiletto,brasiletto,0.8049999999999999,campech
@@ -1879,7 +1881,7 @@ hura crepitans,0.26-0.4,Euphorbiaceae,Hura,crepitans,crepitans,0.33,pet djab
 hura crepitans,0.26-0.4,Euphorbiaceae,Hura,crepitans,crepitans,0.33,sablier 
 hura crepitans,0.26-0.4,Euphorbiaceae,Hura,crepitans,crepitans,0.33,bwa djab
 hyeronima domingensis,,Euphorbiaceae,Hyeronima,domingensis,domingensis,,
-hyeronima spp. ,0.52-0.78,Euphorbiaceae,Hyeronima,spp.,,0.65,
+hyeronima spp. ,0.52-0.78,Euphorbiaceae,Hyeronima,spp. ,,0.65,
 hymenaea courbaril,0.71-0.82,Fabaceae,Hymenaea,courbaril,courbaril,0.7649999999999999,koubari
 hymenaea courbaril,0.71-0.82,Fabaceae,Hymenaea,courbaril,courbaril,0.7649999999999999,pwa konfiti
 hymenaea courbaril,0.71-0.82,Fabaceae,Hymenaea,courbaril,courbaril,0.7649999999999999,courbaril
@@ -1983,14 +1985,14 @@ lagetta lagetto,,Thymeliaceae,Lagetta,lagetto,lagetto,,daguille
 lagetta lagetto,,Thymeliaceae,Lagetta,lagetto,lagetto,,laget
 lagetta lagetto,,Thymeliaceae,Lagetta,lagetto,lagetto,,dagwi
 lagetta lagetto,,Thymeliaceae,Lagetta,lagetto,lagetto,,bwa dantel
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,mang blan
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,gris-gris
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,manglier blanc
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,mangle
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,grigri
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,mangliye
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,mang
-laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa,racemosa,0.7,mang blanc
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,mang blan
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,gris-gris
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,manglier blanc
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,mangle
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,grigri
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,mangliye
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,mang
+laguncularia racemosa ,0.6-0.8,Combretaceae,Laguncularia,racemosa ,racemosa,0.7,mang blanc
 laplacea spp.,,Theaceae,Laplacea,spp.,,,
 lawsonia inermis,,Lythraceae,Lawsonia,inermis,inermis,,fleurs jalousie
 lawsonia inermis,,Lythraceae,Lawsonia,inermis,inermis,,henne
@@ -2045,9 +2047,9 @@ lonchocarpus neurophyllus,,Fabaceae,Lonchocarpus,neurophyllus,neurophyllus,,bois
 lonchocarpus neurophyllus,,Fabaceae,Lonchocarpus,neurophyllus,neurophyllus,,caiman
 lonchocarpus neurophyllus,,Fabaceae,Lonchocarpus,neurophyllus,neurophyllus,,bwa dano
 lonchocarpus neurophyllus,,Fabaceae,Lonchocarpus,neurophyllus,neurophyllus,,kayman
-lonchocarpus spp. ,0.62-0.76,Fabaceae,Lonchocarpus,spp.,,0.69,bwa dano
-lonchocarpus spp. ,0.62-0.76,Fabaceae,Lonchocarpus,spp.,,0.69,bwa kayman
-lonchocarpus spp. ,0.62-0.76,Fabaceae,Lonchocarpus,spp.,,0.69,bois caiman
+lonchocarpus spp. ,0.62-0.76,Fabaceae,Lonchocarpus,spp. ,,0.69,bwa dano
+lonchocarpus spp. ,0.62-0.76,Fabaceae,Lonchocarpus,spp. ,,0.69,bwa kayman
+lonchocarpus spp. ,0.62-0.76,Fabaceae,Lonchocarpus,spp. ,,0.69,bois caiman
 lunania ekmanii,,Flacourtiaceae,Lunania,ekmanii,ekmanii,,
 lyonia rubiginosa,,Ericaceae,Lyonia,rubiginosa,rubiginosa,,
 lysiloma bahamensis,,Fabaceae,Lysiloma,bahamensis,bahamensis,,
@@ -2128,18 +2130,6 @@ manilkara zapota,,Sapotaceae,Manilkara,zapota,zapota,,sapotille
 manilkara zapota,,Sapotaceae,Manilkara,zapota,zapota,,sapotillier
 manilkara zapota,,Sapotaceae,Manilkara,zapota,zapota,,sapotillier commun
 margaritaria nobilis,0.9,Euphorbiaceae,Margaritaria,nobilis,nobilis,0.9,
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,akoma
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,koma
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,acomat
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,coma
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,coma blanc
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,coma franc
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,akoma blan
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,akoma fran
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,koma blan
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,koma fran
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,acamat
-mastichodendron foetidissimum,0.9,Sapotaceae,Mastichodendron,foetidissimum,foetidissimum,0.9,koma blanc
 matayba apetala,,Sapindaceae,Matayba,apetala,apetala,,bois de graines
 matayba apetala,,Sapindaceae,Matayba,apetala,apetala,,bois de graines noirs
 matayba apetala,,Sapindaceae,Matayba,apetala,apetala,,bois de graines noires
@@ -2205,8 +2195,8 @@ meliosma abbreviata,,Sabiaceae,Meliosma,abbreviata,abbreviata,,akoma
 meliosma abbreviata,,Sabiaceae,Meliosma,abbreviata,abbreviata,,koma jon
 meliosma abbreviata,,Sabiaceae,Meliosma,abbreviata,abbreviata,,akoma jon
 meliosma herbertii,0.42,Sabiaceae,Meliosma,herbertii,herbertii,0.42,
-meliosma impressa ,,Sabiaceae,Meliosma,impressa,impressa,,gounelle
-meliosma impressa ,,Sabiaceae,Meliosma,impressa,impressa,,gwanel
+meliosma impressa ,,Sabiaceae,Meliosma,impressa ,impressa,,gounelle
+meliosma impressa ,,Sabiaceae,Meliosma,impressa ,impressa,,gwanel
 meliosma recurvata,,Sabiaceae,Meliosma,recurvata,recurvata,,
 metopium brownei,,Anarcardiceae,Metopium,brownei,brownei,,bois mulatre
 metopium brownei,,Anarcardiceae,Metopium,brownei,brownei,,mancenillier
@@ -2273,15 +2263,15 @@ morinda royoc,,Rubiaceae,Morinda,royoc,royoc,,estologe
 morinda royoc,,Rubiaceae,Morinda,royoc,royoc,,safran
 morinda royoc,,Rubiaceae,Morinda,royoc,royoc,,safran de saint-domingue
 morinda royoc,,Rubiaceae,Morinda,royoc,royoc,,safran du pays
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,benzoliv
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,ben oleitere
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,benzolive
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,d'olive
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,olive
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,olivier
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,olivye
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,doliv
-moringa oleifera ,,Moringaceae,Moringa,oleifera,oleifera,,moringa
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,benzoliv
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,ben oleitere
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,benzolive
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,d'olive
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,olive
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,olivier
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,olivye
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,doliv
+moringa oleifera ,,Moringaceae,Moringa,oleifera ,oleifera,,moringa
 morisonia americana,,Brassicaceae,Morisonia,americana,americana,,
 morus nigra,,Moraceae,Morus,nigra,nigra,,mi
 morus nigra,,Moraceae,Morus,nigra,nigra,,mures
@@ -2380,14 +2370,14 @@ nectandra hihua,,,Nectandra,hihua,hihua,,lorie gran fey
 neobuchia paulinae,,Bombacaceae,Neobuchia,paulinae,paulinae,,mapou blanc
 neobuchia paulinae,,Bombacaceae,Neobuchia,paulinae,paulinae,,mapou blan
 neolaugeria resinosa,0.8,Rubiaceae,Neolaugeria,resinosa,resinosa,0.8,
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,lorie woz
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,laurier blanc
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,laurier des jardins
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,laurier rose
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,laurier tropical
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,lorie blan
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,lorie jaden
-nerium oleander ,0.6,Apocynaceae,Nerium,oleander,oleander,0.6,lorie twopikal
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,lorie woz
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,laurier blanc
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,laurier des jardins
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,laurier rose
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,laurier tropical
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,lorie blan
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,lorie jaden
+nerium oleander ,0.6,Apocynaceae,Nerium,oleander ,oleander,0.6,lorie twopikal
 ochroma pyramidale,0.22-0.26,Bombacaceae,Ochroma,pyramidale,pyramidale,0.24,koton swa
 ochroma pyramidale,0.22-0.26,Bombacaceae,Ochroma,pyramidale,pyramidale,0.24,mahodem
 ochroma pyramidale,0.22-0.26,Bombacaceae,Ochroma,pyramidale,pyramidale,0.24,bois madame
@@ -2483,7 +2473,7 @@ oxandra laurifolia,,Annonaceae,Oxandra,laurifolia,laurifolia,,bwa lans bata
 pachira aquatica,,Bombacaceae,Pachira,aquatica,aquatica,,colorade
 pachira aquatica,,Bombacaceae,Pachira,aquatica,aquatica,,kolorad
 pachira insignis,,Bombacaceae,Pachira,insignis,insignis,,
-pachira spp. ,,Bombacaceae,Pachira,spp.,,,kolorad
+pachira spp. ,,Bombacaceae,Pachira,spp. ,,,kolorad
 palicourea alpina,,Rubiaceae,Palicourea,alpina,alpina,,
 palicourea barbinervia,,Rubiaceae,Palicourea,barbinervia,barbinervia,,
 palicourea crocea,,Rubiaceae,Palicourea,crocea,crocea,,
@@ -2805,13 +2795,10 @@ prunus occidentalis,0.9-1.05,Rosaceae,Prunus,occidentalis,occidentalis,0.9750000
 prunus occidentalis,0.9-1.05,Rosaceae,Prunus,occidentalis,occidentalis,0.9750000000000001,amandier agrandes feuilles
 prunus occidentalis,0.9-1.05,Rosaceae,Prunus,occidentalis,occidentalis,0.9750000000000001,amandier 
 prunus occidentalis,0.9-1.05,Rosaceae,Prunus,occidentalis,occidentalis,0.9750000000000001,amandier a grandes feuilles
-prunus persica ,,Rosaceae,Prunus,persica,persica,,peche
-prunus persica ,,Rosaceae,Prunus,persica,persica,,pecher
-prunus persica ,,Rosaceae,Prunus,persica,persica,,pech
+prunus persica ,,Rosaceae,Prunus,persica ,persica,,peche
+prunus persica ,,Rosaceae,Prunus,persica ,persica,,pecher
+prunus persica ,,Rosaceae,Prunus,persica ,persica,,pech
 prunus spp.,,,Prunus,spp.,,,lamandye
-pseudalbizzia berteriana,,Fabaceae,Pseudalbizzia,berteriana,berteriana,,bwa savann
-pseudalbizzia berteriana,,Fabaceae,Pseudalbizzia,berteriana,berteriana,,bois savane
-pseudalbizzia berteriana,,Fabaceae,Pseudalbizzia,berteriana,berteriana,,savann
 pseudanamomis umbellulifera,,Myrtaceae,Pseudanamomis,umbellulifera,umbellulifera,,
 pseudobombax,,Bombacaceae,Pseudobombax,,,,
 pseudolmedia spp.,,Moraceae,Pseudolmedia,spp.,,,bwa meriz
@@ -2843,6 +2830,10 @@ psychotria grandis,,Rubiaceae,Psychotria,grandis,grandis,,
 psychotria nutans,,Rubiaceae,Psychotria,nutans,nutans,,bois laitelle
 psychotria nutans,,Rubiaceae,Psychotria,nutans,nutans,,bwa letel
 psychotria spp.,,Rubiaceae,Psychotria,spp.,,,
+pterocarpus gummifer,,Fabaceae,Pterocarpus,gummifer,gummifer,,bwa santi
+pterocarpus gummifer,,Fabaceae,Pterocarpus,gummifer,gummifer,,bois senti
+pterocarpus gummifer,,Fabaceae,Pterocarpus,gummifer,gummifer,,bwa satsi
+pterocarpus microcarpus,,Fabaceae,Pterocarpus,microcarpus,microcarpus,,
 pterocarpus officinalis,0.65-0.78,Fabaceae,Pterocarpus,officinalis,officinalis,0.7150000000000001,bwa nago
 pterocarpus officinalis,0.65-0.78,Fabaceae,Pterocarpus,officinalis,officinalis,0.7150000000000001,bwa pal
 pterocarpus officinalis,0.65-0.78,Fabaceae,Pterocarpus,officinalis,officinalis,0.7150000000000001,bois nago
@@ -2890,16 +2881,6 @@ reynosia uncinata,,Rhamnaceae,Reynosia,uncinata,uncinata,,grati-galle
 reynosia uncinata,,Rhamnaceae,Reynosia,uncinata,uncinata,,gratigal
 reynosia uncinata,,Rhamnaceae,Reynosia,uncinata,uncinata,,gratgal
 rhamnus,,Rhamnaceae,Rhamnus,,,,
-rheedia laterifolia,,Clusiaceae,Rheedia,laterifolia,laterifolia,,zabriko
-rheedia laterifolia,,Clusiaceae,Rheedia,laterifolia,laterifolia,,abricot
-rheedia laterifolia,,Clusiaceae,Rheedia,laterifolia,laterifolia,,abricotier de st. domingue
-rheedia spp. ,0.65-0.78,Clusiaceae,Rheedia,spp.,,0.7150000000000001,bwa diou
-rheedia spp. ,0.65-0.78,Clusiaceae,Rheedia,spp.,,0.7150000000000001,zabriko
-rheedia verticillata,,Clusiaceae,Rheedia,verticillata,verticillata,,bois de haut
-rheedia verticillata,,Clusiaceae,Rheedia,verticillata,verticillata,,bois de roux
-rheedia verticillata,,Clusiaceae,Rheedia,verticillata,verticillata,,bois diou
-rheedia verticillata,,Clusiaceae,Rheedia,verticillata,verticillata,,bwa diou
-rheedia verticillata,,Clusiaceae,Rheedia,verticillata,verticillata,,bwa deho
 rhizophora mangle,0.89,Rhizophoraceae,Rhizophora,mangle,mangle,0.89,mang chandel
 rhizophora mangle,0.89,Rhizophoraceae,Rhizophora,mangle,mangle,0.89,mang nwa
 rhizophora mangle,0.89,Rhizophoraceae,Rhizophora,mangle,mangle,0.89,mang wouj
@@ -2946,11 +2927,6 @@ sabal domingensis,,Arecaceae,Sabal,domingensis,domingensis,,pay
 sabal domingensis,,Arecaceae,Sabal,domingensis,domingensis,,latanier chapeau
 sabal domingensis,,Arecaceae,Sabal,domingensis,domingensis,,paille
 sabal spp.,,,Sabal,spp.,,,latanye chapo
-samanea saman,,,Samanea,saman,saman,,rain-tree
-samanea saman,,,Samanea,saman,saman,,arbre de pluie
-samanea saman,,,Samanea,saman,saman,,gouan-negoul
-samanea saman,,,Samanea,saman,saman,,gouannegoul
-samanea saman,,,Samanea,saman,saman,,saman
 sambucus candensis,,Adoxaceae,Sambucus,candensis,candensis,,fleurs sureau
 sambucus candensis,,Adoxaceae,Sambucus,candensis,candensis,,sureau
 sambucus simpsonii,,Adoxaceae,Sambucus,simpsonii,simpsonii,,siwo
@@ -2959,15 +2935,6 @@ sambucus simpsonii,,Adoxaceae,Sambucus,simpsonii,simpsonii,,sureau
 sambucus spp.,,Adoxaceae,Sambucus,spp.,,,siwo
 sambucus spp.,,Adoxaceae,Sambucus,spp.,,,fle siwo
 sambucus spp.,,Adoxaceae,Sambucus,spp.,,,sambuca
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bois d'orme
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bois sec
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,casser sec
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,rose marron
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bwa sek
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bwa dom
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,kase sek
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,woz mawon
-samyda dodecandra,,Flacourtiaceae,Samyda,dodecandra,dodecandra,,bazek
 sapindus saponaria,0.8,Sapindaceae,Sapindus,saponaria,saponaria,0.8,savonet
 sapindus saponaria,0.8,Sapindaceae,Sapindus,saponaria,saponaria,0.8,savonet peyi
 sapindus saponaria,0.8,Sapindaceae,Sapindus,saponaria,saponaria,0.8,bwa savon
@@ -3028,9 +2995,9 @@ schefflera morototoni,0.36-0.54,Araliaceae,Schefflera,morototoni,morototoni,0.45
 schefflera morototoni,0.36-0.54,Araliaceae,Schefflera,morototoni,morototoni,0.45,trompette male
 schefflera morototoni,0.36-0.54,Araliaceae,Schefflera,morototoni,morototoni,0.45,twompet mal
 schefflera morototoni,0.36-0.54,Araliaceae,Schefflera,morototoni,morototoni,0.45,bois canot
-schefflera spp. ,,,Schefflera,spp.,,,tramble
-schefflera spp. ,,,Schefflera,spp.,,,bwa tramble
-schefflera spp. ,,,Schefflera,spp.,,,arali gran fey
+schefflera spp. ,,,Schefflera,spp. ,,,tramble
+schefflera spp. ,,,Schefflera,spp. ,,,bwa tramble
+schefflera spp. ,,,Schefflera,spp. ,,,arali gran fey
 schefflera tremula,,Araliaceae,Schefflera,tremula,tremula,,aralie grandes feuilles
 schefflera tremula,,Araliaceae,Schefflera,tremula,tremula,,bois d'anjou
 schefflera tremula,,Araliaceae,Schefflera,tremula,tremula,,bois trembler
@@ -3088,6 +3055,37 @@ sesbania grandiflora,,Fabaceae,Sesbania,grandiflora,grandiflora,,pois vallier
 sesbania grandiflora,,Fabaceae,Sesbania,grandiflora,grandiflora,,pois valliere
 sesbania grandiflora,,Fabaceae,Sesbania,grandiflora,grandiflora,,pwa valet
 sesbania sesban,,Fabaceae,Sesbania,sesban,sesban,,
+sideroxylon cubense,,Sapotaceae,Sideroxylon,cubense,cubense,,bwa denn
+sideroxylon cubense,,Sapotaceae,Sideroxylon,cubense,cubense,,bois d'inde
+sideroxylon cubense,,Sapotaceae,Sideroxylon,cubense,cubense,,tiquimite
+sideroxylon cubense,,Sapotaceae,Sideroxylon,cubense,cubense,,tikimit
+sideroxylon obovatum,,Sapotaceae,Sideroxylon,obovatum,obovatum,,
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,akoma
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,koma
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,acomat
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,coma
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,coma blanc
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,coma franc
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,akoma blan
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,akoma fran
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,koma blan
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,koma fran
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,acamat
+sideroxylon portoricense,0.9,Sapotaceae,Sideroxylon,portoricense,portoricense,0.9,koma blanc
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,koma wouj
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,sip
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,bwa sip
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,acomat marron
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,acomat rouge
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,m'panache
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,sapotille marron
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,sapotillier marron
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,akoma
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,akoma mawon
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,akoma wouj
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,mpanash
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,sapoti mawon
+sideroxylon salicifolium,0.9-0.99,Sapotaceae,Sideroxylon,salicifolium,salicifolium,0.9450000000000001,bwa satsi
 sideroxylon spp.,,,Sideroxylon,spp.,,,bois blanc
 simarouba berteroana,,Simaroubaceae,Simarouba,berteroana,berteroana,,fwenn
 simarouba berteroana,,Simaroubaceae,Simarouba,berteroana,berteroana,,bois frene
@@ -3107,11 +3105,11 @@ simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. lat
 simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. latifolia,glauca,,bwa fwenn
 simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. latifolia,glauca,,bwa neges
 simarouba glauca dc. var. latifolia,,Simaroubaceae,Simarouba,glauca dc. var. latifolia,glauca,,kenkena etranje
-simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,bwa blan
-simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,fwenn
-simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,bois frene
-simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,bois blanc
-simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp.,,0.375,bwa fwenn
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp. ,,0.375,bwa blan
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp. ,,0.375,fwenn
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp. ,,0.375,bois frene
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp. ,,0.375,bois blanc
+simarouba spp. ,0.34-0.41,Simaroubaceae,Simarouba,spp. ,,0.375,bwa fwenn
 sloanea amygdalina,,Elaeocarpaceae,Sloanea,amygdalina,amygdalina,,bwa kok
 sloanea amygdalina,,Elaeocarpaceae,Sloanea,amygdalina,amygdalina,,chapo kare
 sloanea amygdalina,,Elaeocarpaceae,Sloanea,amygdalina,amygdalina,,koma
@@ -3149,6 +3147,7 @@ solanum torvum,,Solanaceae,Solanum,torvum,torvum,,melongene marronne
 solanum torvum,,Solanaceae,Solanum,torvum,torvum,,zamorette
 spathodea campanulata,,Bignoniaceae,Spathodea,campanulata,campanulata,,motel etranje
 spathodea campanulata,,Bignoniaceae,Spathodea,campanulata,campanulata,,immortel etranger
+,,,,,,,
 spondias dulcis,,Anacardiaceae,Spondias,dulcis,dulcis,,wob
 spondias dulcis,,Anacardiaceae,Spondias,dulcis,dulcis,,pom site
 spondias dulcis,,Anacardiaceae,Spondias,dulcis,dulcis,,mombin a fruits jaunes
@@ -3276,7 +3275,7 @@ tetragastris spp.,0.63-0.78,Burseraceae,Tetragastris,spp.,,0.7050000000000001,bw
 tetrazygia angustifolia,,Melastomataceae,Tetrazygia,angustifolia,angustifolia,,
 tetrazygia elaeagnoides,,Melastomataceae,Tetrazygia,elaeagnoides,elaeagnoides,,
 tetrazygia spp.,,Melastomataceae,Tetrazygia,spp.,,,
-theobroma cacao subsp. cacao ,,Malvaceae,Theobroma,cacao subsp. cacao,cacao,,kakawo
+theobroma cacao subsp. cacao ,,Malvaceae,Theobroma,cacao subsp. cacao ,cacao,,kakawo
 thespesia populnea,,Malvaceae,Thespesia,populnea,populnea,,fey dayiti
 thespesia populnea,,Malvaceae,Thespesia,populnea,populnea,,gran maho
 thespesia populnea,,Malvaceae,Thespesia,populnea,populnea,,motel debou
@@ -3315,7 +3314,7 @@ thouinia trifoliata,,,Thouinia,trifoliata,trifoliata,,bwa lafiev
 thouinia trifoliata,,,Thouinia,trifoliata,trifoliata,,bwa pwav
 thouinidium pinnatum,,,Thouinidium,pinnatum,pinnatum,,gwo po
 thouinidium pulverulentum,,,Thouinidium,pulverulentum,pulverulentum,,bwa brile
-thouinidium spp. ,,Sapindaceae,Thouinidium,spp.,,,gros peau
+thouinidium spp. ,,Sapindaceae,Thouinidium,spp. ,,,gros peau
 thrinax morrisii,,Arecaceae,Thrinax,morrisii,morrisii,,latanye lame
 thrinax morrisii,,Arecaceae,Thrinax,morrisii,morrisii,,latanier de mer
 thrinax morrisii,,Arecaceae,Thrinax,morrisii,morrisii,,latanier la mer
@@ -3381,15 +3380,15 @@ trichostigma octandrum,,Phytolaccaceae,Trichostigma,octandrum,octandrum,,bonbon 
 trichostigma octandrum,,Phytolaccaceae,Trichostigma,octandrum,octandrum,,bonbon kok denn
 trichostigma octandrum,,Phytolaccaceae,Trichostigma,octandrum,octandrum,,liann barik
 trichostigma octandrum,,Phytolaccaceae,Trichostigma,octandrum,octandrum,,liann panye
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,bwa nef
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,ramo
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,bois neuf
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,rameau
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,ramon
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,ramon cheval
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,ramon chwal
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,bwa nef ramo
-trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa,racemosa,0.535,bois neuf-rameau
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,bwa nef
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,ramo
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,bois neuf
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,rameau
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,ramon
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,ramon cheval
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,ramon chwal
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,bwa nef ramo
+trophis racemosa ,0.42-0.65,Moraceae,Trophis,racemosa ,racemosa,0.535,bois neuf-rameau
 turpina occidentalis,,Staphyleaceae,Turpina,occidentalis,occidentalis,,
 urera baccifera,,Urticaceae,Urera,baccifera,baccifera,,feuilles enragees
 urera baccifera,,Urticaceae,Urera,baccifera,baccifera,,maman guepes
@@ -3411,18 +3410,18 @@ vitex spp.,,Verbenaceae,Vitex,spp.,,,bwa savann
 vitex spp.,,Verbenaceae,Vitex,spp.,,,grigri
 vitex spp.,,Verbenaceae,Vitex,spp.,,,savann
 wallenia apiculata,,Myrsinaceae,Wallenia,apiculata,apiculata,,
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,bois crapaud
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,louisine mau
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,petit raisin
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,raisin
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,raisin marron
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,raisinier
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,bwa kapo
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,lwisin mo
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,rezen
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,rezen mawon
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,ti rezen
-wallenia laurifolia,,Myrsinaceae,Wallenia,laurifolia,laurifolia,,risin
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,bois crapaud
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,louisine mau
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,petit raisin
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,raisin
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,raisin marron
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,raisinier
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,bwa kapo
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,lwisin mo
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,rezen
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,rezen mawon
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,ti rezen
+ardisia domingensis,,Myrsinaceae,Ardisia,domingensis,domingensis,,risin
 weinmannia pinnata,,Cunoniaceae,Weinmannia,pinnata,pinnata,,
 wercklea horiida,,Malvaceae,Wercklea,horiida,horiida,,
 ximenia americana,0.95,Olacaceae,Ximenia,americana,americana,0.95,krok
@@ -3435,7 +3434,7 @@ xylosma buxifolium,,Flacourtiaceae,Xylosma,buxifolium,buxifolium,,
 xylosma lineolatum,,Flacourtiaceae,Xylosma,lineolatum,lineolatum,,piquant rosie
 xylosma lineolatum,,Flacourtiaceae,Xylosma,lineolatum,lineolatum,,pikan woz
 xylosma schaefferioides,,Flacourtiaceae,Xylosma,schaefferioides,schaefferioides,,
-xylosma spp. ,,Flacourtiaceae,Xylosma,spp.,,,pikan woz
+xylosma spp. ,,Flacourtiaceae,Xylosma,spp. ,,,pikan woz
 yucca aloifolia,,Liliaceae,Yucca,aloifolia,aloifolia,,bayonette
 yucca aloifolia,,Liliaceae,Yucca,aloifolia,aloifolia,,pinguin
 yucca aloifolia,,Liliaceae,Yucca,aloifolia,aloifolia,,pengwen

@@ -67,85 +67,6 @@ gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
 by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
 
 # Standardize species names
-# name_to_alts = {
-#     'abbe': ['abi', 'abey'],
-#     'bayawonn': ['buayawonn', 'bayawonn'],
-#     'benzoliv': ['moringa', 'olivye'],
-#     'breziyet': ['bouziyet', 'bwabusiet', 'brissiet'],
-#     'bwa bande': ['bande'],
-#     'bwa blan': ['biosblanc', 'boiblanc', 'boisblanc', 'bois blac', 'bos blanc', 'bois blanc'],
-#     'bois bleu': ['bwa bleu', 'bwableu', 'bois bleu', 'baubleu'],
-#     'bwa dom': ['buadom', 'boisdhomme', 'boadon', 'bwa don'],
-#     'bwa doti': ['bwadolti'],
-#     'bwa doule': ['noni'],
-#     'bwa jambet': ['jambet', 'yambet'],
-#     'bwa kaka': ['bwacaca', 'bois caca'],
-#     'bwa kapab': ['capable', 'kapab', 'kapalp'],
-#     'bwa let': ['boislet', 'bois lait'],
-#     'bwa loray': ['bois loraille', 'bois loraille', 'lorai'],
-#     'bwa mabel': ['mabe'], # or mabi? # or momben?
-#     'bwa majo': ['mayor', 'bois major'],
-#     'bwa nwa': ['bois noir', 'nwa', 'nua'],
-#     'bwa palmis': ['bwa palmia', 'bwapalmis'],
-#     'bwa pen': ['pin'],
-#     'bwa pit': ['bopetro', 'boapreta', 'paupreta', 'parpreto', 'bwa petro']
-#     'bwa pine':['bwapini', 'pini', 'bwabwa pini', 'bwa pini', 'bwa pine', 'guapini'],
-#     'bwa poupe': ['pope', 'poupe'],
-#     'bwa santi': ['bwa senti', 'bwa satsi'], # not sure...
-#     'bwa savann': ['bwa saban', 'bois savanne', 'saban', 'salbann', 'savann'],
-#     'chenn': ['bwa chenn', 'chene', 'boachen'],
-#     'damari': ['dalmari', 'delmari'],
-#     'delen': ['de lin', 'dele', 'delin', 'madeleine', 'madlenn'],
-#     'divi divi': ['divi'],
-#     'kaliptis': ['eucaliptos', 'eucalypto', 'eucalyptus', 'eucalipto'],
-#     'figye': ['fieuier', 'ficus', 'figuier'],
-#     'flambwayan': ['framboyan'],
-#     'fwenn': ['fren', 'frene', 'fruen', 'fuen'],
-#     'gayak': ['gaiac'],
-#     'gommier': ['gombier', 'gomier'],
-#     'gomye': ['bursera'],
-#     'gwayav': ['guayaba'],
-#     'gwenn': ['guen'],
-#     'kachiman': ['cachimem', 'cachemam', 'kashima', 'cachimam', 'cachiman', 'kashuma'],
-#     'kalbas': ['calabase', 'calbesse', 'calbasse', 'calebassier', 'calebasse'],
-#     'kampech': ['campeche'],
-#     'kajou': ['acayu', 'kajou', 'acajou', 'acayou'],
-#     'kas': ['cass', 'casse'],
-#     'kasya': ['cassia', 'casseia'],
-#     'kaymit': ['cawimite', 'cayimit', 'kaymit', 'kaymite', 'camite'],
-#     'kenep': ['quenepe', 'queneb', 'kuinip', 'quinipi'],
-#     'kokoye': ['coco'],
-#     'koma':['bwa koma', 'lakoma', 'akoma'],
-#     'kowosol': ['corosol', 'corosole', 'corolosol', 'corossol', 'collossol', 'corosore', 'corosorole', 'guanabana', 'corossolier'],
-#     'latanye lame': ['lame'],
-#     'latanye': ['latanye', 'latanie', 'latani', 'latenier', 'letanier', 'latanier'],
-#     'diversifolia': ['leucaena', 'diversifolia'],
-#     'lorie': ['lo rieue', 'loreiue'],
-#     'madam yas': ['madame jass', 'madame yass'],
-#     'magerit': ['magritte'],
-#     'mango': ['mnago', 'mangos', 'mamgo'],
-#     'monben': ['mombe','momber','monbein','monbin', 'monben', 'momben', 'monbenr', 'mombin'],
-#     'nim': ['lila', 'neem/lila', 'neem'],
-#     'papay': ['papaya'],
-#     'pendoula': ['pandola'],
-#     'pistach': ['pistache'],
-#     'piyon': ['gliricidia', 'piyong'],
-#     'pwa valye': ['pois vallier'],
-#     'risin': ['arisin'],
-#     'satanye':['saiteyen', 'santayet', 'santeyet', 'santyet', 'satanyet', 'satayet'],
-#     'sed': ['cede'],
-#     'sikren': ['sicre','sikre', 'sakrin', 'sacrin'],
-#     'sitwon': ['citroin', 'limon'],
-#     'tamarenn': ['tamarindo', 'tamarenn', 'tamarin'],
-#     'tcha tcha': ['chacha', 'bwachacha'],
-#     'twompet': ['trompete', 'trompette'],
-#     'twa pawol': ['twa parol', 'twa palol','twa pabel','twa pable'],
-#     'zaboka': ['aguacates', 'aguacate', 'sambuca'],
-#     'zabriko': ['abricot'],
-#     'zakasya': ['acassia', 'acacia'],
-#     'zamann': ['amande', 'zanmann'],
-#     'zoranj dous': ['naranaja', 'naranja'], # more general would be sitwon, zoranj
-#     }
 name_to_alts = {
     'bayawonn': ['buayawonn'],
     'bresillet': ['bouziyet', 'bwabusiet', 'brissiet', 'breziyet'],
@@ -225,6 +146,8 @@ json.dump(alt_to_name, open(os.path.join(home, 'standardize_creole.json'), 'w'))
 # Save original as table
 name_to_alts_df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in name_to_alts.items() ])).transpose()
 name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'))
+
+
 
 
 #%% Extract values in field data from BY df

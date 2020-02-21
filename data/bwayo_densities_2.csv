@@ -25,7 +25,6 @@ Bixa,orellana,0.4
 Brunellia,comocladiifolia,0.3
 Buchenavia,capitata,0.585
 Bucida,buceras,0.8400000000000001
-Bumelia,salicifolia,0.9450000000000001
 Bursera,simaruba,0.33
 Byrsonima,crassifolia,0.7
 Byrsonima,spicata,0.585
@@ -77,6 +76,7 @@ Eugenia,pseudopsidium,1.3
 Exostema,caribaem,1.055
 Ficus,citrifolia,0.4
 Ficus,microcarpa,0.5
+Garcinia,,0.7150000000000001
 Genipa,americana,0.5900000000000001
 Gliricidia,sepium,0.61
 Gmelina,arborea,0.46
@@ -116,7 +116,6 @@ Mammea,americana,0.62
 Mangifera,indica,0.515
 Manilkara,bidentata,0.85
 Margaritaria,nobilis,0.9
-Mastichodendron,foetidissimum,0.9
 Matayba,domingensis,0.7
 Maytenus,,0.7050000000000001
 Melaleuca,quiquenervia,0.65
@@ -157,13 +156,14 @@ Prosopis,juliflora,0.8
 Prunus,occidentalis,0.9750000000000001
 Psidium,guajava,0.8
 Pterocarpus,officinalis,0.7150000000000001
-Rheedia,,0.7150000000000001
 Rhizophora,mangle,0.89
 Sapindus,saponaria,0.8
 Sapium,,0.45
 Schefflera,morototoni,0.45
 Senna,atomaria,0.71
 Senna,siamea,0.7
+Sideroxylon,portoricense,0.9
+Sideroxylon,salicifolium,0.9450000000000001
 Simarouba,,0.375
 Sloanea,berteriana,0.8
 Spondias,mombin,0.33

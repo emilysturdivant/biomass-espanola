@@ -26,11 +26,42 @@ home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 out_wd_fname = os.path.join(home, 'data', 'bwayo_densities_2.csv')
-lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
 by_table_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 out_filled_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
 master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')
+
+#%% Parse Global Wood Density and do cross-check
+gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
+gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
+    names=['gwd_num', 'family', 'binomial', 'wd',
+        'region', 'gwd_ref_no'],
+    index_col='gwd_num',
+    converters={'binomial':lambda x : x.lower()})
+gwd_df = split_species_binomial(gwd_df, binomial_fld='binomial') # in process_field_data_2
+
+# Extract rows from GWD with species present in field data
+lookup_field_species = pd.read_csv(master_lookup)
+field_binoms = lookup_field_species[binomial_fld]
+gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
+
+# Print QC info
+field_binoms = lookup_field_species[binomial_fld]
+print(f'Unique species in field data: {len(field_binoms)}')
+gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
+gwd_unique_matches = gwd_lookup['binomial'].unique()
+print(f'Matching species in GWD: {len(gwd_unique_matches)}')
+unlisted = field_binoms[~field_binoms.isin(gwd_df['binomial'])]
+print(f'Field species missing from GWD: {len(unlisted)}')
+
+field_genus = pd.Series(lookup_field_species['genus'].unique())
+print(f'Unique genus in field data: {len(field_genus)}')
+gwd_lookup_genus = gwd_df.loc[gwd_df['genus'].isin(field_genus)]
+gwd_unique_matches = gwd_lookup_genus['genus'].unique()
+print(f'Matching genus in GWD: {len(gwd_unique_matches)}')
+unlisted = field_genus[~field_genus.isin(gwd_df['genus'])]
+print(f'Field genus missing from GWD: {len(unlisted)}')
+unlisted
 
 #%% Get mean Bwa Yo wood density at the three levels.
 field_species = pd.read_csv(by_table_fname)
@@ -43,7 +74,7 @@ wd_agg = by_wds.groupby(binomial_fld)['wd_avg'].agg(mean='mean', sd='std')
 # wd_agg = creole_wds.groupby(binomial_fld)['wd_avg'].mean().rename('by_spec_mean')
 by_wds = by_wds.join(wd_agg, on=binomial_fld, rsuffix='_BYsp')
 # Genus means
-wd_agg = by_wds.groupby('genus')['wd_avg'].agg(mean='mean', sd='std', med='median')
+wd_agg = by_wds.groupby('genus')['wd_avg'].agg(mean='mean', sd='std', med_BYgn='median')
 # wd_agg = creole_wds.groupby('genus')['wd_avg'].mean().rename('_by_gen')
 by_wds = by_wds.join(wd_agg, on='genus', rsuffix='_BYgn')
 # Family means
@@ -144,17 +175,16 @@ cb = plt.colorbar()
 cb.ax.tick_params(labelsize=14);
 fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_sd_summary.png'))
 
-gwd_unique_matches = gwd_lookup['gwd_binomial'].unique()
-print(f'Matching species in GWD: {len(gwd_unique_matches)}')
-unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
-print(f'Field species missing from GWD: {len(unlisted)}')
-
 creole_wds[creole_wds['mean_BYsp'].isna()].index
 creole_wds[creole_wds['mean_BYgn'].isna()].index
 creole_wds[creole_wds['mean_GWDBYspgnfm'].isna()].index
 creole_wds[creole_wds['mean_GWDBYgnfm'].isna()].index
 creole_wds[creole_wds['mean_GWDBYgn'].isna()].index
 creole_wds[creole_wds['mean_GWDspgnfm'].isna()].index
+
+
+
+
 
 
 #%% Make wood density array (join one to many) of same form as data df for use in computeAGB()

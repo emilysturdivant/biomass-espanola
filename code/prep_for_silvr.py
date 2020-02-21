@@ -24,14 +24,24 @@ print(python_version())
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
 home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
+#%% Filenames
+out_wd_fname = os.path.join(home, 'data', 'bwayo_densities_2.csv')
+lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
+plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
+by_table_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
+out_filled_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
+master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')
+
 #%% Get mean Bwa Yo wood density at the three levels.
-field_species = pd.read_csv(os.path.join(home, 'data', 'master_lookup.csv'))
-by_wds = field_species[['creole', 'family', 'genus', 'by_binomial', 'wd_avg']]
+field_species = pd.read_csv(by_table_fname)
+binomial_fld = 'species_binomial'
+comm_name_fld = 'all_names'
+by_wds = field_species[[comm_name_fld, 'family', 'genus', binomial_fld, 'wd_avg']]
 
 # Species means
-wd_agg = by_wds.groupby('by_binomial')['wd_avg'].agg(mean='mean', sd='std')
-# wd_agg = creole_wds.groupby('by_binomial')['wd_avg'].mean().rename('by_spec_mean')
-by_wds = by_wds.join(wd_agg, on='by_binomial', rsuffix='_BYsp')
+wd_agg = by_wds.groupby(binomial_fld)['wd_avg'].agg(mean='mean', sd='std')
+# wd_agg = creole_wds.groupby(binomial_fld)['wd_avg'].mean().rename('by_spec_mean')
+by_wds = by_wds.join(wd_agg, on=binomial_fld, rsuffix='_BYsp')
 # Genus means
 wd_agg = by_wds.groupby('genus')['wd_avg'].agg(mean='mean', sd='std', med='median')
 # wd_agg = creole_wds.groupby('genus')['wd_avg'].mean().rename('_by_gen')
@@ -40,14 +50,15 @@ by_wds = by_wds.join(wd_agg, on='genus', rsuffix='_BYgn')
 wd_agg = by_wds.groupby('family')['wd_avg'].agg(mean='mean', sd='std')
 # wd_agg = creole_wds.groupby('family')['wd_avg'].mean().rename('by_fam_mean')
 by_wds = by_wds.join(wd_agg, on='family', rsuffix='_BYfm')
-creole_wds = by_wds.groupby('creole').mean()
+creole_wds = by_wds.groupby(comm_name_fld).mean()
 
 creole_wds = creole_wds.drop(['wd_avg'], axis=1).rename(columns={'mean':'mean_BYsp', 'sd':'sd_BYsp'})
 creole_wds.loc[['pwa valye'],:]
 creole_wds.describe()
 
 #%% Import wood densities from R
-wds_fromR = field_species[['creole', 'family', 'genus', 'species']]
+# Initialize with my lookup table.
+wds_fromR = field_species[[comm_name_fld, 'family', 'genus', 'species']]
 
 # GWD+BY species, genus, and family
 wds = pd.read_csv(os.path.join(home, 'getWoodDensity_SpecGenFam_BY.csv'))
@@ -74,7 +85,7 @@ wds = pd.read_csv(os.path.join(home, 'getWoodDensity_GenFam_BY_CAT.csv'))
 wds = wds.groupby(['family', 'genus'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDBYgnfm_CAT', 'sdWD': 'sd_GWDBYgnfm_CAT'})
 wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
 # Get mean for each creole name
-creole_wds = creole_wds.join(wds_fromR.groupby('creole').mean(), on='creole')
+creole_wds = creole_wds.join(wds_fromR.groupby(comm_name_fld).mean(), on=comm_name_fld)
 creole_wds.to_csv(os.path.join(home, 'data', 'options_for_creole_wooddensity.csv'))
 
 #%% Look at relationships between columns
@@ -97,13 +108,21 @@ cb = plt.colorbar()
 cb.ax.tick_params(labelsize=14);
 fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_corrmatrix.png'))
 
+# Correlations visualized
+fig = plt.figure(figsize=(9, 9))
+plt.matshow(creole_wds_means.corr('spearman'), fignum=fig.number)
+plt.xticks(range(creole_wds_means.shape[1]), creole_wds_means.columns, fontsize=14, rotation=45)
+plt.yticks(range(creole_wds_means.shape[1]), creole_wds_means.columns, fontsize=14)
+cb = plt.colorbar()
+cb.ax.tick_params(labelsize=14);
+fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_corrmatrix_spearman.png'))
+
 #%% QC
 # Print QC info
 # How many NaNs in each column?
 creole_wds.isna().sum()
-creole_wds_means.isna().sum()
 
-# Look at means
+# Look at means (and numbers of NaNs)
 nanct = creole_wds_means.isna().sum()
 nanct.name = 'NaNs'
 desc = creole_wds_means.describe(percentiles=[]).append(nanct).transpose()
@@ -182,68 +201,6 @@ AGB = exp(-2.023977 - 0.89563505 * E + 0.92023559 * log(WD) + 2.79495823 * log(D
 
 
 
-
-#%% Create creole to species_name lookup and species_name to bwayo_wd lookup
-field_species = pd.read_csv(os.path.join(home, 'data', 'master_lookup.csv'))
-
-# GroupBy creole name
-grouped = field_species.groupby('creole')#, as_index=False)
-
-# Simplistic: take the first genus matching the creole name
-grouped.first().head()
-grouped.first()[['genus']].describe()
-grouped.first()[['family', 'genus', 'species']].describe()
-# Attempts at modes...
-# First, get mode. But if there is no mode, then a list is returned.
-lookup_modes = grouped.agg(lambda x: x.mode())
-lookup_modes.loc['bwa savann', :]
-# If there is no top genus and there is only one family, set genus to NaN to use the family.
-for row in lookup_modes.iterrows():
-    if not isinstance(row[1].genus, str) and isinstance(row[1].family, str):
-        print(f'{row[0]}: {row[1].genus} --> {row[1].family}')
-        lookup_modes.loc[row[0], 'genus'] = np.nan
-lookup_modes.loc['bwa dom', :]
-
-# There are 7 creole names for which there is no top genus.
-for row in lookup_modes.iterrows():
-    if not isinstance(row[1].genus, str):
-        print(f'{row[0]}: {row[1].genus}')
-multi_geni = [row[0] for row in lookup_modes.iterrows() if not isinstance(row[1].genus, str)]
-lookup_modes.loc[multi_geni, :]
-lookup_modes.loc['bwa blan', :]
-field_species[field_species['creole'] == 'bwa blan']
-
-np.median(row[1].wd_avg)
-
-
-grouped['genus'].agg(mode=lambda x: x.mode()).head()
-grouped.get_group('bwa savann')
-
-grouped.genus.agg(mode=lambda x: x.mode())
-grouped.family.agg(mode=lambda x: x.mode())
-grouped.by_binomial.agg(mode=lambda x: x.mode()).head()
-grouped.agg(
-    top_genus=('genus', lambda x: x.mode()),
-    top_binomial=('by_binomial', lambda x: x.mode()),
-    top_species=('species', lambda x: x.mode())
-)
-
-
-# Below here is not yet working:
-grouped.agg(mode=lambda x: x.mode()).head()
-grouped[['genus', 'creole']].agg(mode=lambda x: x.mode())
-
-
-'''
-TODO: investigate sensitivity to different creole to species matches
-'''
-
-#%% Join genus to field data DF
-df = df.join(lookup_genus, on='sp_creole', how='left')
-df.loc[60:70, :]
-df.to_csv(os.path.join(home, 'mstems_FamGenSpec_lookupfirst.csv'), index=False)
-
-
 #%% Parse Global Wood Density
 gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
 gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
@@ -251,25 +208,37 @@ gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
         'region', 'gwd_ref_no'],
     index_col='gwd_num',
     converters={'binomial':lambda x : x.lower()})
+gwd_df = split_species_binomial(gwd_df, binomial_fld='binomial') # in process_field_data_2
 
 # Extract rows from GWD with species present in field data
-field_binoms = field_species['by_binomial']
+lookup_field_species = pd.read_csv(master_lookup)
+field_binoms = lookup_field_species[binomial_fld]
 gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
 
 # Print QC info
+field_binoms = lookup_field_species[binomial_fld]
 print(f'Unique species in field data: {len(field_binoms)}')
-gwd_unique_matches = gwd_lookup['gwd_binomial'].unique()
+gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
+gwd_unique_matches = gwd_lookup['binomial'].unique()
 print(f'Matching species in GWD: {len(gwd_unique_matches)}')
-unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
+unlisted = field_binoms[~field_binoms.isin(gwd_df['binomial'])]
 print(f'Field species missing from GWD: {len(unlisted)}')
 
+field_genus = pd.Series(lookup_field_species['genus'].unique())
+print(f'Unique genus in field data: {len(field_genus)}')
+gwd_lookup_genus = gwd_df.loc[gwd_df['genus'].isin(field_genus)]
+gwd_unique_matches = gwd_lookup_genus['genus'].unique()
+print(f'Matching genus in GWD: {len(gwd_unique_matches)}')
+unlisted = field_genus[~field_genus.isin(gwd_df['genus'])]
+print(f'Field genus missing from GWD: {len(unlisted)}')
+unlisted
 
 
 
 #%% Replicate getWoodDensity from BIOMASS - using World as region and including the Bwa Yo wood densities
 # def getWoodDensity(gwd_df, genus, species, stand=None, family=None, xtra_wd_data=None, verbose=True):
 xtra_wd_data = field_species
-xtra_wd_data = xtra_wd_data[['creole', 'by_binomial', 'genus', 'species_abbr', 'family', 'wd_avg']].rename(columns={'wd_avg':'wd', 'by_binomial': 'binomial', 'species_abbr':'species'})
+xtra_wd_data = xtra_wd_data[['creole', binomial_fld, 'genus', 'species_abbr', 'family', 'wd_avg']].rename(columns={'wd_avg':'wd', binomial_fld: 'binomial', 'species_abbr':'species'})
 # load GWD - we're not going to subset by region because there's not enough Central America Tropics
 
 # merge Bwa Yo WD with GWD, joining by family, genus, and species, (outer join?)

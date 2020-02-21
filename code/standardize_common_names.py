@@ -59,17 +59,13 @@ def split_species_binomial(df, binomial_fld='by_binomial'):
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Work with field data - Look at species in all plots
 data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
 gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
-by_fname = os.path.join(home, 'data', 'bwayo_species_2.xlsx')
+by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
 
-'''
----------------------------------------------------------------------------
-Create dictionary to standardize creole names
----------------------------------------------------------------------------'''
 # Standardize species names
 # name_to_alts = {
 #     'abbe': ['abi', 'abey'],
@@ -219,72 +215,17 @@ name_to_alts = {
     'acacia': ['acassia'],
     'zamann': ['zanmann'],
     'zoranj dous': ['naranja', 'naranaja'], # more general would be sitwon, zoranj
-    'limon frans': ['limon']
+    'limon frans': ['limon'],
+    np.nan: ['1', '2', '3', '4', 'aaa', 'bbb', 'crickcrack', 'kkk', 'kambala', 'tambala', 'wichinpit', 'z']
     }
-name_to_alts_df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in name_to_alts.items() ])).transpose()
-name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'))
-
 # Create replacement dict to standardize inconsistencies
 alt_to_name = dict((v,k) for k,vs in name_to_alts.items() for v in vs)
 json.dump(alt_to_name, open(os.path.join(home, 'standardize_creole.json'), 'w'))
 
-'''
---------------------------------------------------------------------------
-Look at unique species in field data
---------------------------------------------------------------------------
-'''
-#%% Create series of all species columns (labeled 'sp')
-spec_df = pd.read_excel(data_fname, 'Plots', skiprows=[0,1,2],
-                        usecols=lambda x : x.startswith('sp'))
-spec_ser = spec_df.stack().apply(lambda x : strip_accents(x).strip().lower()).replace(alt_to_name)
+# Save original as table
+name_to_alts_df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in name_to_alts.items() ])).transpose()
+name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'))
 
-#%% List unique species with number of occurences
-spec_list_cnts = spec_ser.value_counts().rename_axis(['common_name'])
-spec_list_cnts.sort_values()
-# field_species_uniq = pd.Series(spec_ser.unique())
-
-# Look at different groupings
-specs_mult = spec_list_cnts[spec_list_cnts > 2]
-err_specs = spec_list_cnts[spec_list_cnts < 3]
-err_specs.sort_index()
-
-# # Write to excel
-# out_lookup = os.path.join(home, 'unique_species_standardized_20191218.xlsx')
-# spec_list_cnts.to_excel(out_lookup, 'round3', index=True)
-
-#%% Look at species table digitized from Bwa Yo, only need creole, BY_binomial, family, BY_spec_grav.
-by_df = pd.read_excel(by_fname, header=0, usecols=[0,1,2,3],
-    names=['by_binomial', 'creole', 'BY_spec_grav', 'family'],
-    converters={'by_binomial':lambda x : x.lower(),
-        'family':lambda x : x.split(' (')[0].lower().capitalize()})
-by_df.replace({'Capparaceae': 'Brassicaceae', 'Sterculiaceae': 'Malvaceae'}, inplace=True)
-
-# Split species binomial into genus, species, and species_abbr
-by_df = split_species_binomial(by_df, binomial_fld='by_binomial')
-by_df.head()
-
-#%% Create supplemental wood density from all Bwa Yo values
-bwayo_wd = by_df.loc[~by_df['BY_spec_grav'].isna(),
-    ['genus', 'species', 'species_abbr', 'BY_spec_grav', 'family']]
-# Replace spp. with NaN
-bwayo_wd = bwayo_wd.assign(species_abbr=bwayo_wd['species_abbr'].replace('spp.', np.nan))
-# convert WD range to mean
-bwayo_wd = bwayo_wd.assign(wd_avg=[np.mean([float(i) for i in
-    re.findall(r"[0-9.]+", str(s))]) for s in bwayo_wd['BY_spec_grav']])
-
-# Export to CSV
-bwayo_wd.to_csv(os.path.join(home, 'bwayo_densities.csv'), index=False)
-bwayo_wd.head(2)
-by_df = by_df.join(bwayo_wd['wd_avg'])
-
-#%% Explode DF by the creole names column. For every row with multiple creole names, duplicate species row.
-creole_df = (by_df
-            .assign(creole=by_df.creole.str.split(','))
-            .explode('creole')
-            .reset_index(drop=True)
-        )
-creole_df['creole'] = creole_df.creole.str.strip()
-by_creole_names = creole_df.creole.unique().tolist()
 
 #%% Extract values in field data from BY df
 field_species_uniq = pd.Series(spec_ser.unique())

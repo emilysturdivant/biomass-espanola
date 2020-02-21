@@ -65,14 +65,17 @@ def get_field_data_formulario(data_fname):
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 data_folder = os.path.join(home, 'data', 'formularios')
 json_fname = os.path.join(home, 'standardize_creole.json')
-plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
 by_table_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
+plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
 out_raw_data_fname = os.path.join(home, 'data', 'haiti_data_raw.csv')
+out_cleaned_data_fname = os.path.join(home, 'data', 'haiti_data.csv')
+out_filled_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
+master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')
 
 #%% Load datasets created in other scripts
 # Load creole_df
@@ -97,10 +100,14 @@ df = df.join(mplots.set_index('plot_id'), on='plot_id', how='outer')
 
 # Save
 df.to_csv(out_raw_data_fname, index=False)
-# df = pd.read_csv(out_raw_data_fname)
+df = pd.read_csv(out_raw_data_fname)
 
 #%% Prep to convert unknown species names to NaN
 # List accounted-for names
+names1 = pd.Series(v for v in alt_to_name.values())
+unknowns = names1[~names1.isin(creole_df['all_names'])].unique()
+if len(unknowns) > 0:
+    print(f'Standardized name(s) "{unknowns}" not identified. Double check entries in name_to_alts dictionary.')
 namelist = list(alt_to_name.keys()) + list(creole_df['all_names'])
 
 # Get series of all names entered in field data
@@ -115,18 +122,9 @@ for val in unknowns:
 df['sp_creole'] = df['sp_creole'].replace(alt_to_name)
 field_sp_names = pd.Series(df[['sp_creole']].groupby('sp_creole').first().index)
 
-#%% Convert species that are not in the lookup table to NaN
-unknowns = field_sp_names[~field_sp_names.isin(creole_df['all_names'])]
-if len(unknowns) > 1:
-    for val in unknowns:
-        alt_to_name[val] = np.nan
-        for key, value in alt_to_name.items():
-             if val == value:
-                 alt_to_name[key] = np.nan
-    print(f'{len(unknowns)} name entries in field data not identified.')
-
 #%% Save data
-df.to_csv(os.path.join(home, 'data', 'haiti_data.csv'), index=False)
+df.to_csv(out_cleaned_data_fname, index=False)
+df = pd.read_csv(out_cleaned_data_fname)
 
 # Quick QC
 len(df)
@@ -134,22 +132,39 @@ df.sample(5)
 len(df[df['dbh_cm'] == 0])
 len(df[df['ht_m'] == 0])
 len(df[df['dbh_cm'].isna()])
+df[df['dbh_cm'].isna()]
 nans = df[pd.concat([df['dbh_cm'].isna(), df['sp_creole'].isna(), df['ht_m'].isna()], axis=1).all(axis=1)]
-len(nans)
-nans
+if len(nans) > 8:
+    print(f"WARNING: There are {len(nans)} rows with Null in all three sp, dbh, and ht, more than ther are NoBiomass plots.")
 
 #%% Fill Null DBHs with plot median
-# get plot DBH medians
-plot_medians = df[['plot_id', 'dbh_cm', 'ht_m']].groupby('plot_id').median()
-plot_mens = df[['plot_id', 'dbh_cm', 'ht_m']].groupby('plot_id').mean()
+# Check boxplot by plot with means to compare means and medians
+plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', by='plot_no', figsize=(16,8), whis=[1,99], notch=True, showmeans=True)
+plot = df[~df['ht_m'].isna()].boxplot(column='ht_m', by='plot_no', figsize=(16,8), whis=[1,99], notch=True, showmeans=True)
 
-# create series of medians matching with rows matching DF
+df_filled = df.copy()
+df_filled['dbh_cm'] = df.groupby('plot_id')['dbh_cm']\
+    .transform(lambda x: x.fillna(x.median()))
+df_filled[df['dbh_cm'].isna()].sample(5)
 
+# Check boxplot by plot with means to compare means and medians
+plot = df_filled[~df_filled['dbh_cm'].isna()]\
+    .boxplot(column='dbh_cm', by='plot_no', figsize=(16,8),
+        whis=[1,99], notch=True, showmeans=True)
+sub_df = df[~df['dbh_cm'].isna()]
+sub_df = sub_df[sub_df['sp_creole'].isin(['bois blanc', 'gommier', 'satanye'])]
+sub_df = sub_df[df['plot_no']==33]
+plot = sub_df.boxplot(column='dbh_cm', by='sp_creole', figsize=(16,8),
+        whis=[1,99], notch=True, showmeans=True)
 
-# use fillna with median series
+sub_df = df_filled[df_filled['plot_no']==33]
+sub_df = sub_df[sub_df['sp_creole'].isin(['bois blanc', 'gommier', 'satanye'])]
+plot = sub_df.boxplot(column='dbh_cm', by='sp_creole', figsize=(16,8),
+        whis=[1,99], notch=True, showmeans=True)
 
-
-
+#%% Save data
+df_filled.to_csv(out_filled_data_fname, index=False)
+df_filled = pd.read_csv(out_filled_data_fname)
 
 #%% Extract species in field data from BY df - prep for lookup table
 
@@ -157,12 +172,13 @@ plot_mens = df[['plot_id', 'dbh_cm', 'ht_m']].groupby('plot_id').mean()
 field_species_lookup = creole_df.loc[creole_df['all_names'].isin(field_sp_names)].reset_index(drop=True)
 
 # Export CSV
-field_species_lookup.to_csv(os.path.join(home, 'data', 'master_lookup_2.csv'), index=False)
+field_species_lookup.to_csv(master_lookup, index=False)
 
 
 
 
 #%% Perform QC on data
+df = df_filled
 #%% Identify duplicate records
 # Look at consecutive duplicated entries
 cols = ["sp_creole", "dbh_cm", 'ht_m', "plot_no"]
@@ -170,8 +186,6 @@ dups1 = (df[cols].shift() == df[cols]).all(axis=1).replace({False: np.nan})
 de_dup = df[cols].loc[dups1.fillna(dups1.shift(-1)).fillna(False)]
 de_dup
 len(de_dup)
-
-
 
 #%% Check DBH measurements - look for outliers
 fig, ax = plt.subplots(figsize=(16,8))
@@ -185,7 +199,7 @@ plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', figsize=(16, 2), whis=[
 fig = plot.get_figure()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_plotno.png'))
 
-#%%
+#%% Boxplot by plot with means
 plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', by='plot_no', figsize=(16,8), whis=[1,99], notch=True, showmeans=True)
 fig = plot.get_figure()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_plotno.png'))
@@ -196,6 +210,7 @@ fig = plot.get_figure()
 fig.tight_layout()
 fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_height_suspicious_pattern.png'))
 
+#%%
 df['ht_m'].plot.hist(bins=40)
 df[['dbh_cm', 'ht_m']].hist(bins=20)
 
@@ -217,16 +232,19 @@ fig = plot.get_figure()
 fig.tight_layout()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_species_outliers.png'))
 
-#%%
-ax = df[df.sp_creole == 'mango'].plot.scatter(x='dbh_cm', y='ht_m', color='Blue', label='mango');
-df[df.sp_creole == 'latanye lame'].plot.scatter(x='dbh_cm', y='ht_m', color='Green', label='latanye lame', ax=ax);
+#%% Scatterplot of DBH v. height for certain colors
+ax = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(16,8), alpha=0.05);
+df[df.sp_creole == 'mango'].plot.scatter(x='dbh_cm', y='ht_m', color='Blue', label='mango', ax=ax);
+df[df.sp_creole == 'latanye'].plot.scatter(x='dbh_cm', y='ht_m', color='Maroon', label='latanye', ax=ax);
 df[df.sp_creole == 'figye'].plot.scatter(x='dbh_cm', y='ht_m', color='Cyan', label='figye', ax=ax);
-df[df.sp_creole == 'kampech'].plot.scatter(x='dbh_cm', y='ht_m', color='Yellow', label='kampech', ax=ax);
+df[df.sp_creole == 'campeche'].plot.scatter(x='dbh_cm', y='ht_m', color='Yellow', label='campeche', ax=ax);
+df[df.sp_creole == 'UNKNOWN'].plot.scatter(x='dbh_cm', y='ht_m', color='Green', label='UNKNOWN', ax=ax);
 plot = df[df.sp_creole == 'kaliptis'].plot.scatter(x='dbh_cm', y='ht_m', color='Red', label='kaliptis', ax=ax);
+
 fig = plot.get_figure()
 fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_height_outliers.png'))
 
-#%%
+#%% Boxplots of height distribution by species name
 plot = df.boxplot(column='ht_m', by='sp_creole', figsize=(8,16), vert=False)
 fig = plot.get_figure()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_ht_species.png'))
@@ -234,7 +252,7 @@ fig.savefig(os.path.join(home, 'qc_plots', 'boxes_ht_species.png'))
 
 #%% Join genus to field data DF
 # Simplistic: take the first genus matching the creole name
-lookup_genus = field_species[['genus', 'family', 'species', 'creole']].groupby('creole').first()
+lookup_genus = field_species_lookup[['genus', 'family', 'species', 'all_names']].groupby('all_names').first()
 dfjoined = df.join(lookup_genus, on='sp_creole', how='left')
 
 plot = dfjoined.boxplot(column='dbh_cm', by='family', figsize=(8,16), vert=False)

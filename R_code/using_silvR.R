@@ -5,16 +5,16 @@ library(BIOMASS)
 # Load data - Desktop
 mstems <- read_csv("~/code/biomass-espanola/data/mstems_with_wooddensities.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/code/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
-bwayo_densities <- read_csv("~/code/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
+bwayo_densities <- read_csv("~/code/biomass-espanola/data/bwayo_densities_2.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018_HV.csv")
-creole_df <- read_csv("~/code/biomass-espanola/data/exploded_bwayolookup.csv")
+creole_df <- read_csv("~/code/biomass-espanola/data/exploded_specieslookup.csv")
 
 # Load data - Mac
 mstems <- read_csv("~/GitHub/biomass-espanola/mstems_FamGenSpec_lookupfirst.csv", col_types = cols(plot_no = col_integer()))
 mplots <- read_csv("~/GitHub/biomass-espanola/data/haiti_biomass_v2_mplots.csv", col_types = cols(plot_no = col_integer()))
-bwayo_densities <- read_csv("~/GitHub/biomass-espanola/data/bwayo_densities.csv", col_types = cols(wd = col_double()))
+bwayo_densities <- read_csv("~/GitHub/biomass-espanola/data/bwayo_densities_2.csv", col_types = cols(wd = col_double()))
 g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu2018_HV.csv")
-creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_bwayolookup.csv")
+creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_specieslookup.csv")
 
 # ------------------------
 # Calculate and export wood densities with different parameters for Haiti field species.
@@ -25,6 +25,7 @@ write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_SpecGenFam_BY.
 wood_densities <- getWoodDensity(creole_df$genus, creole_df$species, family = creole_df$family, region = 'World', verbose = FALSE)
 write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_SpecGenFam.csv", row.names=FALSE)
 # Without BwaYo wood densities
+species = rep('', length(creole_df$genus))
 wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'World', verbose = FALSE)
 write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam.csv", row.names=FALSE)
 # Null species and family
@@ -32,12 +33,10 @@ wood_densities <- getWoodDensity(creole_df$genus, species, family = NULL, region
                                  addWoodDensityData = bwayo_densities, verbose = FALSE)
 write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_Gen_BY.csv", row.names=FALSE)
 # Null species with Bwa Yo and only regional WDs CentralAmericaTrop
-species = rep('', length(creole_df$genus))
 wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'CentralAmericaTrop',
                                  addWoodDensityData = bwayo_densities, verbose = FALSE)
 write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam_BY_CAT.csv", row.names=FALSE)
 # Null species
-species = rep('', length(creole_df$genus))
 wood_densities <- getWoodDensity(creole_df$genus, species, family = creole_df$family, region = 'World',
                                  addWoodDensityData = bwayo_densities, verbose = FALSE)
 write.csv(wood_densities, "~/code/biomass-espanola/getWoodDensity_GenFam_BY.csv", row.names=FALSE)

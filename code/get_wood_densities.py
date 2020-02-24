@@ -22,7 +22,7 @@ print(python_version())
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 out_wd_fname = os.path.join(home, 'data', 'bwayo_densities_2.csv')
@@ -119,6 +119,8 @@ wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
 creole_wds = creole_wds.join(wds_fromR.groupby(comm_name_fld).mean(), on=comm_name_fld)
 creole_wds.to_csv(os.path.join(home, 'data', 'options_for_creole_wooddensity.csv'))
 
+#%% Create my own GWD-BY combo by
+
 #%% Look at relationships between columns
 creole_wds_means = creole_wds.filter(like='mean')
 
@@ -150,8 +152,11 @@ fig.savefig(os.path.join(home, 'qc_plots', 'wooddensities_corrmatrix_spearman.pn
 
 #%% QC
 # Print QC info
+creole_wds_means = creole_wds.filter(like='mean')
+
 # How many NaNs in each column?
 creole_wds.isna().sum()
+len(creole_wds)
 
 # Look at means (and numbers of NaNs)
 nanct = creole_wds_means.isna().sum()
@@ -182,23 +187,43 @@ creole_wds[creole_wds['mean_GWDBYgnfm'].isna()].index
 creole_wds[creole_wds['mean_GWDBYgn'].isna()].index
 creole_wds[creole_wds['mean_GWDspgnfm'].isna()].index
 
-
-
+creole_wds_means[creole_wds_means['mean_GWDBYgn'].isna()].index
+# Why do damari and dalmari have Null values when the binomial has a BY wood density?
+'dalmari' in creole_wds_means[creole_wds_means['mean_BYgn'].isna()].index
+'abbe marron' in creole_wds_means[creole_wds_means['mean_BYgn'].isna()].index
+# Maybe because of what I export for use in R
+# I import bwayo_densities_2.csv as the supplemental wood density data in getWoodDensity.
+# Maybe it doesn't attempt to aggregate by genus for the supplemental table. 
 
 
 
 #%% Make wood density array (join one to many) of same form as data df for use in computeAGB()
 # Load pre-processed field data
-df = pd.read_csv(os.path.join(home, 'data', 'haiti_biomass_v2_stacked.csv'))
+df = pd.read_csv(out_filled_data_fname)
 # Join
-df = df.join(creole_wds, on='sp_creole')
+creole_wds_means = creole_wds.filter(like='mean')
+df = df.join(creole_wds_means, on='sp_creole')
 # Export
 df.to_csv(os.path.join(home, 'data', 'mstems_with_wooddensities.csv'), index=False)
 
 # QC
 df.columns
-df[df['mean_BYsp'].isna()]['sp_creole'].unique()
-df[df['mean_GWDBYspgnfm'].isna()]['sp_creole'].unique()
+# Isolate to just species and wood density values
+df2 = df.dropna(subset=['sp_creole'], how='all')\
+    .drop(['dbh_cm', 'ht_m', 'plot_fname', 'date', 'plot_id', 'plot_loc', 'data_scribe', 'plot_no', 'plot_shp', 'plot_area'], axis=1)\
+    .drop_duplicates()
+len(df2)
+
+df2[df2['mean_BYsp'].isna()]
+df2[df2['mean_BYsp'].isna()]['sp_creole']
+df2[df2['mean_BYgn'].isna()]['sp_creole']
+df2[df2['mean_BYfm'].isna()]['sp_creole']
+df2[df2['mean_GWDBYspgnfm'].isna()]['sp_creole']
+df2[df2['mean_GWDBYgnfm'].isna()]['sp_creole']
+df2[df2['mean_GWDgnfm'].isna()]['sp_creole']
+df2[df2['mean_GWDBYgn'].isna()]['sp_creole']
+
+
 
 #%% computeAGB() from BIOMASS https://github.com/AMAP-dev/BIOMASS/blob/master/R/computeAGB.R
 D = diam
@@ -231,7 +256,7 @@ AGB = exp(-2.023977 - 0.89563505 * E + 0.92023559 * log(WD) + 2.79495823 * log(D
 
 
 
-#%% Parse Global Wood Density
+#%% Parse Global Wood Density - copied to above and possibly modified
 gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
 gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
     names=['gwd_num', 'family', 'binomial', 'wd',
@@ -244,26 +269,6 @@ gwd_df = split_species_binomial(gwd_df, binomial_fld='binomial') # in process_fi
 lookup_field_species = pd.read_csv(master_lookup)
 field_binoms = lookup_field_species[binomial_fld]
 gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
-
-# Print QC info
-field_binoms = lookup_field_species[binomial_fld]
-print(f'Unique species in field data: {len(field_binoms)}')
-gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
-gwd_unique_matches = gwd_lookup['binomial'].unique()
-print(f'Matching species in GWD: {len(gwd_unique_matches)}')
-unlisted = field_binoms[~field_binoms.isin(gwd_df['binomial'])]
-print(f'Field species missing from GWD: {len(unlisted)}')
-
-field_genus = pd.Series(lookup_field_species['genus'].unique())
-print(f'Unique genus in field data: {len(field_genus)}')
-gwd_lookup_genus = gwd_df.loc[gwd_df['genus'].isin(field_genus)]
-gwd_unique_matches = gwd_lookup_genus['genus'].unique()
-print(f'Matching genus in GWD: {len(gwd_unique_matches)}')
-unlisted = field_genus[~field_genus.isin(gwd_df['genus'])]
-print(f'Field genus missing from GWD: {len(unlisted)}')
-unlisted
-
-
 
 #%% Replicate getWoodDensity from BIOMASS - using World as region and including the Bwa Yo wood densities
 # def getWoodDensity(gwd_df, genus, species, stand=None, family=None, xtra_wd_data=None, verbose=True):

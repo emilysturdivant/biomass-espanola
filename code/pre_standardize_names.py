@@ -149,76 +149,76 @@ name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'
 
 
 
-
-#%% Extract values in field data from BY df
-field_species_uniq = pd.Series(spec_ser.unique())
-field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
-
-#%% Create creole to species_name lookup and species_name to bwayo_wd lookup
-field_species.head(2)
-
-# What to do about creole names that match more than one genus?
-field_species[['genus', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())
-
-def most_common(List):
-    if not len(List):
-        return(np.nan)
-    elif len(List) == 1:
-        return(List[0])
-    else: # list is greater than 1
-        return(mode(List))
-from statistics import mode
-l = ['Mor','Ulm', 'Set', 'Ulm', 'Set', 'Set']
-max(set(l), key = l.count)
-mode(l)
-most_common(l)
-
-lookup_genus_by_creole = field_species[['genus', 'creole']].groupby('creole').first()
-
-
-# What to do about creole names that match more than one family?
-field_species[['family', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())
-
-# What to do about genus spp. entries? What does the splitGenusSpecies() R function do?
-
-
-
-#%% Write to excel
-# out_fname = os.path.join(home, 'wooddensity_lookup_20191218.xlsx')
-# field_species.to_excel(out_fname, index=False)
-
-'''---------------------------------------------------------------------------
-Create lookup table to find wood density for each creole name.
-Uses average family values from Global Wood Density database. (1/1/2020)
----------------------------------------------------------------------------'''
-#%% Parse Global Wood Density
-gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
-    names=['gwd_num', 'gwd_family', 'gwd_binomial', 'gwd_density',
-        'gwd_region', 'gwd_ref_no'],
-    index_col='gwd_num',
-    converters={'gwd_binomial':lambda x : x.lower(),
-        'gwd_family':lambda x : x.lower()})
-
-# Extract rows from GWD with species present in field data
-field_binoms = field_species['by_binomial']
-gwd_lookup = gwd_df.loc[gwd_df['gwd_binomial'].isin(field_binoms)]
-
-# Print QC info
-print(f'Unique species in field data: {len(field_binoms)}')
-gwd_unique_matches = gwd_lookup['gwd_binomial'].unique()
-print(f'Matching species in GWD: {len(gwd_unique_matches)}')
-unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
-print(f'Field species missing from GWD: {len(unlisted)}')
-unlisted_names = field_species_uniq[~field_species_uniq.isin(by_creole_names)]
-print(f'Unidentified species in field data: {len(unlisted_names)}')
-
-#%% Create lookup with family averaged values
-fam_mean_density = gwd_df.groupby('gwd_family')['gwd_density'].mean()
-fam_means = field_species.join(fam_mean_density, on='family', how='left', lsuffix='_gwd')
-# Write to lookup_famAvgWD_allRegions.xlsx: mean WD for each family (all regions)
-# fieldspec_byfam.to_excel(os.path.join(home, 'lookup_famAvgWD_allRegions.xlsx'), index=False)
-
-# For each creole name, get mean WD for all matching species
-creole_dens = fam_means.groupby('creole')['gwd_density'].mean()
-# Write lookup_famAvgWD_byCreole.xlsx: mean family WD (all regions) of all families matching the creole name (usually only one match)
-creole_dens.to_excel(os.path.join(home, 'lookup_famAvgWD_byCreole.xlsx'), index=True)
+#
+# #%% Extract values in field data from BY df
+# field_species_uniq = pd.Series(spec_ser.unique())
+# field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
+#
+# #%% Create creole to species_name lookup and species_name to bwayo_wd lookup
+# field_species.head(2)
+#
+# # What to do about creole names that match more than one genus?
+# field_species[['genus', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())
+#
+# def most_common(List):
+#     if not len(List):
+#         return(np.nan)
+#     elif len(List) == 1:
+#         return(List[0])
+#     else: # list is greater than 1
+#         return(mode(List))
+# from statistics import mode
+# l = ['Mor','Ulm', 'Set', 'Ulm', 'Set', 'Set']
+# max(set(l), key = l.count)
+# mode(l)
+# most_common(l)
+#
+# lookup_genus_by_creole = field_species[['genus', 'creole']].groupby('creole').first()
+#
+#
+# # What to do about creole names that match more than one family?
+# field_species[['family', 'creole', 'wd_avg']].groupby('creole').agg(lambda x: x.unique())
+#
+# # What to do about genus spp. entries? What does the splitGenusSpecies() R function do?
+#
+#
+#
+# #%% Write to excel
+# # out_fname = os.path.join(home, 'wooddensity_lookup_20191218.xlsx')
+# # field_species.to_excel(out_fname, index=False)
+#
+# '''---------------------------------------------------------------------------
+# Create lookup table to find wood density for each creole name.
+# Uses average family values from Global Wood Density database. (1/1/2020)
+# ---------------------------------------------------------------------------'''
+# #%% Parse Global Wood Density
+# gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
+#     names=['gwd_num', 'gwd_family', 'gwd_binomial', 'gwd_density',
+#         'gwd_region', 'gwd_ref_no'],
+#     index_col='gwd_num',
+#     converters={'gwd_binomial':lambda x : x.lower(),
+#         'gwd_family':lambda x : x.lower()})
+#
+# # Extract rows from GWD with species present in field data
+# field_binoms = field_species['by_binomial']
+# gwd_lookup = gwd_df.loc[gwd_df['gwd_binomial'].isin(field_binoms)]
+#
+# # Print QC info
+# print(f'Unique species in field data: {len(field_binoms)}')
+# gwd_unique_matches = gwd_lookup['gwd_binomial'].unique()
+# print(f'Matching species in GWD: {len(gwd_unique_matches)}')
+# unlisted = field_binoms[~field_binoms.isin(gwd_df['gwd_binomial'])]
+# print(f'Field species missing from GWD: {len(unlisted)}')
+# unlisted_names = field_species_uniq[~field_species_uniq.isin(by_creole_names)]
+# print(f'Unidentified species in field data: {len(unlisted_names)}')
+#
+# #%% Create lookup with family averaged values
+# fam_mean_density = gwd_df.groupby('gwd_family')['gwd_density'].mean()
+# fam_means = field_species.join(fam_mean_density, on='family', how='left', lsuffix='_gwd')
+# # Write to lookup_famAvgWD_allRegions.xlsx: mean WD for each family (all regions)
+# # fieldspec_byfam.to_excel(os.path.join(home, 'lookup_famAvgWD_allRegions.xlsx'), index=False)
+#
+# # For each creole name, get mean WD for all matching species
+# creole_dens = fam_means.groupby('creole')['gwd_density'].mean()
+# # Write lookup_famAvgWD_byCreole.xlsx: mean family WD (all regions) of all families matching the creole name (usually only one match)
+# creole_dens.to_excel(os.path.join(home, 'lookup_famAvgWD_byCreole.xlsx'), index=True)

@@ -65,7 +65,7 @@ def get_field_data_formulario(data_fname):
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 data_folder = os.path.join(home, 'data', 'formularios')
@@ -82,6 +82,8 @@ master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')
 creole_df = pd.read_csv(by_table_fname)
 # Load alt_to_name dict - dict to fix typos in common names
 alt_to_name = json.load(open(json_fname))
+
+creole_df
 
 #%%
 # Read data from all formularios into dataframe

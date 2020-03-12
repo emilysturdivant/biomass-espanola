@@ -111,7 +111,7 @@ def explode_names_to_specieslookup(df, collist=['by_names', 'dot_names', 'name_g
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 by_fname = os.path.join(home, 'data', 'bwayo_species_2.xlsx')
@@ -123,6 +123,10 @@ lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 # Load species table digitized from Bwa Yo and split binomial into genus and species
 by_df = load_supplemental_species_data(by_fname, binomial_fld='species_binomial',
     in_wd_fld='by_spec_grav', save_wooddensities=out_wd_fname)
+by_df.drop(columns=['by_spec_grav', 'by_names', 'dot_names', 'name_guesses', 'species_extd'])\
+    .rename(columns={'wd_avg':'wd'})\
+    .to_csv(os.path.join(home, 'data', 'bwayo_densities_wFam.csv'), index=False)
+
 # Explode Bwa Yo DF by the creole names column. For every row with multiple creole names, duplicate species row.
 creole_df = explode_names_to_specieslookup(by_df, collist=['by_names', 'dot_names', 'name_guesses'],
     outnames_col='all_names', remove_patterns=[r'p.p.$', r'\?'])

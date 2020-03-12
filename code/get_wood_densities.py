@@ -4,6 +4,8 @@ by: Emily Sturdivant, emilysturdivant@gmail.com
 requires: python 3.6+
 
 OVERVIEW: Getting started with processing Haiti field data
+
+Python environment kernel: using py3_geo on Ubuntu and Python 3 on Mac
 """
 # Import packages
 import pandas as pd
@@ -63,41 +65,48 @@ def get_mean_WDs_2(df, lookup_df, binom_fld='binomial', wd_fld='wd', comm_name_f
     # Species means
     wd_agg = df.groupby(binom_fld)[wd_fld].agg(mean_sp='mean', sd_sp=sd_10, med_sp='median')
     wd_cr_sp = lookup_df.join(wd_agg, on=binom_fld).groupby(comm_name_fld).median()
-    print(f'NaNs in WDs aggregated by species: \n{wd_agg.isna().sum()}')
-    print(f'NaNs in WDs aggregated by species and creole: \n{wd_cr_sp.isna().sum()}')
+    # print(f'NaNs in WDs aggregated by species: \n{wd_agg.isna().sum()}')
+    # print(f'NaNs in WDs aggregated by species and creole: \n{wd_cr_sp.isna().sum()}')
     # Genus means
     wd_agg = df.groupby('genus')[wd_fld].agg(mean_gn='mean', sd_gn=sd_10, med_gn='median')
     wd_cr_gn = lookup_df.join(wd_agg, on='genus').groupby(comm_name_fld).median()
-    print(f'NaNs in WDs aggregated by genus: \n{wd_agg.isna().sum()}')
-    print(f'NaNs in WDs aggregated by genus and creole: \n{wd_cr_gn.isna().sum()}')
+    # print(f'NaNs in WDs aggregated by genus: \n{wd_agg.isna().sum()}')
+    # print(f'NaNs in WDs aggregated by genus and creole: \n{wd_cr_gn.isna().sum()}')
     # Family means
     wd_agg = df.groupby('family')[wd_fld].agg(mean_fm='mean', sd_fm=sd_10, med_fm='median')
     wd_cr_fm = lookup_df.join(wd_agg, on='family').groupby(comm_name_fld).median()
-    print(f'NaNs in WDs aggregated by family: \n{wd_agg.isna().sum()}')
-    print(f'NaNs in WDs aggregated by family and creole: \n{wd_cr_fm.isna().sum()}')
+    # print(f'NaNs in WDs aggregated by family: \n{wd_agg.isna().sum()}')
+    # print(f'NaNs in WDs aggregated by family and creole: \n{wd_cr_fm.isna().sum()}')
     # Join
     creole_wds = wd_cr_sp.join(wd_cr_gn).join(wd_cr_fm)
-    print(f'NaNs in WDs aggregated by creole and joined: \n{creole_wds.isna().sum()}')
-    # Fill NAs. Only fill NAs in sd_10 where mean was filled.
+    # print(f'NaNs in WDs aggregated by creole and joined: \n{creole_wds.isna().sum()}')
+    # Fill NAs in genus
     creole_wds['med_gn'] = creole_wds['med_gn'].fillna(creole_wds['med_fm'])
     na_idx = creole_wds[creole_wds['mean_gn'].isna()].index
-    filled = creole_wds.fillna(creole_wds['mean_fm'])
-    creole_wds.loc[na_idx, 'mean_gn'] = filled.loc[na_idx, 'mean_gn']
-    creole_wds.loc[na_idx, 'sd_gn'] = filled.loc[na_idx, 'sd_gn']
-    # Fill NAs. Only fill NAs in sd_10 where mean was filled.
+    # Fill NAs in genus means
+    mngn = creole_wds['mean_gn'].fillna(creole_wds['mean_fm'])
+    creole_wds.loc[na_idx, 'mean_gn'] = mngn[na_idx]
+    # Fill NAs in genus SDs. Only fill NAs in sd_10 where mean was filled.
+    sdgn = creole_wds['sd_gn'].fillna(creole_wds['sd_fm'])
+    creole_wds.loc[na_idx, 'sd_gn'] = sdgn[na_idx]
+
+    # Fill NAs in species
     creole_wds['med_sp'] = creole_wds['med_sp'].fillna(creole_wds['med_gn'])
     na_idx = creole_wds[creole_wds['mean_sp'].isna()].index
-    filled = creole_wds.fillna(creole_wds['mean_gn'])
-    creole_wds.loc[na_idx, 'mean_sp'] = filled.loc[na_idx, 'mean_sp']
-    creole_wds.loc[na_idx, 'sd_sp'] = filled.loc[na_idx, 'sd_sp']
-    print(f'NaNs in WDs after filling: \n{creole_wds.isna().sum()}')
+    # Fill NAs in genus means
+    mnsp = creole_wds['mean_sp'].fillna(creole_wds['mean_gn'])
+    creole_wds.loc[na_idx, 'mean_sp'] = mnsp[na_idx]
+    # Fill NAs in genus SDs. Only fill NAs in sd_10 where mean was filled.
+    sdsp = creole_wds['sd_sp'].fillna(creole_wds['sd_gn'])
+    creole_wds.loc[na_idx, 'sd_sp'] = sdsp[na_idx]
+    # print(f'NaNs in WDs after filling: \n{creole_wds.isna().sum()}')
     # return
     return(creole_wds)
 
 #%%
 # Set working directory
 home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 by_wd_fname = os.path.join(home, 'data', 'bwayo_densities_wFam.csv')
@@ -122,7 +131,7 @@ gwd_df = split_species_binomial(gwd_df, binomial_fld='binomial') # in process_fi
 gwd_df['wd'].describe()
 
 # Extract rows from GWD with species present in field data
-lookup_field_species = pd.read_csv(master_lookup)
+lookup_field_species = pd.read_csv(master_lookup).rename(columns={'species_binomial': 'binomial'})
 binom_fld = 'binomial'
 field_binoms = lookup_field_species[binom_fld]
 gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
@@ -152,26 +161,32 @@ by_df = pd.read_csv(by_wd_fname).rename(columns={'species_binomial': 'binomial'}
 # Concatenate and calculate means
 gwdby_df = pd.concat([gwd_df, by_df], sort=False)\
             .drop(['region', 'gwd_ref_no', 'species_extd'], axis=1)
+
+# Combined
 gwdby_wds = get_mean_WDs_2(df=gwdby_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd', comm_name_fld='all_names')
 
-creole_wds = gwdby_wds
-na_idx = creole_wds[creole_wds['mean_gn'].isna()].index
-filled['mean_gn'] = creole_wds['mean_gn'].fillna(creole_wds['mean_fm'])
-mngn = creole_wds['mean_gn'].fillna(creole_wds['mean_fm'])
-creole_wds.loc[na_idx, 'mean_gn']
-creole_wds.loc[na_idx, 'mean_fm']
-mngn[na_idx]
-creole_wds.loc[na_idx, 'mean_gn'] = filled.loc[na_idx, 'mean_gn']
-filled['sd_gn'] = creole_wds['sd_gn'].fillna(creole_wds['sd_fm'])
-creole_wds.loc[na_idx, 'sd_gn'] = filled.loc[na_idx, 'sd_gn']
-creole_wds.isna().sum()
+by_wds = get_mean_WDs_2(df=by_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd', comm_name_fld='all_names')
+
+gwd_wds = get_mean_WDs_2(df=gwd_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd', comm_name_fld='all_names')
+
 # QC
+# Look at means (and numbers of NaNs)
+nanct = by_wds.isna().sum()
+nanct.name = 'NaNs'
+desc = by_wds.describe(percentiles=[]).append(nanct).transpose()
+desc
+
+# Look at means (and numbers of NaNs)
+nanct = gwd_wds.isna().sum()
+nanct.name = 'NaNs'
+desc = gwd_wds.describe(percentiles=[]).append(nanct).transpose()
+desc
+
 # Look at means (and numbers of NaNs)
 nanct = gwdby_wds.isna().sum()
 nanct.name = 'NaNs'
 desc = gwdby_wds.describe(percentiles=[]).append(nanct).transpose()
 desc
-
 
 # gwdby_wds1 = get_mean_WDs(gwdby_df, 'binomial')
 # # Get mean WDs for each creole name
@@ -182,8 +197,8 @@ desc
 # creole_wds_pyGWDBY.describe()
 
 #%% Get mean Bwa Yo wood density at the three levels.
-by_df = field_species[[comm_name_fld, 'family', 'genus', 'binomial', 'wd_avg']]
-by_wds = get_mean_WDs(by_df, binom_fld='binomial', wd_fld='wd_avg')
+# by_df = field_species[[comm_name_fld, 'family', 'genus', 'binomial', 'wd_avg']]
+by_wds = get_mean_WDs_2(by_df, binom_fld='binomial', wd_fld='wd')
 # Get mean WDs for each creole name
 creole_wds_BY = by_wds.groupby(comm_name_fld).mean()
 # QC

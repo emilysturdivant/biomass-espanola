@@ -188,116 +188,37 @@ nanct.name = 'NaNs'
 desc = gwdby_wds.describe(percentiles=[]).append(nanct).transpose()
 desc
 
-# gwdby_wds1 = get_mean_WDs(gwdby_df, 'binomial')
-# # Get mean WDs for each creole name
-# creole_wds_pyGWDBY = creole_lookup\
-#                     .join(wds.set_index('binomial'), on='binomial')\
-#                     .groupby(comm_name_fld).mean()
-# # QC
-# creole_wds_pyGWDBY.describe()
-
-#%% Get mean Bwa Yo wood density at the three levels.
-# by_df = field_species[[comm_name_fld, 'family', 'genus', 'binomial', 'wd_avg']]
-by_wds = get_mean_WDs_2(by_df, binom_fld='binomial', wd_fld='wd')
-# Get mean WDs for each creole name
-creole_wds_BY = by_wds.groupby(comm_name_fld).mean()
-# QC
-creole_wds_BY.loc[['pwa valye'],:]
-creole_wds_BY.filter(like='mean_gn').describe()
-creole_wds_BY.filter(like='mean_gn').isna().sum()
-
-
-by_wds2 = get_mean_WDs_2(df=by_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd_avg', comm_name_fld=comm_name_fld)
-by_wds2.loc[['pwa valye'],:]
-by_wds2.filter(like='mean_gn').describe()
-by_wds2.filter(like='mean_gn').isna().sum()
-
-
-#%% Create function to get wood densities and join after each get
-creole_lookup = creole_lookup.rename(columns={'species_binomial':'binomial'})
-gwd_wds = get_mean_WDs_2(df=gwd_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd', comm_name_fld='all_names')
-
-# Get mean Bwa Yo wood density at the three levels.
-gwd_wds1 = get_mean_WDs(gwd_df, binom_fld='binomial', wd_fld='wd')
-# gwd_wds1.join(creole_lookup.set_index('binomial').drop(['family', 'genus'], axis=1), on='binomial')
-creole_wds_GWD = creole_lookup.drop(['family', 'genus'], axis=1).join(gwd_wds1.set_index('binomial'), on='binomial').drop(['gwd_ref_no'], axis=1)
-# Get mean WDs for each creole name
-creole_wds_GWD = creole_wds_GWD.groupby(comm_name_fld).mean()
-
-# Compare two versions
-gwd_wds.filter(like='mean').join(creole_wds_GWD.filter(like='mean'), lsuffix='2', rsuffix='1')
-# Look at means (and numbers of NaNs)
-nanct = gwd_wds.isna().sum()
-nanct.name = 'NaNs'
-desc = gwd_wds.describe(percentiles=[]).append(nanct).transpose()
-desc
-
-# Look at means (and numbers of NaNs)
-nanct = creole_wds_GWD.isna().sum()
-nanct.name = 'NaNs'
-desc = creole_wds_GWD.describe(percentiles=[]).append(nanct).transpose()
-desc
-
-
-#%% Append BwaYo to GWD and get mean WDs
-# Get BwaYo densities
-by_df = pd.read_csv(by_wd_fname).rename(columns={'species_binomial': 'binomial'})
-
-# Concatenate and calculate means
-gwdby_df = pd.concat([gwd_df, by_df], sort=False)\
-            .drop(['region', 'gwd_ref_no', 'species_extd'], axis=1)
-gwdby_wds = get_mean_WDs(gwdby_df, 'binomial')
-
-# Get mean WDs for each creole name
-creole_wds_pyGWDBY = creole_lookup\
-                    .join(wds.set_index('binomial'), on='binomial')\
-                    .groupby(comm_name_fld).mean()
-
-# QC
-creole_wds_pyGWDBY.describe()
-
-#%% Just get genus-family means
-by_wds2 = get_mean_WDs_2(gwd_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd', comm_name_fld=comm_name_fld)
-
-# GWD
-df = gwd_df
-wd_fld = 'wd'
-def sd_10(x): return(x.std() if x.count() > 10 else np.nan)
-# Get genus mean WDs for each creole name
-wd_agg = df.groupby('genus')[wd_fld].agg(mean='mean', sd_10=sd_10, med='median')
-creole_wds = creole_lookup.join(wd_agg, on='genus').groupby(comm_name_fld).median()
-# Get family mean WDs for each creole name
-wd_agg = df.groupby('family')[wd_fld].agg(mean='mean', sd_10=sd_10, med='median')
-creole_wds_fm = creole_lookup.join(wd_agg, on='family').groupby(comm_name_fld).median()
-# Fill NAs. Only fill NAs in sd_10 where mean was filled.
-na_idx = creole_wds[creole_wds_gn['mean'].isna()].index
-filled = creole_wds.fillna(creole_wds_fm)
-creole_wds.loc[na_idx, 'mean'] = filled.loc[na_idx, 'mean']
-creole_wds.loc[na_idx, 'sd_10'] = filled.loc[na_idx, 'sd_10']
-
-creole_wds_gnfm2 = creole_wds
-
-
-pd.concat([creole_wds_pyGWD['mean_gnfm'], creole_wds_gnfm2['mean']], axis=1)
-
-# Look at means (and numbers of NaNs)
-nanct = creole_gnfm_GWDBYavg1.isna().sum()
-nanct.name = 'NaNs'
-desc = creole_gnfm_GWDBYavg1.describe(percentiles=[]).append(nanct).transpose()
-desc
 #%% Take average of BY and GWD species means and then calculate creole means
+gwdby_df
+
+# Get average wood densities by species, genus, and family
+gwd_wds_binoms = get_mean_WDs(gwd_df)
+by_wds_binoms = get_mean_WDs(by_df)
+# Concatenate GWD and BY means
+df_concat = pd.concat([gwd_wds_binoms, by_wds_binoms], sort=False)
+# Get means for each binomial... do these produce the same values for genus and family as they would doing each type independently?
+gwdby_avg = df_concat.groupby('binomial').mean()
+gwdby_avg[[]] = df_concat.groupby('binomial').mean()
+
+gwdby_avg = field_species[['binomial', 'genus', 'family']].join(gwdby_avg, on='binomial')
+gwdby_avg.sample(3, random_state=1)
+gwdby_avg = df_concat.groupby('family').mean().filter(like='_fm')
+gwdby_avg = field_species[['binomial', 'genus', 'family']].join(gwdby_avg, on='family')
+gwdby_avg.sample(3, random_state=1)
+#%% New attempt
+df = gwd_df.copy()
+
+def sd_10(x): return(x.std() if x.count() > 10 else np.nan)
+wd_agg = df.groupby('genus')['wd'].agg(mean_gn='mean', sd_gn=sd_10, med_gn='median', count='count')
+
+
+#%% Old attempt
 gwd_gnfm = gwd_wds.set_index('binomial')['mean_gnfm'].to_frame(name = 'gwd')
 by_gnfm = by_wds.set_index('binomial')['mean_gnfm'].to_frame(name='by')
 gwdby_gnfm_avg = gwd_gnfm.join(by_gnfm).mean(axis=1).to_frame(name='gwdby_gnfm_avg')
 creole_gnfm_GWDBYavg1 = creole_lookup\
                     .join(gwdby_gnfm_avg, on='binomial', how='outer')\
                     .groupby(comm_name_fld).mean()
-
-# Look at means (and numbers of NaNs)
-nanct = creole_gnfm_GWDBYavg1.isna().sum()
-nanct.name = 'NaNs'
-desc = creole_gnfm_GWDBYavg1.describe(percentiles=[]).append(nanct).transpose()
-desc
 
 df_concat = pd.concat([gwd_wds, by_wds], sort=False)
 df_concat.head()
@@ -309,11 +230,6 @@ creole_wds_GWDBYavg1 = field_species[[comm_name_fld, 'genus']]\
                     .groupby(comm_name_fld).mean()
 
 creole_wds_GWDBYavg1
-# Look at means (and numbers of NaNs)
-nanct = creole_wds_GWDBYavg1.isna().sum()
-nanct.name = 'NaNs'
-desc = creole_wds_GWDBYavg1.describe(percentiles=[]).append(nanct).transpose()
-desc
 
 #%% Take average of BY and GWD creole means
 
@@ -321,18 +237,6 @@ creole_wds_pyGWD.head()
 creole_wds_BY.head()
 creole_wds_GWDBYavg = pd.concat([creole_wds_pyGWD, creole_wds_BY])\
                         .groupby(df_concat.index).mean()
-
-# Look at means (and numbers of NaNs)
-nanct = creole_wds_GWDBYavg.isna().sum()
-nanct.name = 'NaNs'
-desc = creole_wds_GWDBYavg.describe(percentiles=[]).append(nanct).transpose()
-desc
-nans_idx = creole_wds_GWDBYavg['mean_gnfm'].isna()
-nans_idx.sum()
-creole_wds_pyGWD[nans_idx].isna().sum()
-creole_wds_BY[nans_idx]
-creole_wds_pyGWDBY[nans_idx].isna().sum()
-creole_wds_GWDBYavg[creole_wds_GWDBYavg['mean_gnfm'].isna()]
 
 
 #%% Import wood densities from R
@@ -364,10 +268,24 @@ wds = pd.read_csv(os.path.join(home, 'getWoodDensity_GWDBYgnfm_CAT.csv'))
 wds = wds.groupby(['family', 'genus'])['meanWD', 'sdWD'].first().rename(columns={'meanWD':'mean_GWDBYgnfm_CAT', 'sdWD': 'sd_GWDBYgnfm_CAT'})
 wds_fromR = wds_fromR.join(wds, on=['family', 'genus'])
 # Get mean for each creole name
-creole_wds_fromR = wds_fromR.groupby(comm_name_fld).mean()
+creole_wds_fromR = wds_fromR.groupby(comm_name_fld).median()
 
 #QC
-wds_fromR[wds_fromR['genus']=='Ochroma'].mean_GWDgnfm
+wds_fromR[wds_fromR['all_names']=='bayawonn']
+wds_fromR[wds_fromR['genus']=='Ochroma'].sd_GWDBYgnfm.unique()
+creole_wds_fromR[creole_wds_fromR.index=='zakasya'].mean_GWDBYgnfm
+creole_wds_fromR[creole_wds_fromR.index=='bwa madam'].sd_GWDBYgnfm
+gwdby_wds[gwdby_wds.index=='bayawonn']
+gwd_wds[gwd_wds.index=='bayawonn']
+by_wds[by_wds.index=='bayawonn']
+def sd_10(x): return(x.std() if x.count() > 10 else np.nan)
+wd_agg = gwdby_df.groupby('genus')['wd'].agg(mean_gn='mean', sd_gn=sd_10, med_gn='median', count='count')
+wd_agg = gwd_df.groupby('genus')['wd'].agg(mean_gn='mean', sd_gn=sd_10, med_gn='median', count='count')
+wd_agg = by_df.groupby('genus')['wd'].agg(mean_gn='mean', sd_gn=sd_10, med_gn='median', count='count')
+wd_agg[wd_agg.index=='Prosopis']
+
+wds_fromR[wds_fromR['genus']=='Acacia'].mean_GWDgnfm.unique()
+wd_agg[wd_agg.index=='Acacia']
 
 #%% Compare/QC
 creole_wds_BY.loc[['pwa valye'], :]
@@ -377,14 +295,15 @@ creole_wds_GWDBYavg.loc[['pwa valye'], :]
 creole_wds_fromR.loc[['pwa valye'],['mean_GWDspgnfm', 'mean_GWDgnfm']]
 creole_wds_fromR.columns
 
-diff = creole_wds_fromR['mean_GWDgnfm'] - creole_wds_pyGWD['mean_gnfm']
+diff = creole_wds_fromR['mean_GWDBYgnfm'] - gwdby_wds['mean_gn']
 diff.describe()
-diff[diff > 0.4]
-creole_wds_fromR.loc[['bois madame'], ['mean_GWDgnfm']]
-creole_wds_pyGWD.loc[['bois madame'], :]
-by_wds[by_wds[comm_name_fld]=='bois madame'].binomial
-gwd_wds[gwd_wds.genus == 'Ochroma']
-
+diff[diff < -0.16]
+creole_wds_fromR.loc[['bois cotelette'], ['mean_GWDBYgn']]
+gwdby_wds.loc[['bois cotelette'], :]
+wds_fromR[wds_fromR[comm_name_fld]=='bois cotelette'].genus
+wds_fromR[wds_fromR.genus == 'Drypetes'].mean_GWDBYgnfm
+wd_agg[wd_agg.index == 'Drypetes']
+gwdby_wds[gwdby_wds.index=='bois cotelette']
 #%%
 creole_wds_concat = creole_wds_BY.join(creole_wds_pyGWDBY, rsuffix='_GWDBY')\
                 .join(creole_wds_GWDBYavg, lsuffix='_BY', rsuffix='_GWDBYavg')\

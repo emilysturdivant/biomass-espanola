@@ -118,6 +118,10 @@ by_fname = os.path.join(home, 'data', 'bwayo_species_2.xlsx')
 json_fname = os.path.join(home, 'standardize_creole.json')
 out_wd_fname = os.path.join(home, 'data', 'bwayo_densities_2.csv')
 lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
+out_creole_wds_GWDBYavg = os.path.join(home, 'data', 'creole_wooddensity_GWDBYavg.csv')
+
+#%% Load data
+gwdby_wds = pd.read_csv(out_creole_wds_GWDBYavg)
 
 #%% Create name-to-binomial-to-wd lookup table
 # Load species table digitized from Bwa Yo and split binomial into genus and species

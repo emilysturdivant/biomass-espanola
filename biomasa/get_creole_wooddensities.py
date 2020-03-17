@@ -18,133 +18,15 @@ import json
 from platform import python_version
 import re
 import geopandas as gpd
+import sys
+try:
+    proj_dir = os.path.dirname(os.path.realpath(__file__))
+except:
+    proj_dir = os.path.dirname(os.path.realpath('process_field_data_2.py'))
+sys.path.append(proj_dir) # Add the script location to the system path just to make sure this works.
+from biomasa.core import *
 
 print(python_version())
-
-#%% Function copied from process_field_data_2
-def split_species_binomial(df, binomial_fld='binomial'):
-    def get_second_word(x):
-        ser = []
-        for lst in x:
-            if len(lst) > 1:
-                ser += [lst[1].strip()]
-            else:
-                ser += ['']
-        return(ser)
-    binomials_split = df[binomial_fld].str.split(' ',expand=True)
-    df = df.assign(
-        genus=binomials_split[0].str.capitalize(),
-        species_extd=binomials_split.iloc[:, 1:].apply(lambda x: ' '.join(x.dropna().astype(str).values), axis=1),
-        species=binomials_split[1].str.lower()
-        )
-    # Remove 'spp.' from species column
-    df = df.assign(species=df['species'].replace('spp.', np.nan))
-    return(df)
-
-def sd_10(x): return(x.std() if x.count() > 10 else np.nan)
-
-def sd_pooled(x):
-    if not any(x.isna()):
-        return(np.sqrt(x.sum()/x.count()))
-    else:
-        return(np.nan)
-
-def agg_wd_stats_2dfs(df1, df2, group_fld = 'family', agg_fld = 'wd', suffix = '_fm'):
-    wd_agg1 = df1.groupby(group_fld)['wd'].agg(mean='mean', sd=sd_10, med='median')
-    wd_agg2 = df2.groupby(group_fld)['wd'].agg(mean='mean', sd=sd_10, med='median')
-    # Aggregate stats for the two groups
-    groups = pd.concat([wd_agg1, wd_agg2], sort=False).groupby(group_fld)
-    # perform separate aggregation on each column
-    means = groups['mean'].mean()
-    sds = groups['sd'].agg(sd=sd_pooled)
-    meds = groups['med'].median()
-    # Join the three genus-level statistics
-    wd_agg = sds.join(meds).join(means)
-    # Rename
-    wd_agg.rename(columns={'mean':'mean'+suffix, 'sd':'sd'+suffix, 'med':'med'+suffix}, inplace=True)
-    return(wd_agg)
-
-def fillNAs_highertaxonlevel(creole_wds):
-    # Genus filled from Family
-    na_idx = creole_wds[creole_wds['mean_gn'].isna()].index
-    # Median
-    creole_wds['med_gn'] = creole_wds['med_gn'].fillna(creole_wds['med_fm'])
-    # Mean
-    creole_wds['mean_gn'] = creole_wds['mean_gn'].fillna(creole_wds['mean_fm'])
-    # SDs. Only fill NAs in sd_10 where mean was filled.
-    sdgn = creole_wds['sd_gn'].fillna(creole_wds['sd_fm'])
-    creole_wds.loc[na_idx, 'sd_gn'] = sdgn[na_idx]
-
-    # Species filled from genus
-    na_idx = creole_wds[creole_wds['mean_sp'].isna()].index
-    # Median
-    creole_wds['med_sp'] = creole_wds['med_sp'].fillna(creole_wds['med_gn'])
-    # Fill NAs in genus means
-    creole_wds['mean_sp'] = creole_wds['mean_sp'].fillna(creole_wds['mean_gn'])
-    # Fill NAs in genus SDs. Only fill NAs in sd_10 where mean was filled.
-    sdsp = creole_wds['sd_sp'].fillna(creole_wds['sd_gn'])
-    creole_wds.loc[na_idx, 'sd_sp'] = sdsp[na_idx]
-    # Return
-    return(creole_wds)
-
-def get_mean_WDs(df, binom_fld='binomial', wd_fld='wd'):
-    def sd_10(x): return(x.std() if x.count() > 10 else np.nan)
-    # Species means
-    wd_agg = df.groupby(binom_fld)[wd_fld].agg(mean='mean', sd=sd_10)
-    df = df.join(wd_agg, on=binom_fld, rsuffix='_sp')
-    # Genus means
-    wd_agg = df.groupby('genus')[wd_fld].agg(mean='mean', sd='std', med_gn='median')
-    df = df.join(wd_agg, on='genus', rsuffix='_gn')
-    # Family means
-    wd_agg = df.groupby('family')[wd_fld].agg(mean='mean', sd=sd_10, med_fm='median')
-    df = df.join(wd_agg, on='family', rsuffix='_fm')
-    # Fill NAs in mean_BYgn with mean_BYfm
-    df['mean_gnfm'] = df['mean_gn'].fillna(df['mean_fm'])
-    df['med_gnfm'] = df['med_gn'].fillna(df['med_fm'])
-    df['sd_gnfm'] = df['sd_gn'].fillna(df['sd_fm'])
-    # Drop wd and rename mean and sd
-    df = df.drop(wd_fld, axis=1).rename(columns={'mean':'mean_sp', 'sd':'sd_sp'})
-    return(df)
-
-def get_mean_WDs_2(df, lookup_df, binom_fld='binomial', wd_fld='wd', comm_name_fld='all_names'):
-    def sd_10(x): return(x.std() if x.count() > 10 else np.nan)
-    # Species means
-    wd_agg = df.groupby(binom_fld)[wd_fld].agg(mean_sp='mean', sd_sp=sd_10, med_sp='median')
-    wd_cr_sp = lookup_df.join(wd_agg, on=binom_fld).groupby(comm_name_fld).median()
-    # print(f'NaNs in WDs aggregated by species: \n{wd_agg.isna().sum()}')
-    # print(f'NaNs in WDs aggregated by species and creole: \n{wd_cr_sp.isna().sum()}')
-    # Genus means
-    wd_agg = df.groupby('genus')[wd_fld].agg(mean_gn='mean', sd_gn=sd_10, med_gn='median')
-    wd_cr_gn = lookup_df.join(wd_agg, on='genus').groupby(comm_name_fld).median()
-    # print(f'NaNs in WDs aggregated by genus: \n{wd_agg.isna().sum()}')
-    # print(f'NaNs in WDs aggregated by genus and creole: \n{wd_cr_gn.isna().sum()}')
-    # Family means
-    wd_agg = df.groupby('family')[wd_fld].agg(mean_fm='mean', sd_fm=sd_10, med_fm='median')
-    wd_cr_fm = lookup_df.join(wd_agg, on='family').groupby(comm_name_fld).median()
-    # print(f'NaNs in WDs aggregated by family: \n{wd_agg.isna().sum()}')
-    # print(f'NaNs in WDs aggregated by family and creole: \n{wd_cr_fm.isna().sum()}')
-    # Join
-    creole_wds = wd_cr_sp.join(wd_cr_gn).join(wd_cr_fm)
-    # print(f'NaNs in WDs aggregated by creole and joined: \n{creole_wds.isna().sum()}')
-    # Fill NAs
-    creole_wds = fillNAs_highertaxonlevel(creole_wds)
-    # print(f'NaNs in WDs after filling: \n{creole_wds.isna().sum()}')
-    return(creole_wds)
-
-def get_mean_wds_3(df1, df2, binom_fld='binomial', comm_name_fld='all_names'):
-    # Combine WD statistics from GWD and BY to species, genus, and family level
-    wd_sp = agg_wd_stats_2dfs(df1, df2, group_fld = binom_fld, suffix = '_sp')
-    wd_gn = agg_wd_stats_2dfs(df1, df2, group_fld = 'genus', suffix = '_gn')
-    wd_fm = agg_wd_stats_2dfs(df1, df2, group_fld = 'family', suffix = '_fm')
-    # Aggregate by creole
-    wd_sp_cr = lookup_df.join(wd_sp, on=binom_fld).groupby(comm_name_fld).median()
-    wd_gn_cr = lookup_df.join(wd_gn, on='genus').groupby(comm_name_fld).median()
-    wd_fm_cr = lookup_df.join(wd_fm, on='family').groupby(comm_name_fld).median()
-    # Join
-    creole_wds = wd_sp_cr.join(wd_gn_cr).join(wd_fm_cr)
-    creole_wds = fillNAs_highertaxonlevel(creole_wds)
-    print(f'NaNs in WDs aggregated by creole and joined: \n{creole_wds.isna().sum()}')
-    return(creole_wds)
 
 #%%
 # Set working directory

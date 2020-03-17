@@ -15,58 +15,24 @@ import unicodedata
 import json
 from platform import python_version
 import re
+import sys
+try:
+    proj_dir = os.path.dirname(os.path.realpath(__file__))
+except:
+    proj_dir = os.path.dirname(os.path.realpath('process_field_data_2.py'))
+sys.path.append(proj_dir) # Add the script location to the system path just to make sure this works.
+from biomasa.core import *
 
 print(python_version())
 
-#%% Functions
-def strip_accents(text):
-    """
-    Strip accents from input String.
+#%% Set filenames
+home = proj_dir #r'/Users/emilysturdivant/GitHub/biomass-espanola'
+# home = r'/home/esturdivant/code/biomass-espanola' # work desktop
+json_fname = os.path.join(home, 'data', 'standardize_creole.json')
+by_fname = os.path.join(home, 'data', 'bwayo_species_2.xlsx')
+lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 
-    :param text: The input string.
-    :type text: String.
-
-    :returns: The processed String.
-    :rtype: String.
-    from: https://stackoverflow.com/a/31607735
-    """
-    try:
-        text = unicode(text, 'utf-8')
-    except (TypeError, NameError): # unicode is a default on python 3
-        pass
-    text = unicodedata.normalize('NFD', text)
-    text = text.encode('ascii', 'ignore')
-    text = text.decode("utf-8")
-    return str(text)
-
-def split_species_binomial(df, binomial_fld='by_binomial'):
-    def get_second_word(x):
-        ser = []
-        for lst in x:
-            if len(lst) > 1:
-                ser += [lst[1].strip()]
-            else:
-                ser += ['']
-        return(ser)
-    binomials_split_ser = df[binomial_fld].str.split(' ')
-    df = df.assign(
-        genus=[i[0].capitalize() for i in binomials_split_ser],
-        species=[' '.join(i[1:]).strip() for i in binomials_split_ser],
-        species_abbr=get_second_word(binomials_split_ser)
-        )
-    return(df)
-
-#%%
-# Set working directory
-home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
-home = r'/home/esturdivant/code/biomass-espanola' # work desktop
-
-#%% Work with field data - Look at species in all plots
-data_fname = os.path.join(home, 'data', 'haiti_biomass_v2.xlsx')
-gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
-by_fname = os.path.join(home, 'data', 'bwayo_species.xlsx')
-
-# Standardize species names
+#%% Standardize species names
 name_to_alts = {
     'bayawonn': ['buayawonn'],
     'bresillet': ['bouziyet', 'bwabusiet', 'brissiet', 'breziyet'],
@@ -141,15 +107,32 @@ name_to_alts = {
     }
 # Create replacement dict to standardize inconsistencies
 alt_to_name = dict((v,k) for k,vs in name_to_alts.items() for v in vs)
-json.dump(alt_to_name, open(os.path.join(home, 'standardize_creole.json'), 'w'))
+json.dump(alt_to_name, open(json_fname, 'w'))
 
 # Save original as table
 name_to_alts_df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in name_to_alts.items() ])).transpose()
 name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'))
 
+#%% Create name-to-binomial-to-wd lookup table
+# Load table digitized from Bwa Yo and split binomial to genus // species
+by_df = load_supplemental_species_data(by_fname,
+    binomial_fld='species_binomial',
+    in_wd_fld='by_spec_grav',
+    save_wooddensities=out_wd_fname)
+by_df\
+    .drop(columns=['by_spec_grav', 'by_names', 'dot_names', 'name_guesses', 'species_extd'])\
+    .rename(columns={'wd_avg':'wd'})\
+    .to_csv(os.path.join(home, 'data', 'bwayo_densities_wFam.csv'), index=False)
+
+# Explode Bwa Yo DF by the creole names column.
+# For every row with multiple creole names, duplicate species row.
+lookup_df = explode_names_to_specieslookup(by_df,
+    collist=['by_names', 'dot_names', 'name_guesses'],
+    outnames_col='all_names', remove_patterns=[r'p.p.$', r'\?'])
+# Export to CSV
+lookup_df.to_csv(lookup_fname, index=False)
 
 
-#
 # #%% Extract values in field data from BY df
 # field_species_uniq = pd.Series(spec_ser.unique())
 # field_species = by_df.loc[by_df['creole'].isin(field_species_uniq)].reset_index(drop=True)
@@ -192,6 +175,7 @@ name_to_alts_df.to_csv(os.path.join(home, 'data', 'standardize_creole_table.csv'
 # Uses average family values from Global Wood Density database. (1/1/2020)
 # ---------------------------------------------------------------------------'''
 # #%% Parse Global Wood Density
+# gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
 # gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
 #     names=['gwd_num', 'gwd_family', 'gwd_binomial', 'gwd_density',
 #         'gwd_region', 'gwd_ref_no'],

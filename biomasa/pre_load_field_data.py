@@ -18,58 +18,24 @@ import json
 from platform import python_version
 import re
 import geopandas as gpd
+import sys
+try:
+    proj_dir = os.path.dirname(os.path.realpath(__file__))
+except:
+    proj_dir = os.path.dirname(os.path.realpath('pre_load_field_data.py'))
+sys.path.append(proj_dir) # Add the script location to the system path just to make sure this works.
+from biomasa.core import *
 
 print(python_version())
 
-#%% Functions
-def strip_accents(text):
-    """
-    Strip accents from input String.
-
-    :param text: The input string.
-    :type text: String.
-
-    :returns: The processed String.
-    :rtype: String.
-    from: https://stackoverflow.com/a/31607735
-    """
-    try:
-        text = unicode(text, 'utf-8')
-    except (TypeError, NameError): # unicode is a default on python 3
-        pass
-    text = unicodedata.normalize('NFD', text)
-    text = text.encode('ascii', 'ignore')
-    text = text.decode("utf-8")
-    return str(text)
-
-def get_field_data_formulario(data_fname):
-    df = pd.read_excel(data_fname, 'Hoja1', skiprows=[0,1,2,3,4,5,6,7,8], header=0,
-        usecols=[1,2,3], names=['sp_creole','dbh_cm','ht_m'],
-        skip_blank_lines = True, na_values='0',
-        converters={'sp_creole':lambda x : strip_accents(x.strip().lower()), 'ht_m': lambda x: str(x).strip("''")})
-    # Drop rows that have all Null values - usually parsed because of some merged cells in the excel sheet.
-    df = df.dropna(subset=['sp_creole', 'dbh_cm', 'ht_m'], how='all')
-    # get header information
-    # Get plot number, shapefile name, and area for given plot
-    head_df = pd.read_excel(data_fname, 'Hoja1', header=None, skiprows=[0],
-            usecols=[0,1,2,3,4], nrows=3, skip_blank_lines = True)
-    df = df.assign(
-        plot_fname = os.path.basename(data_fname),
-        date = head_df.loc[0,1],
-        plot_id = head_df.loc[0,4],
-        plot_loc = head_df.loc[1,2],
-        data_scribe = head_df.loc[2,2]
-        )
-    return(df)
-
 #%%
 # Set working directory
-home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
+home = proj_dir #r'/Users/emilysturdivant/GitHub/biomass-espanola'
 # home = r'/home/esturdivant/code/biomass-espanola' # work desktop
 
 #%% Filenames
 data_folder = os.path.join(home, 'data', 'formularios')
-json_fname = os.path.join(home, 'standardize_creole.json')
+json_fname = os.path.join(home, 'data', 'standardize_creole.json')
 by_table_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
 out_raw_data_fname = os.path.join(home, 'data', 'haiti_data_raw.csv')
@@ -78,12 +44,10 @@ out_filled_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
 master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')
 
 #%% Load datasets created in other scripts
-# Load creole_df
-creole_df = pd.read_csv(by_table_fname)
+# Load lookup_df
+lookup_df = pd.read_csv(by_table_fname)
 # Load alt_to_name dict - dict to fix typos in common names
 alt_to_name = json.load(open(json_fname))
-
-creole_df
 
 #%%
 # Read data from all formularios into dataframe
@@ -107,10 +71,10 @@ df = pd.read_csv(out_raw_data_fname)
 #%% Prep to convert unknown species names to NaN
 # List accounted-for names
 names1 = pd.Series(v for v in alt_to_name.values())
-unknowns = names1[~names1.isin(creole_df['all_names'])].unique()
+unknowns = names1[~names1.isin(lookup_df['all_names'])].unique()
 if len(unknowns) > 0:
     print(f'Standardized name(s) "{unknowns}" not identified. Double check entries in name_to_alts dictionary.')
-namelist = list(alt_to_name.keys()) + list(creole_df['all_names'])
+namelist = list(alt_to_name.keys()) + list(lookup_df['all_names'])
 
 # Get series of all names entered in field data
 spec_ser = pd.Series(df[['sp_creole']].groupby('sp_creole').first().index)
@@ -169,9 +133,10 @@ df_filled.to_csv(out_filled_data_fname, index=False)
 df_filled = pd.read_csv(out_filled_data_fname)
 
 #%% Extract species in field data from BY df - prep for lookup table
-
-# Extract species in field data from exploded BY df
-field_species_lookup = creole_df.loc[creole_df['all_names'].isin(field_sp_names)].reset_index(drop=True)
+df = pd.read_csv(out_cleaned_data_fname)
+field_sp_names = pd.Series(df[['sp_creole']].groupby('sp_creole').first().index)
+field_species_lookup = lookup_df[['all_names', 'species_binomial', 'family', 'genus', 'species']]\
+    .loc[lookup_df['all_names'].isin(field_sp_names)].reset_index(drop=True)
 
 # Export CSV
 field_species_lookup.to_csv(master_lookup, index=False)

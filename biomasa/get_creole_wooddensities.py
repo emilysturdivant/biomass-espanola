@@ -39,7 +39,7 @@ plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
 by_table_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 out_filled_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
 master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')
-out_creole_wds_GWDBYavg = os.path.join(home, 'data', 'creole_wooddensity_GWDBYavg.csv')
+out_creole_wds_GWDBYavg = os.path.join(home, 'data', 'creole_wooddensity_GWDBYavg_allSDs.csv')
 
 #%% Import
 field_species = pd.read_csv(by_table_fname).rename(columns={'species_binomial': 'binomial'})
@@ -62,7 +62,7 @@ binom_fld = 'binomial'
 field_binoms = lookup_field_species[binom_fld]
 gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
 
-# Print QC info
+#%% Print QC info for GWD
 field_binoms = lookup_field_species[binom_fld]
 print(f'Unique species in field data: {len(field_binoms)}')
 gwd_lookup = gwd_df.loc[gwd_df['binomial'].isin(field_binoms)]
@@ -95,7 +95,7 @@ gwd_wds = get_mean_WDs_2(df=gwd_df, lookup_df=creole_lookup, binom_fld='binomial
 # Combined
 gwdby_wds = get_mean_WDs_2(df=gwdby_df, lookup_df=creole_lookup, binom_fld='binomial', wd_fld='wd', comm_name_fld='all_names')
 # Combined with BY weighted equal to all GWD
-gwdby_wds2 = get_mean_wds_3(gwd_df, by_df, binom_fld, comm_name_fld)
+gwdby_wds2 = get_mean_wds_3(gwd_df, by_df, creole_lookup, binom_fld, comm_name_fld)
 
 # QC
 # Look at means (and numbers of NaNs)
@@ -126,6 +126,67 @@ desc
 gwdby_wds2.to_csv(out_creole_wds_GWDBYavg)
 out_creole_wds_GWDBYavg_gn = os.path.join(home, 'data', 'creole_wooddensity_GWDBYavg_gn.csv')
 gwdby_wds2['mean_gn'].to_csv(out_creole_wds_GWDBYavg_gn)
+
+#%% Troubleshoot get_mean_wds_3 to better estimate standard deviations
+def get_mean_wds_3(df1, df2, lookup_df, binom_fld='binomial', comm_name_fld='all_names'):
+    # Combine WD statistics from GWD and BY to species, genus, and family level
+    wd_sp = agg_wd_stats_2dfs(df1, df2, group_fld = binom_fld, suffix = '_sp')
+    wd_gn = agg_wd_stats_2dfs(df1, df2, group_fld = 'genus', suffix = '_gn')
+    wd_fm = agg_wd_stats_2dfs(df1, df2, group_fld = 'family', suffix = '_fm')
+    # Aggregate by creole
+    wd_sp_cr = lookup_df.join(wd_sp, on=binom_fld).groupby(comm_name_fld).median()
+    wd_gn_cr = lookup_df.join(wd_gn, on='genus').groupby(comm_name_fld).median()
+    wd_fm_cr = lookup_df.join(wd_fm, on='family').groupby(comm_name_fld).median()
+    # Join
+    creole_wds = wd_sp_cr.join(wd_gn_cr).join(wd_fm_cr)
+    creole_wds = fillNAs_highertaxonlevel(creole_wds)
+    print(f'NaNs in WDs aggregated by creole and joined: \n{creole_wds.isna().sum()}')
+    return(creole_wds)
+
+df1 = gwd_df
+df2 = by_df
+lookup_df = creole_lookup
+# Combine WD statistics from GWD and BY to species, genus, and family level
+wd_sp = agg_wd_stats_2dfs(df1, df2, group_fld = binom_fld, suffix = '_sp')
+wd_gn = agg_wd_stats_2dfs(df1, df2, group_fld = 'genus', suffix = '_gn')
+wd_fm = agg_wd_stats_2dfs(df1, df2, group_fld = 'family', suffix = '_fm')
+# Aggregate by creole
+wd_sp_cr = lookup_df.join(wd_sp, on=binom_fld).groupby(comm_name_fld).median()
+wd_gn_cr = lookup_df.join(wd_gn, on='genus').groupby(comm_name_fld).median()
+wd_fm_cr = lookup_df.join(wd_fm, on='family').groupby(comm_name_fld).median()
+# Join
+creole_wds = wd_sp_cr.join(wd_gn_cr).join(wd_fm_cr)
+creole_wds = fillNAs_highertaxonlevel(creole_wds)
+
+len(wd_gn)
+wd_gn.isna().sum()
+len(wd_gn_cr)
+wd_gn_cr.isna().sum()
+creole_wds.isna().sum()
+
+# when I change sd_10 to std, I get many more standard deviation measurements
+def agg_wd_stats_2dfs(df1, df2, group_fld = 'family', agg_fld = 'wd', suffix = '_fm'):
+    wd_agg1 = df1.groupby(group_fld)[agg_fld].agg(mean='mean', sd='std', med='median')
+    wd_agg2 = df2.groupby(group_fld)[agg_fld].agg(mean='mean', sd='std', med='median')
+    # Aggregate stats for the two groups
+    groups = pd.concat([wd_agg1, wd_agg2], sort=False).groupby(group_fld)
+    # perform separate aggregation on each column
+    means = groups['mean'].mean()
+    sds = groups['sd'].agg(sd=sd_pooled)
+    meds = groups['med'].median()
+    # Join the three genus-level statistics
+    wd_agg = sds.join(meds).join(means)
+    # Rename
+    wd_agg.rename(columns={'mean':'mean'+suffix, 'sd':'sd'+suffix, 'med':'med'+suffix}, inplace=True)
+    return(wd_agg)
+
+group_fld = 'genus'
+wd_agg1 = df1.groupby(group_fld)['wd'].agg(mean='mean', sd=sd_10, med='median')
+wd_agg2 = df2.groupby(group_fld)['wd'].agg(mean='mean', sd='std', med='median')
+len(wd_agg1)
+wd_agg1.isna().sum()
+len(wd_agg2)
+wd_agg2.isna().sum()
 
 #%% Compare/QC
 gwdby_wds2.sort_index(axis=1).loc[['pwa valye'], :]

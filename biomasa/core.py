@@ -58,7 +58,7 @@ def split_species_binomial(df, binomial_fld='species_binomial'):
     # Remove 'spp.' from species column
     df = df.assign(species=df['species'].replace('spp.', np.nan))
     return(df)
-    
+
 #%% Functions to get field data from individual spreadsheets
 def get_field_data_formulario(data_fname):
     df = pd.read_excel(data_fname, 'Hoja1', skiprows=[0,1,2,3,4,5,6,7,8], header=0,
@@ -215,7 +215,7 @@ def get_mean_WDs_2(df, lookup_df, binom_fld='binomial', wd_fld='wd', comm_name_f
     # print(f'NaNs in WDs after filling: \n{creole_wds.isna().sum()}')
     return(creole_wds)
 
-def get_mean_wds_3(df1, df2, binom_fld='binomial', comm_name_fld='all_names'):
+def get_mean_wds_3(df1, df2, lookup_df, binom_fld='binomial', comm_name_fld='all_names'):
     # Combine WD statistics from GWD and BY to species, genus, and family level
     wd_sp = agg_wd_stats_2dfs(df1, df2, group_fld = binom_fld, suffix = '_sp')
     wd_gn = agg_wd_stats_2dfs(df1, df2, group_fld = 'genus', suffix = '_gn')

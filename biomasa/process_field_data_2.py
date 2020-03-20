@@ -38,10 +38,10 @@ home = proj_dir #r'/Users/emilysturdivant/GitHub/biomass-espanola'
 #%% Filenames
 json_fname = os.path.join(home, 'data', 'standardize_creole.json')
 lookup_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
-creole_wds_fname = os.path.join(home, 'data', 'creole_wooddensity_GWDBYavg.csv')
+creole_wds_fname = os.path.join(home, 'data', 'creole_wooddensity_GWDBYavg_allSDs.csv')
 field_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
 plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
-out_data = os.path.join(home, 'data', 'haiti_data_wds1.csv')
+out_data = os.path.join(home, 'data', 'haiti_data_wds2.csv')
 shp_allplots = os.path.join(home, 'data', 'AllPlots.shp')
 
 #%% Load datasets created in other scripts
@@ -56,7 +56,8 @@ df_filled = pd.read_csv(field_data_fname)
 
 #%% get plot centroids
 # read file
-plots_gdf = gpd.read_file(shp_allplots) # WGS84 UTM 18N
+plots_gdf.columns
+plots_gdf = gpd.read_file(shp_allplots)[['plot_no', 'biomass_tf', 'geometry']] # WGS84 UTM 18N
 # get area in hectares
 plots_gdf['area_ha'] = plots_gdf.area*0.0001
 # get lat/lon coordinates in separate columns
@@ -67,7 +68,7 @@ plots_gdf['lat'] = plots_gdf.centroid.y
 # join to mplots
 mplots = pd.read_csv(plots_overview_fname)
 mplots = mplots.join(plots_gdf.set_index('plot_no'), on='plot_no')\
-            .drop(columns=['plot_area', 'Name', 'Shape_Area', 'geometry'])
+            .drop(columns=['geometry'])
 mplots.to_csv(os.path.join(home, 'data', 'mplots_geoms.csv'), index=False)
 
 #%% Add plot data to field dataset
@@ -76,14 +77,19 @@ df_filled = df_filled.join(mplots.set_index('plot_no')[['lon', 'lat']], on='plot
 #%% Add wds to data
 wds = creole_wds[['all_names', 'mean_gn', 'sd_gn']].rename(columns={'all_names':'creole', 'mean_gn':'meanWD', 'sd_gn':'sdWD'}).set_index('creole')
 mstems = df_filled.join(wds, on='sp_creole')
-# Export
-mstems.to_csv(out_data, index=False)
-
-# Are there NaN wood densities?
-mstems['meanWD'].isna().sum()
 
 # Fill Null values in meanWD with plot means
 plot_wds = mstems.groupby('plot_no')['meanWD'].transform('median')
 mstems['meanWD'] = mstems['meanWD'].fillna(plot_wds)
+# Are there still NaN wood densities?
+mstems['meanWD'].isna().sum()
+
 # Export
 mstems.to_csv(out_data, index=False)
+
+#%% Look at specific sites for QC
+
+mstems[mstems['plot_no']==16, :]
+deluger2 = mstems.set_index('plot_no').loc[16, ['sp_creole', 'dbh_cm', 'ht_m', 'meanWD', 'sdWD']]
+deluger2.describe()
+deluger2[deluger2['dbh_cm']>200]

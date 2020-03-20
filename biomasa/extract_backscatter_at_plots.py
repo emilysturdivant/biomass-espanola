@@ -31,12 +31,17 @@ home = r'/home/esturdivant/code/biomass-espanola'
 #%% Filenames
 
 #%% Import values from output of QGIS zonal stats
-plots_zstats = pd.read_csv(os.path.join(home, 'plots_zstats_07gamma0_qgis.csv'))
+plots_zstats = pd.read_csv(os.path.join(home, 'data', 'plots_g0nu_HV.csv'))
 
+plots_zstats = plots_zstats.set_index('plot_no')
+plots_zstats['std'] = plots_zstats[['2010mean', '2017mean', '2018mean']].std(axis=1)
+plots_zstats.sort_values(by='std', ascending=False).filter(like='mean')
 
-
-
-plots_zstats.plot.scatter(x='2007_count', y='2007_mean')
+plots_zstats.plot.scatter(x='2010mean', y='2017mean')
+# Scatter matrix
+fig, ax = plt.subplots(figsize=(6,6))
+pd.plotting.scatter_matrix(plots_zstats.filter(like='mean'), alpha=1, ax=ax)
+fig.savefig(os.path.join(home, 'qc_plots', 'g0_scattmatrix.png'))
 
 
 

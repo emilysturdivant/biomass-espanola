@@ -1,7 +1,7 @@
 # Test to download and process data for Haiti
 # Import biota module
 import biota
-
+import os
 
 '''
 # Download using CLI:
@@ -18,28 +18,73 @@ done
 biota download -lon -72 -lat 18 -y 2018 -r -o /home/esturdivant/Documents/ALOS
 biota download -lon -75 -lat 19 -y 2018 -r -o /home/esturdivant/Documents/ALOS
 
-# 2010 (ALOS-1)
-for VAR in -68 -69 -70 -71 -72 -73 -74
-do
-    biota download -lon $VAR -lat 20 -y 2010 -r -o /home/esturdivant/Documents/ALOS
-    biota download -lon $VAR -lat 19 -y 2010 -r -o /home/esturdivant/Documents/ALOS
-done
-biota download -lon -72 -lat 18 -y 2010 -r -o /home/esturdivant/Documents/ALOS
-biota download -lon -75 -lat 19 -y 2010 -r -o /home/esturdivant/Documents/ALOS
+# Mac:
+python download.py -lon -68 -lat 20 -y 2017 -r -o /Users/emilysturdivant/Documents/CIGA/ALOS
+
 '''
+#%% functions
+def getGamma0_HV_nofilt(data_dir, y1, output_dir=None, coord_list=None, filter=False, polarization='HV'):
+    if not output_dir:
+        if filter:
+            output_dir = data_dir+f'_g0nu_{polarization}lee_{y1}'
+        output_dir = data_dir+f'_g0nu_{polarization}_{y1}'
+        if os.path.exists(output_dir):
+            output_dir += '_2'
+    os.makedirs(output_dir, exist_ok=True)
+    if not coord_list:
+        # Create list of tile coordinates
+        coord_list = []
+        for latitude in range(19, 21):
+            for longitude in range(-74, -67):
+                coord_list += [[latitude, longitude]]
+        coord_list += [[18, -72], [19, -75]]
+    for lat, lon in coord_list:
+        # Print progress
+        print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
+        # Load the ALOS tile with specified options
+        try:
+            tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = filter, output_dir = output_dir)
+        except:
+            print('error')
+            continue
+        # Calculate gamma0 and output to GeoTiff
+        gamma0 = tile.getGamma0(polarisation=polarization, output=True)
+        # Calculate AGB using slope and intercept from R
+        # agb = tile.getAGB(slope=slope, intercept=intercept, output = True)
+    print('ALL DONE.')
+
+def getAGB_forRegion(data_dir, y1, slope, intercept, output_dir=None, coord_list=None, filter=False):
+    if not output_dir:
+        if filter:
+            output_dir = data_dir+f'_AGB_{y1}'
+        output_dir = data_dir+f'_AGB_{y1}'
+    ct = 1
+    while os.path.exists(output_dir):
+        ct += 1
+        output_dir += f'_{ct}'
+    os.makedirs(output_dir, exist_ok=False)
+    if not coord_list:
+        # Create list of tile coordinates
+        coord_list = []
+        for latitude in range(19, 21):
+            for longitude in range(-74, -67):
+                coord_list += [[latitude, longitude]]
+        coord_list += [[18, -72], [19, -75]]
+    for lat, lon in coord_list:
+        # Print progress
+        print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
+        # Load the ALOS tile with specified options
+        try:
+            tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = filter, output_dir = output_dir)
+        except:
+            print('error')
+            continue
+        # Calculate AGB using slope and intercept from R
+        agb = tile.getAGB(slope=slope, intercept=intercept, output = True)
+    print('ALL DONE.')
 
 #%% Initialize file paths
-data_dir = r'/home/esturdivant/Documents/ALOS'
-output_dir = r'/home/esturdivant/Documents/biota_out/g0nu_2018_HV'
-output_dir = r'/home/esturdivant/Documents/biota_out/AGB_2010_v2'
-
 data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
-output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018_v2'
-
-#%% Set slope and intercept of AGB-backscatter regression
-slope = 1908.49
-intercept= 12.43
-y1 = 2010
 
 #%% Create list of tile coordinates
 coord_list = []
@@ -49,24 +94,29 @@ for latitude in range(19, 21):
 coord_list += [[18, -72], [19, -75]]
 
 #%% Run processing loop
-for lat, lon in coord_list:
-    # Print progress
-    print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
-    # Load the ALOS tile with specified options
-    try:
-        tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = False, output_dir = output_dir)
-    except:
-        print('error')
-        continue
-    # Calculate gamma0 and output to GeoTiff
-    # gamma0 = tile.getGamma0(polarisation='HV', output=True)
-    agb = tile.getAGB(slope=slope, intercept=intercept, output = True)
-    print('Complete.')
-print('ALL DONE.')
+y1 = 2018
+output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018'
+getGamma0_HV_nofilt(data_dir, y1, output_dir, coord_list)
 
+#%% Set slope and intercept of AGB-backscatter regression
+slope = 1032
+intercept= 0.006948
+y1 = 2018
+output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018'
+getAGB_forRegion(data_dir, y1, slope, intercept, output_dir, coord_list)
+
+#%%
 '''
 # In QGIS:
 gdal_merge.py -ot Float32 -of GTiff -o /home/esturdivant/Documents/biota_out/AGB_2018_v2/AGB_2018_v2.tif --optfile /tmp/processing_c054cfe79c5c4e7b946b1b6603d98e7b/4e8652a2142740759b28c1fcffea58da/mergeInputFiles.txt
+
+Raster > Miscellaneous > Merge
+Input layers: directory X
+
+Display output...
+Transparency: No Data value: 0
+Symbology: Singlebnad pseudocolor; Cumulative count cut: 2-98%; Color ramp: Viridis. Classify. Apply.
+Histogram analysis
 '''
 
 #%% Experimental...

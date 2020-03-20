@@ -18,6 +18,17 @@ creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_specieslookup.csv
 
 # ------------------------
 # Run Chave14 equation without computeAGB() 
+# Mask the 8 rows with ht_m == 2 and dbh_cm > 20. 
+test <- na.omit(mstems[c('ht_m', 'dbh_cm')])
+test <- test[!(test$ht_m == 2 & test$dbh_cm > 20), ]
+
+# Compute height based on heigh-diameter model - see Vignette BIOMASS in Help
+result <- modelHD(
+  D = mstems$dbh_cm,
+  H = mstems$ht_m,
+  useWeight = TRUE
+)
+result
 # best model is log1 so we use that to create the model
 HDmodel <- modelHD(
   D = mstems$dbh_cm,
@@ -33,66 +44,107 @@ filt <- is.na(mstems$Hmix)
 mstems$Hmix[filt] <- retrieveH(D = mstems$dbh_cm, model = HDmodel)$H[filt]
 mstems$RSEmix[filt] <- HDmodel$RSE
 
-# Apply AGBmonteCarlo --- not working
 resultMC <- AGBmonteCarlo(
   D = mstems$dbh_cm, WD = mstems$meanWD, errWD = mstems$sdWD,
   H = mstems$Hmix, errH = mstems$RSEmix,
   Dpropag = "chave2004"
 )
-# The rest of the section isn't working; contact Maxime (maxime.rejou@gmail.com)?
 Res <- summaryByPlot(resultMC$AGB_simu, mstems$plot_no)
 Res <- Res[order(Res$AGB), ]
 plot(Res$AGB, pch = 20, xlab = "Plots", ylab = "AGB (Mg/ha)", ylim = c(0, max(Res$Cred_97.5)), las = 1, cex.lab = 1.3)
 segments(1:nrow(Res), Res$Cred_2.5, 1:nrow(Res), Res$Cred_97.5, col = "red")
 
+# Plot interpolated heights
+ggplot(mstems, aes(x=dbh_cm, y=ht_m_filled)) +
+  geom_point() +
+  scale_y_log10( breaks=c(1,2,3,4,5,10,15,20), limits=c(1,25) )+
+  scale_x_log10( breaks=c(1,3,5,10,15,20,50,100,200,300), limits=c(1,400) )
+
+# compute AGB(Mg) per tree
+AGBtree <- computeAGB(
+  D = mstems$dbh_cm,
+  WD = mstems$meanWD,
+  H = mstems$ht_m_filled
+)
+AGBtreeChave <- computeAGB(
+  D = mstems$dbh_cm, 
+  WD = mstems$meanWD,
+  coord = mstems[, c("lon", "lat")]
+)
 # compute AGB(Mg) per plot
 AGBplot <- summaryByPlot(
   computeAGB(
     D = mstems$dbh_cm,
     WD = mstems$meanWD,
-    H = mstems$Hmix
+    H = mstems$ht_m_filled
   ), 
   mstems$plot_no
 )
-
+AGBplotChave <- summaryByPlot(
+  computeAGB(
+    D = mstems$dbh_cm, 
+    WD = mstems$meanWD,
+    coord = mstems[, c("lon", "lat")]
+  ),
+  mstems$plot_no
+)
 # Convert AGB per plot to AGB per hectare
 plots_agb <- merge(mplots, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
-plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area_ha
-plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
+plots_agb$AGB <- plots_agb$AGB / plots_agb$area_ha
 
 # Plot AGB against backscatter
 g0_AGB <- merge(plots_agb, g0_plots, by.x='plot_no', by.y='plot_no', all=TRUE)
-g0_AGB$g0ha2018 <- g0_AGB$`2018sum` / g0_AGB$area_ha
-plot(g0_AGB$`2018mean`, g0_AGB$AGB_ha, xlab='2018 HV backscatter (g0 nu mean)', ylab='2019 AGB (tC/ha)')
-linreg <- lm(g0_AGB$AGB_ha ~ g0_AGB$`2018mean`)
+plot(g0_AGB$`2018mean`, g0_AGB$AGB, xlab='2018 HV backscatter (plot median)', ylab='2019 AGB (tC/ha) from H-D model')
+linreg <- lm(g0_AGB$AGB ~ g0_AGB$`2017mean`)
 abline(linreg)
 linreg
+abline(lm(g0_AGB2$AGB ~ g0_AGB2$`2017mean`), col='red')
 # Get Spearman's rank correlation coefficient
-corr <- cor.test(x=g0_AGB$`2018mean`, y=g0_AGB$AGB_ha, method = 'spearman')
+corr <- cor.test(x=g0_AGB$`2017mean`, y=g0_AGB$AGB, method = 'spearman')
 corr$estimate
 
 # Remove plot 16 and check correlation
 g0_AGB2 <- g0_AGB[-c(16), ]
 # Get Spearman's rank correlation coefficient
-corr <- cor.test(x=g0_AGB2$`2018mean`, y=g0_AGB2$AGB_ha, method = 'spearman')
+corr <- cor.test(x=g0_AGB2$`2018mean`, y=g0_AGB2$AGB, method = 'spearman')
 corr$estimate
 # Plot AGB against backscatter
-plot(g0_AGB2$`2018mean`, g0_AGB2$AGB_ha, xlab='2018 HV backscatter (plot median)', ylab='2019 AGB (tC/ha) from H-D model')
+plot(g0_AGB2$`2018mean`, g0_AGB2$AGB, xlab='2018 HV backscatter (plot median)', ylab='2019 AGB (tC/ha) from H-D model')
 linreg <- lm(g0_AGB2$AGB ~ g0_AGB2$`2018mean`)
 abline(lm(g0_AGB2$AGB ~ g0_AGB2$`2018mean`), col='blue')
 linreg
 abline(lm(g0_AGB$AGB ~ g0_AGB$`2018mean`), col='red')
 
-# ------------------------
-# Load AGB statistics at plots from output AGB map
-agb_plots <- read_csv("~/GitHub/biomass-espanola/data/qgis_out/plots_agb18v4.csv")[c('plot_no', 'agb18sum', 'agb18mean')]
-agb_obs_est <- merge(plots_agb, agb_plots, by.x='plot_no', by.y='plot_no', all=TRUE)
-agb_obs_est$AGB_ha[is.na(agb_obs_est$AGB_ha)] <- 0
-agb_obs_est$diff <- agb_obs_est$AGB_ha - agb_obs_est$agb18mean
-agb_obs_est$diff_sqr <- agb_obs_est$diff**2
-sqrt(mean(agb_obs_est$diff_sqr))
-mean(agb_obs_est$diff)
-mean(abs(agb_obs_est$diff))
+# =========
+# Propagate AGB errors
+mstems$RSE <- dataHlocal$RSE
+
+# Using ComputeAGB instead of monteCarlo
+Res <- AGBplot[order(AGBplot$AGB), ]
+plot(Res$AGB, pch = 20, xlab = "Plots", ylab = "AGB (Mg/ha)", ylim = c(0, max(Res$Cred_97.5)), las = 1, cex.lab = 1.3)
+segments(seq(nrow(Res)), Res$Cred_2.5, seq(nrow(Res)), Res$Cred_97.5, col = "red")
+
+# from example in summaryByPlot
+resultMC <- AGBmonteCarlo(
+  D = mstems$dbh_cm, WD = mstems$meanWD,
+  errWD = mstems$sdWD, HDmodel = HDmodel
+)
+plot <- mstems$plot_id
+summaryByPlot(AGB_val = resultMC$AGB_simu, plot) # throws error
+
+# from Vignette:
+resultMC <- AGBmonteCarlo(
+  D = mstems$dbh_cm, 
+  WD = mstems$meanWD, 
+  errWD = mstems$sdWD, 
+  #HDmodel = HDmodel, 
+  coord = cbind(mstems$lon, mstems$lat),
+  Dpropag = "chave2004"
+  )
+Res <- summaryByPlot(resultMC$AGB_simu, mstems$plot_id)
+Res <- Res[order(Res$AGB), ]
+plot(Res$AGB, pch = 20, xlab = "Plots", ylab = "AGB (Mg/ha)", ylim = c(0, max(Res$Cred_97.5)), las = 1, cex.lab = 1.3)
+segments(seq(nrow(Res)), Res$Cred_2.5, seq(nrow(Res)), Res$Cred_97.5, col = "red")
 
 # ------------------------
 # Run Chave14 equation using computeAGB() in BIOMASS

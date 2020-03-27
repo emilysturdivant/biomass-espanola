@@ -21,6 +21,21 @@ creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_specieslookup.csv
 # Mask the 8 rows with ht_m == 2 and dbh_cm > 20. 
 test <- na.omit(mstems[c('ht_m', 'dbh_cm')])
 test <- test[!(test$ht_m == 2 & test$dbh_cm > 20), ]
+# best model is log1 so we use that to create the model
+HDmodel <- modelHD(
+  D = test$dbh_cm,
+  H = test$ht_m,
+  method="log1",
+  useWeight = TRUE,
+  drawGraph = TRUE
+)
+# Retrieve height data
+mstems$H_cleaned <- retrieveH(D = mstems$dbh_cm, model = HDmodel)$H
+mstems$Hmix_clean <- mstems$ht_m
+mstems$RSE_cleaned <- 0.5
+filt <- is.na(mstems$Hmix_clean)
+mstems$Hmix_clean[filt] <- mstems$H_cleaned[filt]
+mstems$RSE_cleaned[filt] <- HDmodel$RSE
 
 # Compute height based on heigh-diameter model - see Vignette BIOMASS in Help
 result <- modelHD(
@@ -43,7 +58,35 @@ mstems$RSEmix <- 0.5
 filt <- is.na(mstems$Hmix)
 mstems$Hmix[filt] <- retrieveH(D = mstems$dbh_cm, model = HDmodel)$H[filt]
 mstems$RSEmix[filt] <- HDmodel$RSE
+mstems$H_log1 <- retrieveH(D = mstems$dbh_cm, model = HDmodel)$H
+mstems$RSE_log1 <- HDmodel$RSE
 
+# Use Chave 2004 to model heights
+dataChave <- retrieveH(D = mstems$dbh_cm, coord = mstems[, c("lon", "lat")])
+mstems$H_chave <- dataChave$H
+mstems$RSE_chave <- dataChave$RSE
+
+# Get RMSE 
+residuals <- mstems$H_chave - mstems$ht_m
+sqrt(mean(residuals^2, na.rm=TRUE))
+residuals <- mstems$H_log1 - mstems$ht_m
+sqrt(mean(residuals^2, na.rm=TRUE))
+residuals <- mstems$H_cleaned - mstems$ht_m
+sqrt(mean(residuals^2, na.rm=TRUE))
+
+
+# Columns to plot: ht_m, Hmix, H_log1, H_chave
+require(reshape2)
+library(dplyr)
+require(ggplot2)
+hts <- mstems %>% select(ht_m, Hmix, H_log1, Hmix_clean, H_chave)
+hts <- melt(hts, na.rm=TRUE)
+# Compare output heights in boxplot
+ggplot(data = hts, aes(x=variable, y=value)) + 
+  geom_boxplot() + 
+  labs(x="Source of height values", y="Height (m)")
+
+# Get monte carlo runs to compute AGB - not working
 resultMC <- AGBmonteCarlo(
   D = mstems$dbh_cm, WD = mstems$meanWD, errWD = mstems$sdWD,
   H = mstems$Hmix, errH = mstems$RSEmix,

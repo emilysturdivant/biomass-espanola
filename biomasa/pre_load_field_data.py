@@ -161,10 +161,9 @@ ax.set_xlabel('DBH')
 ax.set_ylabel('Plot Number')
 plt.show()
 # plt.savefig('example.pdf')
-#%%
+#%% Boxplot of all DBH values
 plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', figsize=(16, 2), whis=[1,99], notch=True, vert=False, showmeans=True, meanline=True)
 fig = plot.get_figure()
-fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_plotno.png'))
 
 #%% Boxplot by plot with means
 plot = df[~df['dbh_cm'].isna()].boxplot(column='dbh_cm', by='plot_no', figsize=(16,8), whis=[1,99], notch=True, showmeans=True)
@@ -172,13 +171,17 @@ fig = plot.get_figure()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_plotno.png'))
 
 #%%
-plot = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(16,8), alpha=0.05)
+plot = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(8,4), alpha=0.15, loglog=True, xlim=(3,500), ylim=(0.5,25))
 fig = plot.get_figure()
 fig.tight_layout()
-fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_height_suspicious_pattern.png'))
+fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_height.png'))
 
 #%%
-df['ht_m'].plot.hist(bins=40)
+plot = df['ht_m'].plot.hist(bins=40)
+fig = plot.get_figure()
+fig.tight_layout()
+fig.savefig(os.path.join(home, 'qc_plots', 'hist_all_dbh.png'))
+
 df[['dbh_cm', 'ht_m']].hist(bins=20)
 
 #%%
@@ -207,7 +210,8 @@ fig.tight_layout()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_species_outliers.png'))
 
 #%% Scatterplot of DBH v. height for certain colors
-ax = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(16,8), alpha=0.05);
+ax = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(16,8), alpha=0.05, loglog=True);
+ax = df.plot.scatter(x='dbh_cm', y='ht_m', figsize=(8,4), alpha=0.15, loglog=True, xlim=(3,500), ylim=(0.5,25));
 df[df.sp_creole == 'mango'].plot.scatter(x='dbh_cm', y='ht_m', color='Blue', label='mango', ax=ax);
 df[df.sp_creole == 'latanye'].plot.scatter(x='dbh_cm', y='ht_m', color='Maroon', label='latanye', ax=ax);
 df[df.sp_creole == 'figye'].plot.scatter(x='dbh_cm', y='ht_m', color='Cyan', label='figye', ax=ax);
@@ -226,10 +230,21 @@ fig.savefig(os.path.join(home, 'qc_plots', 'boxes_ht_species.png'))
 
 #%% Join genus to field data DF
 # Simplistic: take the first genus matching the creole name
-lookup_genus = field_species_lookup[['genus', 'family', 'species', 'all_names']].groupby('all_names').first()
-dfjoined = df.join(lookup_genus, on='sp_creole', how='left')
+lookup_genus = lookup_df[['genus', 'family', 'species', 'all_names']].groupby('all_names').first()
+dfjoined = df_filled.join(lookup_genus, on='sp_creole', how='left')
 
 plot = dfjoined.boxplot(column='dbh_cm', by='family', figsize=(8,16), vert=False)
 fig = plot.get_figure()
 fig.tight_layout()
 fig.savefig(os.path.join(home, 'qc_plots', 'boxes_dbh_family.png'))
+
+ax = dfjoined.plot.scatter(x='dbh_cm', y='ht_m', figsize=(8,4), alpha=0.15, loglog=True, xlim=(3,500), ylim=(0.5,25));
+dfjoined[dfjoined.family == 'Fabaceae'].plot.scatter(x='dbh_cm', y='ht_m', color='Maroon', label='Fabaceae', ax=ax);
+dfjoined[dfjoined.family == 'Simaroubaceae'].plot.scatter(x='dbh_cm', y='ht_m', color='Blue', label='Simaroubaceae', ax=ax);
+dfjoined[dfjoined.family == 'Arecaceae'].plot.scatter(x='dbh_cm', y='ht_m', color='Cyan', label='Arecaceae', ax=ax);
+dfjoined[dfjoined.family == 'Malvaceae'].plot.scatter(x='dbh_cm', y='ht_m', color='Yellow', label='Malvaceae', ax=ax);
+dfjoined[dfjoined.family == 'Myrtaceae'].plot.scatter(x='dbh_cm', y='ht_m', color='Green', label='Myrtaceae', ax=ax);
+plot = df[dfjoined.family == 'Clusiaceae'].plot.scatter(x='dbh_cm', y='ht_m', color='Red', label='Clusiaceae', ax=ax);
+
+fig = plot.get_figure()
+fig.savefig(os.path.join(home, 'qc_plots', 'scatter_dbh_ht_family.png'))

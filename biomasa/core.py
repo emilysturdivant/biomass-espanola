@@ -144,7 +144,7 @@ def agg_wd_stats_2dfs(df1, df2, group_fld = 'family', agg_fld = 'wd', suffix = '
     means = groups['mean'].mean()
     sds = groups['sd'].agg(sd=sd_pooled)
     meds = groups['med'].median()
-    # Join the three genus-level statistics
+    # Join the three statistics
     wd_agg = sds.join(meds).join(means)
     # Rename
     wd_agg.rename(columns={'mean':'mean'+suffix, 'sd':'sd'+suffix, 'med':'med'+suffix}, inplace=True)

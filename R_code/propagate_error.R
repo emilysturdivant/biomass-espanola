@@ -104,11 +104,16 @@ linreg$coefficients
 linreg$residuals
 summary(linreg)
 anova(linreg)
-confint(linreg, level=.95)
+confint(linreg)
 sqrt(var(linreg$residuals))
-library(normwhn.test)
-normality.test1(cbind(mstems$AGB_ha, mstems$`2018mean`))
-# Use Model II regression
+
+# Check for bivariate normality
+library(MVN)
+par(mfrow=c(1,1))
+mvn(dat1, mvnTest="mardia", alpha=-0.05, multivariatePlot="persp")
+mvn(dat1, mvnTest="mardia", alpha=-0.05, univariatePlot="box", multivariatePlot="persp")
+
+# Try Model II regression
 library(lmodel2)
 lm2 <- lmodel2(AGB_ha ~ `2018mean`, g0_AGB, range.y='interval', range.x='relative')
 summary(lm2)

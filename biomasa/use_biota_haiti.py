@@ -119,6 +119,26 @@ Symbology: Singlebnad pseudocolor; Cumulative count cut: 2-98%; Color ramp: Viri
 Histogram analysis
 '''
 
+#%% Try to work with rasters
+import numpy as np
+from matplotlib import pyplot as plt
+plt.gray()
+# Load raster values into a numpy array.
+fpath = r'/Users/emilysturdivant/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_nofilt_HV.tif'
+g0 = biota.IO.loadArray(fpath)
+g0
+plt.imshow(g0, interpolation='nearest')
+plt.show()
+
+
+mask_path = r'/Users/emilysturdivant/PROJECTS/Haiti_biomass/LULC/Haiti2017_water.tif'
+mask = biota.IO.loadArray(mask_path)
+plt.imshow(mask, interpolation='nearest')
+plt.show()
+mask = biota.IO.loadArray(mask_path) != 255
+g0maskd = np.ma.array(g0, mask = mask)
+g0filt = biota.filter.enhanced_lee_filter(g0)
+
 #%% Experimental...
 tile = biota.LoadTile(data_dir, latitude, longitude, y1, lee_filter = True, forest_threshold = 15., area_threshold = 1, output_dir = output_dir)
 

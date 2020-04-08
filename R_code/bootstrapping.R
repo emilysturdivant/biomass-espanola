@@ -1,37 +1,318 @@
 #library(silvr)
 library(readr)
 library(BIOMASS)
-library(ggplot2)
-library(dplyr)
+library(tidyverse)
 require(boot)
+require(MASS)
 
 # Load data - Desktop
 # Load data - Mac
-g0_AGB <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu_HV.csv")
-
-#----
-# Scatterplot
-plot(g0_AGB$`2018mean`, g0_AGB$AGB_ha, xlab='2018 HV backscatter (g0 nu mean)', ylab='2019 AGB (tC/ha)')
-
-# Basic OLS regression
-linreg <- lm(g0_AGB$AGB_ha ~ g0_AGB$`2018mean`, x=TRUE, y=TRUE)
-abline(linreg)
-summary(linreg)
-confint(linreg)
-cov2cor(vcov(linreg))
-anova(linreg)
-coef(linreg)
-
+g0_AGB <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu_AGB.csv")
 # just get the two columns we care about
-dat1 <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>% 
+g0.agb <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>% 
   rename(AGB = V1, backscatter =V2)
 
 #----
+# Scatterplot
+p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
+  labs(y = expression(paste("Aboveground biomass (MgC ha"^"-1", ")")), 
+       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
+p
+p2 <- p + geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black')
+p2 + labs(caption = 'OLS regression')
+p2
+p1 + geom_smooth(method="rlm", col='red', se=TRUE, fullrange=TRUE, level=0.95) + 
+  labs(caption = 'RLM regression')
+p2 + geom_smooth(method="lm", col='red', fill='red', se=TRUE, fullrange=TRUE, level=0.95) + 
+  geom_smooth(method="rlm", col='blue', fill='blue', se=TRUE, fullrange=TRUE, level=0.95)
+
+# Manually construct confidence bands around OLS regression line
+mm <- model.matrix(~ backscatter, data = g0.agb)
+vars <- mm %*% vcov(ols) %*% t(mm)
+sds <- sqrt(diag(vars))
+t.val <- qt(1 - (1 - 0.95)/2, ols$df.residual)
+t.val
+g0.agb$LoCI.man <- ols$fitted.values - t.val * sds
+g0.agb$HiCI.man <- ols$fitted.values + t.val * sds
+p + geom_ribbon(aes(ymin=g0.agb$LoCI.man, ymax=g0.agb$HiCI.man), linetype=2, alpha=0.1)
+ols.ci95 <- predict(ols, newdata = g0.agb, interval = 'confidence')
+ols.pi95 <- predict(ols, newdata = g0.agb, interval = 'prediction')
+p2 <- p + geom_ribbon(aes(ymin=ols.ci95[,2], ymax=ols.ci95[,3]), linetype=2, alpha=0.1)
+p2 + geom_ribbon(aes(ymin=ols.pi95[,2], ymax=ols.pi95[,3]), linetype=2, alpha=0.1)
+
+
+
+# plot BCa CI from bootstrapping - not sure if this is appropriate
+g0.agb$loCI <- -6.96 + 799*g0.agb$backscatter
+g0.agb$hiCI <- 9.63 + 1358*g0.agb$backscatter
+p2 + geom_ribbon(aes(ymin=g0.agb$loCI, ymax=g0.agb$hiCI), linetype=2, alpha=0.1)
+
+# plot parameter CI from OLS - not sure if this is appropriate
+g0.agb$loCI <- -14.6454 + 713.18*g0.agb$backscatter
+g0.agb$hiCI <- 14.64934 + 1349.83*g0.agb$backscatter
+p2 + geom_ribbon(aes(ymin=g0.agb$loCI, ymax=g0.agb$hiCI), linetype=2, alpha=0.1)
+
+# plot parameter CI from OLS - not sure if this is appropriate
+g0.agb$loCI <- 14.64934 + 713.18*g0.agb$backscatter
+g0.agb$hiCI <- -14.6454 + 1349.83*g0.agb$backscatter
+p2 + geom_ribbon(aes(ymin=g0.agb$loCI, ymax=g0.agb$hiCI), linetype=2, alpha=0.1)
+
+# 
+boot.ols.100k$t0
+confint(ols)[2,2] - ols$coefficients[2]
+ols$model
+
+# Bias
+g0.agb$resids <- ols$residuals
+p <- ggplot(g0.agb, aes(x=backscatter, y=resids)) + geom_point() +
+  labs(y = expression(paste("Aboveground biomass (MgC ha"^"-1", ")")), 
+       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
+p
+mean(abs(ols$residuals))
+model.10000x5$results
+model.10000x5
+
+
+# Basic OLS regression
+ols <- lm(g0.agb$AGB ~ g0.agb$backscatter, x=TRUE, y=TRUE)
+summary(ols)
+confint(ols)
+cov2cor(vcov(ols))
+anova(ols)
+coef(ols)[2]*10000
+coef(ols)[1]*100000000
+opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
+plot(ols, las = 1)
+
+ols$residuals
+rmse <- sqrt(var(ols$residuals)) # RMSE
+rmse <- sd(ols$residuals)
+mse <- mean((residuals(ols))^2)
+mse
+rss <- sum(residuals(ols)^2)
+rss
+rse <- sqrt(rss / ols$df.residual)
+rse
+mean(abs(residuals(ols)))
+summary(ols)$adj.r.squared
+sigma(ols)
+
+# OLS with intercept=0
+ols.0 <- lm(g0.agb$AGB ~ 0+g0.agb$backscatter, x=TRUE, y=TRUE)
+abline(ols.0, col='cyan')
+summary(ols.0)
+confint(ols.0)
+cov2cor(vcov(ols))
+anova(ols)
+coef(ols)
+opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
+plot(ols, las = 1)
+
+#----
+# Robust Linear Model regression, 
+# with parameters set based on optimization performed by cross-validation below
+rr <- rlm(AGB ~ backscatter, g0.agb, psi=psi.hampel)
+rr$coefficients
+abline(rr, col='red')
+rr
+anova(rr)
+summary(rr)
+opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
+plot(rr, las = 1)
+View(rr$w)
+
+
+rr.int0 <- rlm(AGB ~ 0 + backscatter, g0.agb, psi=psi.hampel)
+rr.int0$coefficients
+abline(rr, col='pink')
+anova(rr.int0)
+summary(rr.int0)
+opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
+plot(rr.int0, las = 1)
+
+View(rr.int0$w)
+
+#----
+# Cross-validation
+set.seed(45)
+# LOOCV
+# Train the model and summarize results
+model.loocv <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+               trControl = trainControl(method = "LOOCV"))
+print(model.loocv)
+model.loocv$finalModel
+
+# K-fold
+# Train model and summarize results
+model.5fold <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+               trControl = trainControl(method = "cv", number = 5))
+print(model.5fold)
+model.5fold$finalModel
+
+# Repeated K-fold
+# Define training control, train model, and summarize results
+# OLS w/ int=0, 10,000 x 10-fold
+fxn.bias <- function(data, lev = NULL, model = NULL) {
+  resids <- data$pred - data$obs
+  rss <- sum(resids^2)
+  n <- length(resids)
+  df <- n-2
+  mse <- rss / n
+  c(RMSE=sqrt(mse),
+    Rsquared=summary(lm(pred ~ obs, data))$r.squared,
+    MAE=sum(abs(resids)) / n,
+    MSE=mse,
+    B=sum(resids) / n,
+    RSS=rss,
+    MSS=rss/df,
+    RSE=sqrt(rss / df))
+}
+set.seed(45)
+model.10000x10 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+                        trControl = trainControl(method = "repeatedcv", 
+                                                 number = 10, repeats = 10000,
+                                                 summaryFunction = fxn.bias))
+model.10000x10$results
+head(model.10000x10$resample)
+
+set.seed(3)
+model.2x5 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+                    trControl = trainControl(method = "repeatedcv", 
+                                             number = 5, repeats = 2,
+                                             summaryFunction = fxn.bias))
+model.2x5$results
+set.seed(3)
+model.2x5.rmse <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+                         trControl = trainControl(method = "repeatedcv", 
+                                                  number = 5, repeats = 2))
+model.2x5.rmse$results
+
+model.10000x10 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+                       trControl = trainControl(method = "repeatedcv", 
+                                                number = 10, repeats = 10000,
+                                                returnResamp='all',
+                                                trim=FALSE))
+print(model.10000x10)
+model.10000x10$results
+model.10000x10$finalModel
+head(model.10000x10$resample)
+head(model.10000x10$metric)
+
+
+
+
+# OLS w/ int=0, 10,000 x 10-fold
+model.boot100k <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
+                             trControl = trainControl(method = "boot", 
+                                                      number = 100000))
+print(model.boot100k)
+model.boot100k$results
+model.boot100k$finalModel
+
+# 5,000 x10-fold
+model.5000x10.int0$results
+model.5000x10.int0$finalModel
+
+# Repeated K-fold with Robust Linear Regression
+# RLM, 10,000 x 5-fold
+model.5000x10.rlmI <- train(AGB ~ backscatter, data = g0.agb, method = "rlm", 
+                          tuneGrid = expand.grid(intercept = TRUE, psi = 'psi.hampel'),
+                          trControl = trainControl(method = "repeatedcv", 
+                                                   number = 10, repeats = 5000))
+print(model.5000x10.rlmI)
+model.5000x10.rlmI$results
+model.5000x10.rlmI$finalModel
+abline(model.5000x10.rlmI$finalModel, col='red')
+
+
+model.10000x10.rlmI
+#----
+# Pairs Bootstrap with the boot library
+set.seed(45)
+# OLS 
+boot.ols.100k <- boot(g0.agb, function(data=g0.agb, index) {
+    data <- data[index,] # we sample along rows of the data frame
+    model.boot <- lm(AGB ~ backscatter, data=data)
+    coef(model.boot)
+  }, R=100000)
+# Results
+boot.ols.100k
+plot(boot.ols.100k, index=1)
+boot.ci(boot.ols.100k, conf=0.95, type=c("basic", "bca", "perc"), index=1)
+boot.ci(boot.ols.100k, conf=0.95, type=c("basic", "bca", "perc"), index=2)
+
+# OLS with int=0
+boot.ols.int0.100k <- boot(g0.agb, function(data=g0.agb, index) {
+    data <- data[index,] # we sample along rows of the data frame
+    model.boot <- lm(AGB ~ 0 + backscatter, data=data)
+    coef(model.boot)
+  }, R=100000)
+# Results
+boot.ols.int0.100k
+plot(boot.ols.int0.100k, index=1)
+boot.ci(boot.ols.int0.100k, conf=0.95, type=c("basic", "bca", "perc"), index=1)
+boot.ci(boot.ols.int0.100k, conf=0.95, type=c("basic", "bca", "perc"), index=2)
+
+# Pairs bootstrap with RLM
+boot.rlm.int0.100k <- boot(g0.agb, function(data=g0.agb, index) {
+  data <- data[index,] # we sample along rows of the data frame
+  model.boot <- rlm(AGB ~ 0 + backscatter, data=data, psi=psi.hampel)
+  coef(model.boot)
+}, R=100000)
+# Results
+boot.rlm.int0.100k
+plot(boot.rlm.int0.100k, index=1)
+boot.ci(boot.rlm.int0.100k, conf=0.95, type=c("basic", "bca", "perc"), index=1)
+plot(boot.rlm.int0.100k$t[,1], boot.rlm.int0.100k$t[,2],
+     xlab="t1", ylab="t2", pch=1)
+
+# Pairs bootstrap with RLM w/ intercept
+boot.rlm.100k <- boot(g0.agb, function(data=g0.agb, index) {
+  data <- data[index,] # we sample along rows of the data frame
+  model.boot <- rlm(AGB ~ backscatter, data=data, psi=psi.hampel)
+  coef(model.boot)
+}, R=100000)
+# Results
+boot.rlm.100k
+plot(boot.rlm.100k, index=1)
+boot.ci(boot.rlm.100k, conf=0.95, type=c("basic", "bca", "perc"), index=1)
+boot.ci(boot.rlm.100k, conf=0.95, type=c("basic", "bca", "perc"), index=2)
+plot(boot.rlm.100k$t[,1], boot.rlm.100k$t[,2],
+     xlab="t1", ylab="t2", pch=1)
+
+#----
+# Save
+save(boot.ols.100k, boot.ols.30k, boot.rlm.100k, boot.rlm.int0.100k, 
+     model.10000x10, model.10000x10.rlm,  model.10000x10.rlmI, model.10000x10.int0, 
+     model.10000x5, model.10000x5.boot, model.10000x5.rlm, model.10000x5.rlmI, 
+     model.boot100k,
+     file = "~/PROJECTS/Haiti_biomass/R_out/model_trains.RData")
+
+#----
+# Residuals bootstrap
+BootstrapFunctionRegression <- function(data=g0.agb, index) {
+  mod.object <- lm(AGB ~ backscatter, data=data)
+  resids = mod.object$resid
+  fittedValues = mod.object$fitted
+  matr <- model.matrix(mod.object)
+  # generating new values for each y[i], by adding bootstrapped resids to fitted values.
+  Y <- fittedValues + resids[index] # we sample along rows of the data frame
+  # Using model.matrix for the predictors 
+  model.boot <- lm(Y ~ 0 + matr, data=data)
+  coef(model.boot)
+}
+bootstrappedModel <- boot(g0.agb, BootstrapFunctionRegression, R=10000)
+bootstrappedModel
+
+plot(bootstrappedModel, index=1)
+boot.ci(bootstrappedModel, conf=0.95, type=c("basic", "bca", "perc"), index=1)
+boot.ci(bootstrappedModel, conf=0.95, type=c("basic", "bca", "perc"), index=2)
+
 # Bootstrap options - manual
 # from "Using the non-parametric bootstrap for regression models in R" by Ian Dworkin
 # Non-parametric bootstrap: Pairs (Random x) approach
 N = 10000 # Perform N bootstrap iterations
-BootstrapRandomX <- function(dat=dat1, mod.formula=formula(AGB ~ backscatter)){
+BootstrapRandomX <- function(dat=g0.agb, mod.formula=formula(AGB ~ backscatter)){
   dat.boot <- dat[sample(x = nrow(dat), size = nrow(dat), replace=T),] # samples along index
   boot.lm <- lm(mod.formula, data=dat.boot)
   coef(boot.lm)
@@ -69,10 +350,10 @@ plot(density(resid.model.1, bw=0.5))
 plot(density(resid.model.1, bw=1))
 
 par(mfrow=c(1,2))
-plot(resid.model.1 ~ dat1$AGB)
-plot(resid.model.1 ~ dat1$backscatter)
+plot(resid.model.1 ~ g0.agb$AGB)
+plot(resid.model.1 ~ g0.agb$backscatter)
 
-BootstrapFromResiduals <- function(mod.object = linreg, dat = dat1) {
+BootstrapFromResiduals <- function(mod.object = linreg, dat = g0.agb) {
   resids = mod.object$resid
   fittedValues = mod.object$fitted
   matr <- model.matrix(mod.object)
@@ -131,41 +412,6 @@ lines(density(sim.coef[,1], bw=0.5), col='purple', lwd=2, lty=1)
 #legend('topright', legend=c("Residual Boot", "Pairs Boot", "Monte Carlo Normal"), 
 #       col=c("black", "red", "purple"), lty=c(1,1,1), lwd=2, bg=NULL)
 
-# Use boot library
-# I think this is set up to perform a Pairs Bootstrap
-BootstrapFunctionRegression <- function(data=dat1, index) {
-  data <- data[index,] # we sample along rows of the data frame
-  model.boot <- lm(AGB ~ backscatter, data=data)
-  coef(model.boot)
-}
-bootstrappedModel <- boot(dat1, BootstrapFunctionRegression, R=10000)
-bootstrappedModel
-
-plot(bootstrappedModel, index=1)
-boot.ci(bootstrappedModel, conf=0.95, type=c("basic", "bca", "perc"), index=1)
-boot.ci(bootstrappedModel, conf=0.95, type=c("basic", "bca", "perc"), index=2)
-
-plot(bootstrappedModel$t[,1], bootstrappedModel$t[,2],
-     xlab="t1", ylab="t2", pch=16)
-
-# Change it to run a Residuals bootstrap
-BootstrapFunctionRegression <- function(data=dat1, index) {
-  mod.object <- lm(AGB ~ backscatter, data=data)
-  resids = mod.object$resid
-  fittedValues = mod.object$fitted
-  matr <- model.matrix(mod.object)
-  # generating new values for each y[i], by adding bootstrapped resids to fitted values.
-  Y <- fittedValues + resids[index] # we sample along rows of the data frame
-  # Using model.matrix for the predictors 
-  model.boot <- lm(Y ~ 0 + matr, data=data)
-  coef(model.boot)
-}
-bootstrappedModel <- boot(dat1, BootstrapFunctionRegression, R=10000)
-bootstrappedModel
-
-plot(bootstrappedModel, index=1)
-boot.ci(bootstrappedModel, conf=0.95, type=c("basic", "bca", "perc"), index=1)
-boot.ci(bootstrappedModel, conf=0.95, type=c("basic", "bca", "perc"), index=2)
 
 # ----
 sqrt(var(linreg$residuals))
@@ -194,100 +440,3 @@ plot.lmodel2(lm2, 'RMA')
 # Get Spearman's rank correlation coefficient
 corr <- cor.test(x=g0_AGB$`2018mean`, y=g0_AGB$AGB_ha, method = 'spearman')
 corr$estimate
-
-Zscores_backscatter <- scale(g0_AGB$`2018mean`)
-hist(Zscores_backscatter)
-Zscores_AGB <- scale(g0_AGB$AGB_ha)
-hist(Zscores_AGB)
-
-# Remove plot 16 and check correlation
-g0_AGB2 <- g0_AGB[-c(16), ]
-# Get Spearman's rank correlation coefficient
-corr <- cor.test(x=g0_AGB2$`2018mean`, y=g0_AGB2$AGB_ha, method = 'spearman')
-corr$estimate
-# Plot AGB against backscatter
-plot(g0_AGB2$`2018mean`, g0_AGB2$AGB_ha, xlab='2018 HV backscatter (plot median)', ylab='2019 AGB (tC/ha) from H-D model')
-linreg <- lm(g0_AGB2$AGB ~ g0_AGB2$`2018mean`)
-abline(lm(g0_AGB2$AGB ~ g0_AGB2$`2018mean`), col='blue')
-linreg
-abline(lm(g0_AGB$AGB ~ g0_AGB$`2018mean`), col='red')
-
-# ------------------------
-# Load AGB statistics at plots from output AGB map
-agb_plots <- read_csv("~/GitHub/biomass-espanola/data/qgis_out/plots_agb18v4.csv")[c('plot_no', 'agb18sum', 'agb18mean')]
-agb_obs_est <- merge(plots_agb, agb_plots, by.x='plot_no', by.y='plot_no', all=TRUE)
-agb_obs_est$AGB_ha[is.na(agb_obs_est$AGB_ha)] <- 0
-agb_obs_est$diff <- agb_obs_est$AGB_ha - agb_obs_est$agb18mean
-agb_obs_est$diff_sqr <- agb_obs_est$diff**2
-sqrt(mean(agb_obs_est$diff_sqr))
-mean(agb_obs_est$diff)
-mean(abs(agb_obs_est$diff))
-
-# ------------------------
-# Run Chave14 equation using computeAGB() in BIOMASS
-# Get wood density by genus
-species <- NULL
-if (is.null(species)) species = rep('', length(mstems$genus))
-family <- NULL
-#region <- 'CentralAmericaTrop'
-latitude <- 19
-longitude <- -72
-
-# Prepare coordinates, required without height
-if (!is.null(latitude)) coord = data.frame(longitude = longitude, latitude = latitude) else coord = NULL
-height=NULL
-
-# Calculate AGB with Chave equation, return in Mg
-mstems$AGB  <- computeAGB(mstems$dbh_cm, mstems$meanWD, H = height, 
-                          coord = cbind(mstems$lon, mstems$lat), Dlim = 0)
-summary(mstems$AGB)
-mstems[which(mstems$AGB == max(mstems$AGB, na.rm=T)), ]
-boxplot(AGB~plot_no, data=mstems)
-boxplot(AGB~sp_creole, data=mstems)
-plot(mstems$dbh_cm, mstems$AGB, xlab='diam', ylab='AGB')
-
-# aggregate AGB by plot (MgC/ha)
-agb_plot <- aggregate(AGB ~ plot_no, mstems, sum)
-mplots <- merge(mplots, agb_plot, by='plot_no', all=TRUE)
-mplots$AGB <- mplots$AGB / mplots$area_ha
-
-# Add AGB to
-g0_plots <- merge(mplots, g0_plots, by='plot_no', all=TRUE)
-#write.csv(g0_plots, "~/GitHub/biomass-espanola/plots_g0nu2018_withAGB.csv")
-
-# Plot AGB against backscatter
-plot(g0_plots$`2018_mean`, g0_plots$AGB, xlab='2018 HV backscatter', ylab='2019 AGB (tC/ha)')
-linreg <- lm(g0_plots$AGB ~ g0_plots$`2018_mean`)
-abline(linreg)
-linreg
-
-# Get Spearman's rank correlation coefficient
-corr <- cor.test(x=g0_plots$`2018_mean`, y=g0_plots$AGB, method = 'spearman')
-corr$estimate
-
-#-----------------------
-# aggregate Basal Area by plot (m^2/ha) - the area of land that is occupied by the cross-section of a tree.
-# calculate basal area (m^2) from DBH (cm)
-mstems$basal_area <- calculateBasalArea(mstems$dbh_cm)
-ba_plot <- aggregate(basal_area ~ plot_no, mstems, sum)
-mplots <- merge(mplots, ba_plot, by='plot_no', all=TRUE)
-mplots$basal_area <- mplots$basal_area / mplots$area_ha
-
-# calculate stem volume  (m^3) from DBH (cm) - an estimate of the ammount of space that the tree bole occupies.
-mstems$volume <- calculateStemVolume(mstems$dbh_cm)
-vol_plot <- aggregate(volume ~ plot_no, mstems, sum)
-mplots <- merge(mplots, vol_plot, by='plot_no', all=TRUE)
-mplots$volume <- mplots$volume / mplots$area_ha
-
-# calculate stocking density () from DBH
-mstems$stocking <- calculateStocking(mstems$dbh_cm)
-mstems$stocking_10 <- calculateStocking(mstems$dbh_cm, min_diam = 10)
-stocking_plot <- aggregate(stocking ~ plot_no, mstems, sum)
-mplots <- merge(mplots, stocking_plot, by='plot_no', all=TRUE)
-mplots$stocking <- mplots$stocking / mplots$area_ha
-
-# Look at dominant species based on stocking densities. Add species_name (by_binomial)
-dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no)
-dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = calculateBasalArea(mstems$dbh_cm))
-dominant_species <- getDominantSpecies(mstems$sp_creole, mstems$plot_no, abundance = mstems$AGB_Chave14)
-

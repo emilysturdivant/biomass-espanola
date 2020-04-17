@@ -21,6 +21,8 @@ biota download -lon -75 -lat 19 -y 2018 -r -o /home/esturdivant/Documents/ALOS
 # Mac:
 python download.py -lon -68 -lat 20 -y 2017 -r -o /Users/emilysturdivant/Documents/CIGA/ALOS
 
+python download.py -lon -72 -lat 21 -y 2018 -r -o /Users/emilysturdivant/PROJECTS/Haiti_biomass/ALOS
+
 '''
 #%% functions
 def getGamma0_HV_nofilt(data_dir, y1, output_dir=None, coord_list=None, filter=False, polarization='HV'):
@@ -84,7 +86,7 @@ def getAGB_forRegion(data_dir, y1, slope, intercept, output_dir=None, coord_list
     print('ALL DONE.')
 
 #%% Initialize file paths
-data_dir = r'/Users/emilysturdivant/Documents/CIGA/ALOS'
+data_dir = r'/Users/emilysturdivant/PROJECTS/Haiti_biomass/ALOS'
 
 #%% Create list of tile coordinates
 coord_list = []
@@ -95,7 +97,24 @@ coord_list += [[18, -72], [19, -75]]
 
 #%% Run processing loop
 y1 = 2018
-output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018'
+output_dir = r'/Users/emilysturdivant/PROJECTS/Haiti_biomass/biota_out'
+data_dir
+coord_list = [[21, -72]]
+for lat, lon in coord_list:
+    tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = False, output_dir = output_dir)
+    gamma0 = tile.getGamma0(polarisation='HV', output=True)
+    # Print progress
+    print('Doing latitude: {}, longitude: {}'.format(str(lat), str(lon)))
+    # Load the ALOS tile with specified options
+    try:
+        tile = biota.LoadTile(data_dir, lat, lon, y1, lee_filter = False, output_dir = output_dir)
+    except:
+        print('error')
+        continue
+    # Calculate gamma0 and output to GeoTiff
+    gamma0 = tile.getGamma0(polarisation=polarization, output=True)
+    # Calculate AGB using slope and intercept from R
+    # agb = tile.getAGB(slope=slope, intercept=intercept, output = True)
 getGamma0_HV_nofilt(data_dir, y1, output_dir, coord_list)
 
 #%% Set slope and intercept of AGB-backscatter regression

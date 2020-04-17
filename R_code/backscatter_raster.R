@@ -1,7 +1,7 @@
 #library(silvr)
 library(readr)
-library(tidyverse)
 library(raster)
+library(tidyverse)
 library(ggridges)
 
 # Load data - Desktop
@@ -14,21 +14,34 @@ g0.agb <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>%
 ols <- lm(g0.agb$AGB ~ g0.agb$backscatter, x=TRUE, y=TRUE)
 
 #----
-agb.hispaniola <- agb
-agb.samp.hispaniola <- agb.samp
+g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_haiti_qLee1.tif")
 
+library(rgdal)
+
+polys <- readOGR(dsn="~/GitHub/biomass-espanola/data", layer='AllPlots')
+polys
+ex <- extract(g0, polys)
+polys$g0l_mean <- unlist(lapply(ex, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+count <- unlist(lapply(ex, function(x) length(x)))
+polys$g0l_count <- count
+View(cbind(polys$X2018mean, polys$g0l_mean))
+View(cbind(polys$X2018count, polys$g0l_count))
+
+
+#----
 agb <- raster("~/PROJECTS/Haiti_biomass/biota_out/AGB_2018_v5q_haiti.tif")
-agb
-NAvalue(agb) <- 0
-qs.agb <- quantile(agb, probs=c(0, 0.1,0.5,0.9,0.99, 0.999, 1))
-qs.agb
+agb <- raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6r.tif")
+
+#agb[agb < =0] <- NA
+qs.agb <- quantile(agb, probs=c(0, 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1))
+View(qs.agb)
 agb.q90s <- quantile(agb, probs=c(0.91, 0.92, 0.93, 0.94, 0.95))
 View(agb.q90s)
 # the distribution of values in the raster
 agb.samp <- agb %>% 
   sampleRandom(100000, na.rm=TRUE) %>% 
-  as.data.frame()
-agb.samp <- agb.samp %>% rename(AGB='.')
+  as.data.frame() %>% 
+  rename(AGB='.')
 agb.samp.haiti <- agb.samp
 
 # Boxplot
@@ -76,16 +89,31 @@ mean(agb.samp$AGB)
 median(agb.samp$AGB)
 
 #----
-lc.br <- brick(raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_water_agb18v5q.tif"), 
-                    raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_urban_agb18v5q.tif"), 
-                    raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_bareland_agb18v5q.tif"), 
-                    raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_treecover_agb18v5q.tif"), 
-                    raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_grassland_agb18v5q.tif"), 
-                    raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_shrubs_agb18v5q.tif"))
-names(lc.br) <- c('water', 'urban', 'bareland', 'tree cover', 'grassland', 'shrubs')
-NAvalue(lc.br) <- 0
-saveRDS(lc.br, file = "~/PROJECTS/Haiti_biomass/R_out/rasterbrick_AGBbyLC.rds")
-readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/rasterbrick_AGBbyLC.rds")
+# Get zonal statistics in R. Produces different values than those from Q. 
+lc <- raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_Clip.tif")
+# Resample LC raster to AGB resolution
+lc.c <- resample(lc, agb.ras)
+writeRaster(lc.c, filename="~/PROJECTS/Haiti_biomass/LULC/Haiti2017_Clip_AGBres.tif")
+# Get means and SDs for LC class
+lc.means <- zonal(agb.ras, lc.c)
+lc.sds <- zonal(agb.ras, lc.c, fun='sd')
+lc.zonal <- cbind(lc.means, lc.sds)
+View(t(lc.zonal))
+
+
+#----
+lc.br <- brick(raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6r.tif"), 
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_water_agb18v6.tif"), 
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_urban_agb18v6.tif"), 
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_bareland_agb18v6.tif"),
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_treecover_agb18v6.tif"),
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_grassland_agb18v6.tif"), 
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_shrubs_agb18v6.tif"),
+               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_vegLCs_agb18v6.tif"))
+names(lc.br) <- c('Haiti', 'water', 'urban', 'bareland', 'tree cover', 'grassland', 'shrubs', 'all_veg')
+saveRDS(lc.br, file = "~/PROJECTS/Haiti_biomass/R_out/rasterbrick_AGBv6byLC.rds")
+lc.br <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/rasterbrick_AGBv6byLC.rds")
+lc.br
 
 # Get selection of percentiles for each LC
 lulc.qs <- data.frame(row.names=c('0%', '1%','2%','10%', '25%', '50%', '75%', '90%','98%', '99%','100%'))
@@ -93,14 +121,21 @@ for (i in seq(1,nlayers(lc.br))){
   lc <- names(lc.br[[i]])
   lulc.qs[[lc]] <- quantile(lc.br[[i]], probs=c(0, 0.01, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9,0.98, 0.99, 1))
 }
-saveRDS(lulc.qs, file = "~/PROJECTS/Haiti_biomass/R_out/lc_quantiles.rds")
+lulc.qs[['Haiti']] <- quantile(lc.br[[1]], probs=c(0, 0.01, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9,0.98, 0.99, 1))
+saveRDS(lulc.qs, file = "~/PROJECTS/Haiti_biomass/R_out/lc_quantiles_v6.rds")
+lulc.qs <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/lc_quantiles_v6.rds")
+View(lulc.qs)
+
+# Get means, SDs, and Skews
 means <- cellStats(lc.br, stat='mean', na.rm=TRUE)
 sds <- cellStats(lc.br, stat='sd', na.rm=TRUE)
 skews <- cellStats(lc.br, stat='skew', na.rm=TRUE)
 lc.stats <- cbind(means, sds, skews)
-saveRDS(lulc.qs, file = "~/PROJECTS/Haiti_biomass/R_out/lc_stats.rds")
+View(t(lc.stats))
+saveRDS(lc.stats, file = "~/PROJECTS/Haiti_biomass/R_out/lc_stats_v6.rds")
+lc.stats <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/lc_stats_v6.rds")
 
-# Sample AGB by LC rasters
+# Sample AGB by LC rasters for plotting
 sample_rasters <- function(stack, sampSize=100){
   samps <- data.frame(AGB=numeric(0),Category=numeric(0))
   for (i in seq(1,nlayers(stack))){
@@ -116,14 +151,16 @@ sample_rasters <- function(stack, sampSize=100){
 }
 lc.samp <- sample_rasters(lc.br, 1000000)
 lc.sampNA <- lc.samp %>% 
-  mutate(AGB = na_if(AGB, 0)) %>% 
+  #mutate(AGB = na_if(AGB, 0)) %>% 
   na.omit()
-saveRDS(lc.sampNA, file = "~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil.rds")
-lc.sampNA <- readRDS("~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil.rds")
-
 lc.sampNA$Category <- ordered(lc.sampNA$Category,
-                         levels = c("water", "urban", "bareland", "grassland", "shrubs", "tree.cover"))
+                              levels = names(lc.br))
 levels(lc.sampNA$Category)
+saveRDS(lc.sampNA, file = "~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil_v6.rds")
+
+lc.sampNA <- readRDS("~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil_v6.rds")
+lc.samp.sub100 <- lc.sampNA[which(lc.sampNA$AGB <= 100),]
+lc.samp.sub200 <- lc.sampNA[which(lc.sampNA$AGB <= 200),]
 
 # ANOVA with multiple pair-wise comparison
 res.aov <- aov(AGB ~ Category, data = lc.sampNA)
@@ -138,7 +175,7 @@ leveneTest(AGB ~ Category, data = lc.sampNA)
 lc.sampNA[283224,]
 lc.sampNA[8052,]
 lc.sampNA[9444,]
-lc.samp.sub100 <- lc.sampNA[which(lc.sampNA$AGB <= 100),]
+
 res.aov <- aov(AGB ~ Category, data = lc.sampNA)
 summary(res.aov)
 TukeyHSD(res.aov)
@@ -153,11 +190,13 @@ ggline(lc.sampNA, x = "Category", y = "AGB",
 
 # Density plot
 # Get group means and medians
-mu <- lc.samp.sub100 %>%
+mu <- lc.samp.sub200 %>%
   group_by(Category) %>%
   summarise(mean = mean(AGB), med=median(AGB))
-
-dp <- ggplot(lc.samp.sub100, aes(x = AGB, color = Category, fill = Category)) +
+# Density plot, overlaid on one axis and color-coded
+custom.col <- c(water="#6699CC", urban="#888888", bareland="#661100", 
+                grassland="#DDCC77", shrubs="#999933", tree.cover="#117733")
+dp <- ggplot(lc.samp.sub200, aes(x = AGB, color = Category, fill = Category)) +
   geom_density(position="identity", alpha=0.2) +
   scale_x_continuous(name = "AGB",
                      breaks = seq(0, 150, 25),
@@ -169,8 +208,8 @@ dp <- ggplot(lc.samp.sub100, aes(x = AGB, color = Category, fill = Category)) +
   geom_point(data=mu, aes(med, 0), size=2) +
   scale_color_manual(values=custom.col)
 dp
-
-dp <- ggplot(lc.samp.sub100, aes(x = AGB, y = Category, fill = Category)) +
+# Ridge density plot with quantile lines
+dp <- ggplot(lc.samp.sub200, aes(x = AGB, y = Category, fill = Category)) +
   #geom_density_ridges(scale = 8, alpha=0.7) +
   stat_density_ridges(quantile_lines = TRUE, scale = 8, alpha=0.7)+
   theme_ridges() +
@@ -183,7 +222,7 @@ dp <- ggplot(lc.samp.sub100, aes(x = AGB, y = Category, fill = Category)) +
   ylab("")+
   ggtitle("Density of AGB by land cover type")
 dp
-
+# Ridge density with color-coded tail probability
 ggplot(lc.sampNA, aes(x = AGB, y = Category, fill = 0.5 - abs(0.5 - stat(ecdf)))) +
   stat_density_ridges(geom = "density_ridges_gradient", 
                       calc_ecdf = TRUE, 
@@ -211,10 +250,12 @@ custom.col <- c(water="#6699CC", urban="#888888", bareland="#661100",
 bp <- ggplot(lc.sampNA, aes(x=Category, y=AGB, fill=Category)) +
   stat_boxplot(geom = "errorbar", width = 0.2) +
   geom_boxplot(alpha=0.9, notch=TRUE, outlier.alpha = 0.1) +
-  stat_summary(fun.y=mean, geom="point", shape=5, size=4) +
+  stat_summary(fun=mean, geom="point", shape=5, size=4) +
   scale_fill_manual(values=custom.col) +
+  scale_y_continuous(name = "Aboveground Biomass",
+                     breaks = seq(0, 200, 25),
+                     limits=c(-10, 200)) +
   coord_flip()+
-  ylab("Aboveground Biomass") +
   xlab("")+
   theme_minimal()+
   theme(legend.position="none")

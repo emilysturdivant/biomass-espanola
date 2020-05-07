@@ -3,6 +3,7 @@ library(readr)
 library(raster)
 library(tidyverse)
 library(ggridges)
+library(rgdal)
 
 # Load data - Desktop
 # Load data - Mac
@@ -13,13 +14,10 @@ g0.agb <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>%
 # Linear model
 ols <- lm(g0.agb$AGB ~ g0.agb$backscatter, x=TRUE, y=TRUE)
 
-#----
+# Extract backscatter values to polygons ----
 g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_haiti_qLee1.tif")
 
-library(rgdal)
-
 polys <- readOGR(dsn="~/GitHub/biomass-espanola/data", layer='AllPlots')
-polys
 ex <- extract(g0, polys)
 polys$g0l_mean <- unlist(lapply(ex, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
 count <- unlist(lapply(ex, function(x) length(x)))
@@ -27,8 +25,30 @@ polys$g0l_count <- count
 View(cbind(polys$X2018mean, polys$g0l_mean))
 View(cbind(polys$X2018count, polys$g0l_count))
 
+# Create 95% CI raster ----
+# Function to create raster of confidence intervals
+predict.ci.raster <- function(g0, model){
+  names(g0) <- 'backscatter'
+  df <- as.data.frame(g0)
+  chunks <- split(df, (seq(nrow(df))-1) %/% 1000000) 
+  agblist <- list()
+  for (i in 1:length(chunks)){
+    chunk <- chunks[[i]]
+    agb1 <- stats::predict(model, newdata=chunk, 
+                           interval="confidence", level = 0.95) %>%
+      as.data.frame()
+    agblist[[i]] <- agb1
+  }
+  agb <- bind_rows(agblist)
+  agb.ci.v <- as.vector((agb$upr - agb$lwr)/2)
+  ci.ras <- setValues(g0, values=agb.ci.v)
+}
+ras.agb.ci <- predict.ci.raster(g0, ols)
+ras.agb.ci[agb.ras > 310] <- NA
+ras.agb.ci[agb.ras < 0] <- NA
+writeRaster(ras.agb.ci, "~/PROJECTS/Haiti_biomass/R_out/agb_CI_sub310.tif", overwrite=TRUE)
 
-#----
+# Get AGB percentiles ----
 agb <- raster("~/PROJECTS/Haiti_biomass/biota_out/AGB_2018_v5q_haiti.tif")
 agb <- raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6r.tif")
 
@@ -44,7 +64,7 @@ agb.samp <- agb %>%
   rename(AGB='.')
 agb.samp.haiti <- agb.samp
 
-# Boxplot
+# Boxplot ----
 agb.qs <- quantile(agb, probs=c(0, 0.02, 0.25,0.5,0.75, 0.98, 1))
 agb.qs
 iqr <- agb.qs[['75%']] - agb.qs[['25%']]
@@ -100,42 +120,45 @@ lc.sds <- zonal(agb.ras, lc.c, fun='sd')
 lc.zonal <- cbind(lc.means, lc.sds)
 View(t(lc.zonal))
 
-
-#----
-lc.br <- brick(raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6r.tif"), 
+# Get AGB percentiles for each LULC class ----
+get_brick_stats <- function(lc.br){
+  # Get selection of percentiles for each LC
+  agb.qs <- data.frame(row.names=c('0%', '1%','2%','10%', '25%', '50%', '75%', '90%','98%', '99%','100%'))
+  for (i in seq(1,nlayers(lc.br))){
+    lc <- names(lc.br[[i]])
+    agb.qs[[lc]] <- quantile(lc.br[[i]], probs=c(0, 0.01, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9,0.98, 0.99, 1))
+  }
+  # Get means, SDs, and Skews
+  stats <- list(mean=cellStats(lc.br, stat='mean', na.rm=TRUE),
+                sd=cellStats(lc.br, stat='sd', na.rm=TRUE),
+                skew=cellStats(lc.br, stat='skew', na.rm=TRUE)) %>%
+    bind_cols()%>%
+    t()
+  colnames(stats) <- names(lc.br)
+  agb.stats <- rbind(agb.qs, stats)
+}
+lc.br <- brick(raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6_mask2share.tif"), 
+               raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6CI_2share.tif"),
                raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_water_agb18v6.tif"), 
                raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_urban_agb18v6.tif"), 
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_bareland_agb18v6.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_treecover_agb18v6.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_grassland_agb18v6.tif"), 
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_shrubs_agb18v6.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_vegLCs_agb18v6.tif"))
-names(lc.br) <- c('Haiti', 'water', 'urban', 'bareland', 'tree cover', 'grassland', 'shrubs', 'all_veg')
-saveRDS(lc.br, file = "~/PROJECTS/Haiti_biomass/R_out/rasterbrick_AGBv6byLC.rds")
-lc.br <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/rasterbrick_AGBv6byLC.rds")
+               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc3.tif"),
+               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc4.tif"),
+               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc5.tif"), 
+               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc6.tif"),
+               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc_over3.tif"))
+names(lc.br) <- c('Haiti', 'CI', 'Water', 'Urban', 'Bareland', 'Tree cover', 'Grassland', 'Shrubs', 'Veg')
+saveRDS(lc.br, file = "~/PROJECTS/Haiti_biomass/R_out/brick_AGBv6_withLC.rds")
+lc.br <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/brick_AGBv6_withLC.rds")
 lc.br
 
-# Get selection of percentiles for each LC
-lulc.qs <- data.frame(row.names=c('0%', '1%','2%','10%', '25%', '50%', '75%', '90%','98%', '99%','100%'))
-for (i in seq(1,nlayers(lc.br))){
-  lc <- names(lc.br[[i]])
-  lulc.qs[[lc]] <- quantile(lc.br[[i]], probs=c(0, 0.01, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9,0.98, 0.99, 1))
-}
-lulc.qs[['Haiti']] <- quantile(lc.br[[1]], probs=c(0, 0.01, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9,0.98, 0.99, 1))
-saveRDS(lulc.qs, file = "~/PROJECTS/Haiti_biomass/R_out/lc_quantiles_v6.rds")
-lulc.qs <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/lc_quantiles_v6.rds")
-View(lulc.qs)
+agb.stats <- get_brick_stats(lc.br)
+# saveRDS(agb.qs, file = "~/PROJECTS/Haiti_biomass/R_out/agb_quantiles_v6.rds")
+# agb.qs <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/agb_quantiles_v6.rds")
+# View(agb.qs)
+saveRDS(agb.stats, file = "~/PROJECTS/Haiti_biomass/R_out/agb_stats_v6.rds")
+agb.stats <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/agb_stats_v6.rds")
 
-# Get means, SDs, and Skews
-means <- cellStats(lc.br, stat='mean', na.rm=TRUE)
-sds <- cellStats(lc.br, stat='sd', na.rm=TRUE)
-skews <- cellStats(lc.br, stat='skew', na.rm=TRUE)
-lc.stats <- cbind(means, sds, skews)
-View(t(lc.stats))
-saveRDS(lc.stats, file = "~/PROJECTS/Haiti_biomass/R_out/lc_stats_v6.rds")
-lc.stats <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/lc_stats_v6.rds")
-
-# Sample AGB by LC rasters for plotting
+# Sample AGB by LC rasters for plotting ----
 sample_rasters <- function(stack, sampSize=100){
   samps <- data.frame(AGB=numeric(0),Category=numeric(0))
   for (i in seq(1,nlayers(stack))){
@@ -150,22 +173,25 @@ sample_rasters <- function(stack, sampSize=100){
   return(samps)
 }
 lc.samp <- sample_rasters(lc.br, 1000000)
-lc.sampNA <- lc.samp %>% 
-  #mutate(AGB = na_if(AGB, 0)) %>% 
-  na.omit()
+lc.sampNA <- lc.samp %>% na.omit()
 lc.sampNA$Category <- ordered(lc.sampNA$Category,
                               levels = names(lc.br))
-levels(lc.sampNA$Category)
-saveRDS(lc.sampNA, file = "~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil_v6.rds")
-
+saveRDS(lc.sampNA, file = "~/PROJECTS/Haiti_biomass/R_out/lc_samp1mil_2share.rds")
 lc.sampNA <- readRDS("~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil_v6.rds")
+
 lc.samp.sub100 <- lc.sampNA[which(lc.sampNA$AGB <= 100),]
 lc.samp.sub200 <- lc.sampNA[which(lc.sampNA$AGB <= 200),]
 
-# ANOVA with multiple pair-wise comparison
-res.aov <- aov(AGB ~ Category, data = lc.sampNA)
+# ANOVA with multiple pair-wise comparison ----
+sampLC <- lc.sampNA[-c('Haiti', 'CI', 'Veg', 'Water')]
+sampLC <- lc.sampNA[lc.sampNA$Category != 'Haiti', , drop=FALSE]
+sampLC <- sampLC[sampLC$Category != 'CI', , drop=FALSE]
+sampLC <- sampLC[sampLC$Category != 'Veg', , drop=FALSE]
+res.aov <- aov(AGB ~ Category, data = sampLC)
 summary(res.aov)
-TukeyHSD(res.aov)
+tkhsd <- TukeyHSD(res.aov)
+op <- par(mar = c(4,10,4,2) + 0.1)
+plot(tkhsd, las=1)
 pairwise.t.test(lc.sampNA$AGB, lc.sampNA$Category,
                 p.adjust.method = "BH")
 plot(res.aov, 1)
@@ -262,8 +288,7 @@ bp <- ggplot(lc.sampNA, aes(x=Category, y=AGB, fill=Category)) +
 bp
 
 
-#----
-# Old
+# Old LULC analysis----
 lulc.samp2 <- lulc.samp %>% 
   pivot_longer(Water:Shrubs, 
                names_to='Land.cover', 
@@ -292,7 +317,7 @@ ggplot(lulc.qs, aes(x=Land.cover,
   geom_boxplot(stat = "identity")
 
 
-# Backscatter values
+# Backscatter values ----
 g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_nofilt_HV.tif")
 NAvalue(g0) <- 0
 qs.g0 <- quantile(g0, probs=c(0, 0.1,0.5,0.9,0.99, 0.999, 1))

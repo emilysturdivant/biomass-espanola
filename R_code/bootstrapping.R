@@ -1,4 +1,4 @@
-#library(silvr)
+# Script where I experiment with cross-validation and bootstrapping to measure the regression fit
 library(readr)
 library(BIOMASS)
 library(tidyverse)

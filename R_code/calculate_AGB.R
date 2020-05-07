@@ -422,16 +422,17 @@ median(agb.samp$AGB)
 
 # Import ALOS mosaic rasters (ENVI files) ----
 isl_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/Hispaniola", layer='Hisp_adm0')
-# The tiles range from 18-21, 68-75
+# List filenames of ALOS mask tiles. Tiles range from 18-21, 68-75
 fps <- list.files(path='~/PROJECTS/Haiti_biomass/ALOS',
            pattern='_18_mask_F02DAR$',
            full.names=TRUE,
            recursive=TRUE,
            include.dirs=FALSE)
-fps[[10]]
+
 # Load and crop rasters and store in list
 load.crop.na <- function(fp, ext) try({r <- raster(fp); r <- crop(r, ext)}, silent=TRUE)
 rs <- lapply(fps, load.crop.na, ext=isl_poly)
+# There are two that don't seem to overlap with the polygon so throw an error. Remove them.
 l <- vector(mode="logical", length(rs))
 for(i in seq(1, length(rs))){
   if(class(rs[[i]])=='try-error') l[i] <- TRUE
@@ -439,7 +440,7 @@ for(i in seq(1, length(rs))){
 rs <- rs[!l]
 rs
 
-# Merge
+# Merge the tiles
 dn <- do.call(merge, rs)
 plot(dn)
 vals <- getValues(dn)
@@ -450,33 +451,9 @@ df <- data.frame(
             sum(vals==150, na.rm=TRUE)))
 df$value[2] / sum(df$value)
 df$value[3] / sum(df$value)
-
-fp
-mask_br <- brick(fps)
-df <- data.frame(group = c("Normal", "Layover", "Shadowing"), value = c(0,0,0))
-for (i in seq(1,nlayers(mask_br))){
-  vals <- getValues(mask_br[[i]])
-  df$value <- df$value + c(sum(vals==255, na.rm=TRUE), 
-                           sum(vals==100, na.rm=TRUE),
-                           sum(vals==150, na.rm=TRUE))
-}
-mask_hti <- mosaic(mask_br)
-m <- do.call(merge, as.list(mask_br))
-plot(mask_hti)
-
-mask_tile <- raster('~/PROJECTS/Haiti_biomass/ALOS/N20W073_18_MOS_F02DAR/N20W073_18_mask_F02DAR')
-mask_crop <- crop(mask_tile, extent(-72.8, -72.6, 19.4, 19.6))
-plot(mask_crop) # 50==sea; 100/150==inland masked (there are many more 100s than 150s); 155==valid backscatter
-sum(mask_crop[mask_crop==150])
-
-vals <- getValues(mask_tile)
-df <- data.frame(
-  group = c("Normal", "Layover", "Shadowing"), 
-  value = c(sum(vals==255, na.rm=TRUE), 
-            sum(vals==100, na.rm=TRUE),
-            sum(vals==150, na.rm=TRUE)))
-df$value[2] / sum(df$value)
-df$value[3] / sum(df$value)
+setwd("~/PROJECTS/Haiti_biomass/R_out")
+save.image()
+load(".RData")
 
 
 # Count inland NA value in raster ----

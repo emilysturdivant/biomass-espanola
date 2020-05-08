@@ -6,6 +6,7 @@ library(ggridges)
 library(rgdal)
 library(tmap)
 library(rgdal)
+library(here)
 
 # Merge ALOS mosaic rasters ----
 merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
@@ -34,30 +35,34 @@ merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
   return(dn)
 }
 # Load island polygons
-isl_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/Hispaniola", layer='Hisp_adm0')
-isl_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/biota_out/vector", layer='hisp18_maskLand_clean')
-isl_poly <- sf::st_read("~/PROJECTS/Haiti_biomass/biota_out/vector/hisp18_maskLand_clean.shp")
+isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
+isl_poly <- readOGR(dsn=here("data", "Hispaniola"), layer='Hisp_adm0')
+isl_poly <- readOGR(dsn="data/biota_out/vector", layer='hisp18_maskLand_clean')
+isl_poly <- sf::st_read("data/biota_out/vector/hisp18_maskLand_clean.shp")
+isl_poly <- sf::st_read(here("data", 'hisp18_maskLand_clean.shp'))
 sum(area(isl_poly))/1000000
 
+
+
 plot(dn_mask)
-dn_date <- merge.alos.tiles('~/PROJECTS/Haiti_biomass/ALOS', '_18_date_F02DAR$', 
-                            isl_poly, '~/PROJECTS/Haiti_biomass/R_out/hisp18_date.tif')
-# writeRaster(dn_date, '~/PROJECTS/Haiti_biomass/R_out/hisp18_date.tif')
+dn_date <- merge.alos.tiles('data/ALOS', '_18_date_F02DAR$', 
+                            isl_poly, 'data/R_out/hisp18_date.tif')
+# writeRaster(dn_date, 'data/R_out/hisp18_date.tif')
 plot(dn_date)
-dn_linci <- merge.alos.tiles('~/PROJECTS/Haiti_biomass/ALOS', '_18_linci_F02DAR$', 
-                             isl_poly, '~/PROJECTS/Haiti_biomass/R_out/hisp18_localincidence.tif')
-# writeRaster(dn_linci, '~/PROJECTS/Haiti_biomass/R_out/hisp18_localincidence.tif')
-dn_mask <- merge.alos.tiles('~/PROJECTS/Haiti_biomass/ALOS', '_18_mask_F02DAR$', 
-                            isl_poly, '~/PROJECTS/Haiti_biomass/R_out/hisp18_mask.tif')
+dn_linci <- merge.alos.tiles('data/ALOS', '_18_linci_F02DAR$', 
+                             isl_poly, 'data/R_out/hisp18_localincidence.tif')
+# writeRaster(dn_linci, 'data/R_out/hisp18_localincidence.tif')
+dn_mask <- merge.alos.tiles('data/ALOS', '_18_mask_F02DAR$', 
+                            isl_poly, 'data/R_out/hisp18_mask.tif')
 dn_mask[dn_mask<75] <- NA
 dn_mask[!is.na(dn_mask)] <- 1
-writeRaster(dn_mask, '~/PROJECTS/Haiti_biomass/R_out/hisp18_maskLand.tif')
-mask_land <- raster('~/PROJECTS/Haiti_biomass/R_out/hisp18_maskLand.tif')
+writeRaster(dn_mask, 'data/R_out/hisp18_maskLand.tif')
+mask_land <- raster('data/R_out/hisp18_maskLand.tif')
 
 # Load previously created mosaics
-dn_linci <- raster('~/PROJECTS/Haiti_biomass/R_out/hisp18_localincidence.tif')
-dn_mask <- raster('~/PROJECTS/Haiti_biomass/R_out/hisp18_mask.tif')
-dn_date <- raster('~/PROJECTS/Haiti_biomass/R_out/hisp18_date.tif')
+dn_linci <- raster('data/R_out/hisp18_localincidence.tif')
+dn_mask <- raster('data/R_out/hisp18_mask.tif')
+dn_date <- raster('data/R_out/hisp18_date.tif')
 plot(dn_linci)
 plot(isl_poly, add=TRUE)
 
@@ -84,7 +89,7 @@ df <- data.frame(
             sum(vals==150, na.rm=TRUE)))
 df$value[2] / sum(df$value)
 df$value[3] / sum(df$value)
-setwd("~/PROJECTS/Haiti_biomass/R_out")
+setwd("data/R_out")
 save.image()
 load(".RData")
 
@@ -97,15 +102,15 @@ load(".RData")
 
 # Count inland NA value in biota output ----
 # Load files
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV.tif")
-hti_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/HTI_adm", layer='HTI_adm0')
-isl_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/Hispaniola", layer='Hisp_adm0')
+g0 <- raster("data/biota_out/g0nu_2018_HV.tif")
+hti_poly <- readOGR(dsn="data/contextual_data/HTI_adm", layer='HTI_adm0')
+isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
 
 # Crop backscatter and reclass 0s to NA
 g0 <- crop(g0, hti_poly)
 g0[g0==0] <- NA
-writeRaster(g0, "~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV_haitiR.tif", overwrite=TRUE)
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV_haitiR.tif")
+writeRaster(g0, "data/biota_out/g0nu_2018_HV_haitiR.tif", overwrite=TRUE)
+g0 <- raster("data/biota_out/g0nu_2018_HV_haitiR.tif")
 
 # Convert island to land mask
 tmp_isl <- rasterize(isl_poly, g0, field=1) # land==1; sea==NA
@@ -128,16 +133,16 @@ f <- as.factor(msk) # or ratify(msk) ?
 x <- levels(f)[[1]]
 x$code <- c("land", "sea")
 levels(f) <- x
-writeRaster(f, "~/PROJECTS/Haiti_biomass/biota_out/mask_NAinland.tif")
+writeRaster(f, "data/biota_out/mask_NAinland.tif")
 
 # Land mask
 land <- msk
 land[is.na(land)] <- 1
 land[land==2] <- NA
-writeRaster(land, "~/PROJECTS/Haiti_biomass/biota_out/mask_land18.tif")
-land <- raster("~/PROJECTS/Haiti_biomass/biota_out/mask_land18.tif")
+writeRaster(land, "data/biota_out/mask_land18.tif")
+land <- raster("data/biota_out/mask_land18.tif")
 land_poly <- rasterToPolygons(land) # very slow, much faster with gdal_polygonize in QGIS 
-land_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/biota_out/vector", layer='mask_land18_hti')
+land_poly <- readOGR(dsn="data/biota_out/vector", layer='mask_land18_hti')
 land_area <- sum(area(land_poly)) / 1000000
 
 # Get values and count NAs
@@ -158,7 +163,7 @@ cell_size <- cell_size[is.na(cell_size)]
 NA_area<-length(cell_size)*median(cell_size)
 
 
-mask_ras <- raster("~/PROJECTS/Haiti_biomass/biota_out/mask_mosaic18_nosea.tif")
+mask_ras <- raster("data/biota_out/mask_mosaic18_nosea.tif")
 
 # Get counts
 vals <- getValues(mask_ras)
@@ -171,8 +176,8 @@ sea_ct + valid_ct == nonan_ct
 na_ct/valid_ct
 
 # Merge and resample LULC for Hispaniola ----
-fps <- c("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_Clip.tif", 
-        "~/PROJECTS/Haiti_biomass/LULC/DR_2017_clip.tif")
+fps <- c("data/LULC/Haiti2017_Clip.tif", 
+        "data/LULC/DR_2017_clip.tif")
 rs <- lapply(fps, 
              function(fp) {
                r <- raster(fp)
@@ -183,11 +188,11 @@ rs <- lapply(fps,
 rs
 # Merge the tiles
 lc <- do.call(merge, rs)
-writeRaster(lc, "~/PROJECTS/Haiti_biomass/LULC/Hisp_2017_resALOS.tif")
-lc <- raster("~/PROJECTS/Haiti_biomass/LULC/Hisp_2017_resALOS.tif")
+writeRaster(lc, "data/LULC/Hisp_2017_resALOS.tif")
+lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
 
 # Make water and urban mask
-mask_land <- raster('~/PROJECTS/Haiti_biomass/R_out/hisp18_maskLand.tif') # 1 for land, NA for everything else
+mask_land <- raster('data/R_out/hisp18_maskLand.tif') # 1 for land, NA for everything else
 # mask_land <- crop(mask_land, extent(-73, -72, 19, 20))
 # lc <- crop(lc, extent(-73, -72, 19, 20))
 # Overlay
@@ -221,7 +226,7 @@ g0.agb <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>%
 ols <- lm(g0.agb$AGB ~ g0.agb$backscatter, x=TRUE, y=TRUE)
 
 # Extract backscatter values to polygons ----
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_haiti_qLee1.tif")
+g0 <- raster("data/biota_out/g0nu_2018_haiti_qLee1.tif")
 
 polys <- readOGR(dsn="~/GitHub/biomass-espanola/data", layer='AllPlots')
 ex <- extract(g0, polys)
@@ -252,11 +257,11 @@ predict.ci.raster <- function(g0, model){
 ras.agb.ci <- predict.ci.raster(g0, ols)
 ras.agb.ci[agb.ras > 310] <- NA
 ras.agb.ci[agb.ras < 0] <- NA
-writeRaster(ras.agb.ci, "~/PROJECTS/Haiti_biomass/R_out/agb_CI_sub310.tif", overwrite=TRUE)
+writeRaster(ras.agb.ci, "data/R_out/agb_CI_sub310.tif", overwrite=TRUE)
 
 # Get AGB percentiles ----
-agb <- raster("~/PROJECTS/Haiti_biomass/biota_out/AGB_2018_v5q_haiti.tif")
-agb <- raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6r.tif")
+agb <- raster("data/biota_out/AGB_2018_v5q_haiti.tif")
+agb <- raster("data/biota_out/agb_2018_v6r.tif")
 
 #agb[agb < =0] <- NA
 qs.agb <- quantile(agb, probs=c(0, 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1))
@@ -316,10 +321,10 @@ median(agb.samp$AGB)
 
 #----
 # Get zonal statistics in R. Produces different values than those from Q. 
-lc <- raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_Clip.tif")
+lc <- raster("data/LULC/Haiti2017_Clip.tif")
 # Resample LC raster to AGB resolution
 lc.c <- resample(lc, agb.ras)
-writeRaster(lc.c, filename="~/PROJECTS/Haiti_biomass/LULC/Haiti2017_Clip_AGBres.tif")
+writeRaster(lc.c, filename="data/LULC/Haiti2017_Clip_AGBres.tif")
 # Get means and SDs for LC class
 lc.means <- zonal(agb.ras, lc.c)
 lc.sds <- zonal(agb.ras, lc.c, fun='sd')
@@ -343,26 +348,26 @@ get_brick_stats <- function(lc.br){
   colnames(stats) <- names(lc.br)
   agb.stats <- rbind(agb.qs, stats)
 }
-lc.br <- brick(raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6_mask2share.tif"), 
-               raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6CI_2share.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_water_agb18v6.tif"), 
-               raster("~/PROJECTS/Haiti_biomass/LULC/Haiti2017_urban_agb18v6.tif"), 
-               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc3.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc4.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc5.tif"), 
-               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc6.tif"),
-               raster("~/PROJECTS/Haiti_biomass/LULC/agb_lc_over3.tif"))
+lc.br <- brick(raster("data/biota_out/agb_2018_v6_mask2share.tif"), 
+               raster("data/biota_out/agb_2018_v6CI_2share.tif"),
+               raster("data/LULC/Haiti2017_water_agb18v6.tif"), 
+               raster("data/LULC/Haiti2017_urban_agb18v6.tif"), 
+               raster("data/LULC/agb_lc3.tif"),
+               raster("data/LULC/agb_lc4.tif"),
+               raster("data/LULC/agb_lc5.tif"), 
+               raster("data/LULC/agb_lc6.tif"),
+               raster("data/LULC/agb_lc_over3.tif"))
 names(lc.br) <- c('Haiti', 'CI', 'Water', 'Urban', 'Bareland', 'Tree cover', 'Grassland', 'Shrubs', 'Veg')
-saveRDS(lc.br, file = "~/PROJECTS/Haiti_biomass/R_out/brick_AGBv6_withLC.rds")
-lc.br <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/brick_AGBv6_withLC.rds")
+saveRDS(lc.br, file = "data/R_out/brick_AGBv6_withLC.rds")
+lc.br <- readRDS(file = "data/R_out/brick_AGBv6_withLC.rds")
 lc.br
 
 agb.stats <- get_brick_stats(lc.br)
-# saveRDS(agb.qs, file = "~/PROJECTS/Haiti_biomass/R_out/agb_quantiles_v6.rds")
-# agb.qs <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/agb_quantiles_v6.rds")
+# saveRDS(agb.qs, file = "data/R_out/agb_quantiles_v6.rds")
+# agb.qs <- readRDS(file = "data/R_out/agb_quantiles_v6.rds")
 # View(agb.qs)
-saveRDS(agb.stats, file = "~/PROJECTS/Haiti_biomass/R_out/agb_stats_v6.rds")
-agb.stats <- readRDS(file = "~/PROJECTS/Haiti_biomass/R_out/agb_stats_v6.rds")
+saveRDS(agb.stats, file = "data/R_out/agb_stats_v6.rds")
+agb.stats <- readRDS(file = "data/R_out/agb_stats_v6.rds")
 
 # Sample AGB by LC rasters for plotting ----
 sample_rasters <- function(stack, sampSize=100){
@@ -382,8 +387,8 @@ lc.samp <- sample_rasters(lc.br, 1000000)
 lc.sampNA <- lc.samp %>% na.omit()
 lc.sampNA$Category <- ordered(lc.sampNA$Category,
                               levels = names(lc.br))
-saveRDS(lc.sampNA, file = "~/PROJECTS/Haiti_biomass/R_out/lc_samp1mil_2share.rds")
-lc.sampNA <- readRDS("~/PROJECTS/Haiti_biomass/R_out/lc_samp_1mil_v6.rds")
+saveRDS(lc.sampNA, file = "data/R_out/lc_samp1mil_2share.rds")
+lc.sampNA <- readRDS("data/R_out/lc_samp_1mil_v6.rds")
 
 lc.samp.sub100 <- lc.sampNA[which(lc.sampNA$AGB <= 100),]
 lc.samp.sub200 <- lc.sampNA[which(lc.sampNA$AGB <= 200),]
@@ -524,7 +529,7 @@ ggplot(lulc.qs, aes(x=Land.cover,
 
 
 # Backscatter values ----
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_nofilt_HV.tif")
+g0 <- raster("data/biota_out/g0nu_2018_nofilt_HV.tif")
 NAvalue(g0) <- 0
 qs.g0 <- quantile(g0, probs=c(0, 0.1,0.5,0.9,0.99, 0.999, 1))
 qs.g0[['100%']]

@@ -22,7 +22,7 @@ mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
 mplots <- read_csv("data/species_and_wds/mplots_geoms.csv", col_types = cols(plot_no = col_integer()))
 g0_plots <- read_csv("data/species_and_wds/plots_g0nu_HV.csv")
 creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
-g0_fname <- "data/biota_out/g0nu_2018_HV_biotaLee.tif"
+g0_fname <- "results/g0nu_HV/g0nu_2018_HV_leeBiota.tif"
 
 # Look at data ---- ####################################################################
 summary(mstems$dbh_cm, na.rm=TRUE)
@@ -88,6 +88,13 @@ AGBplot <- summaryByPlot(
   mstems$plot_no
 )
 
+# Convert AGB per plot to AGB per hectare ---- #########################################
+plots_agb <- merge(mplots, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
+plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area_ha
+plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
+
+saveRDS(plots_agb, 'results/R_out/plots_agb.rds')
+
 # Look at data ---- ####################################################################
 summary(mstems$meanWD)
 sd(mstems$meanWD, na.rm=TRUE)
@@ -136,10 +143,6 @@ plot.dens <- plot.sums %>% mutate_at(vars(dbh_cm_sum, H_sum, agb_sum), `/`, y = 
 summary(plot.dens$meanWD_sum)
 sd(plot.dens$dbh_cm_sum, na.rm=TRUE)
 
-# Convert AGB per plot to AGB per hectare ---- #########################################
-plots_agb <- merge(mplots, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
-plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area_ha
-plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
 
 # Look at data ---- ####################################################################
 summary(plots_agb$AGB_ha)
@@ -180,14 +183,14 @@ sd(mstems$agb, na.rm=TRUE)
 # 3) Run Radar Enhanced Lee Filter in python biota. 
 # 3.b) Possibly mask out water and urban features and extreme values. Convert to No Data using Raster Calc (0/0)
 # 4) Export Filtered Grid (No Data == -99999)
-g0 <- raster("data/biota_out/g0nu_2018_HV_biotaLee.tif")
-polys <- readOGR(dsn="data/plots_shp", layer='AllPlots')
+g0 <- raster(g0_fname)
+polys <- readOGR(dsn="data/RAW_inventories", layer='AllPlots')
 
 # Aggregate to 50m, as recommended by Saatchi 2015 and performed by Michelakis et al. 2015
-# g0.nofilt <- raster("data/biota_out/g0nu_2018_nofilt_HV_haiti.tif")
+# g0.nofilt <- raster("results/g0nu_HV/g0nu_2018_nofilt_HV_haiti.tif")
 # g0.nofilt[g0.nofilt == 0] <- NA
 # g0.agg <- aggregate(g0.nofilt, fact=2, fun=mean, na.rm=TRUE, 
-#                     filename="data/biota_out/g0nu_2018_haiti_agg50m.tif", 
+#                     filename="results/g0nu_HV/g0nu_2018_haiti_agg50m.tif", 
 #                     overwrite=TRUE)
 
 # Extract backscatter values at plots
@@ -203,11 +206,12 @@ g0_plots <- polys[c('plot_no', 'g0l_mean')]
 # Merge plot AGB and backscatter data
 g0_AGB <- g0_plots %>% 
   merge(plots_agb, by='plot_no', all=TRUE)
-writeOGR(g0_AGB, dsn="plots_values", layer='plots_g0agb', driver="ESRI Shapefile")
+writeOGR(g0_AGB, dsn="data/plots_values", layer='plots_g0agb', driver="ESRI Shapefile")
 g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>% 
   as.data.frame() %>% 
   rename(AGB = AGB_ha, backscatter = g0l_mean)
 
+# Look at values
 mean(g0.agb$AGB)
 sd(g0.agb$AGB)
 mean(g0.agb[9:36, ]$AGB)
@@ -320,7 +324,7 @@ cv_r <- bind_cols(cv_r1, cv_r2)
 View(cv_r)
 View(model.10000x5$results)
 model.10000x5$finalModel
-save(model.10000x10, file = "data/R_out/CVmodel_g0nuLee_10000x10.rds")
+save(model.10000x10, file = "results/R_out/CVmodel_g0nuLee_10000x10.rds")
 
 # Pairs Bootstrap ---- ###########################################################
 set.seed(45)
@@ -344,26 +348,26 @@ cis <- as.data.frame(cis, row.names = c('lwr', 'upr'))
 save(mstems, mplots, polys, ex, g0.agb, model.10000x10, boot.ols.100k, file="calcAGB_outputs.RData")
 load("calcAGB_outputs.RData")
 
-# Create AGB raster ----
+# Create AGB raster ---- ###########################################################
 # Load backscatter raster
 g0 <- raster(g0_fname)
 names(g0) <- 'backscatter'
 
 # Apply linear regression model to create AGB map
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-writeRaster(agb.ras, "data/R_out/agb18_v8.tif")
+writeRaster(agb.ras, "results/tifs_by_R/agb18_v8.tif")
 
 # Mask further
 # agb.ras[agb.ras > 310] <- NA
 # agb.ras[agb.ras < 20] <- NA
-agb.ras <- raster("data/R_out/agb18_haiti_v6_0to310.tif")
+agb.ras <- raster("results/tifs_by_R/agb18_haiti_v6_0to310.tif")
 agb.20to310 <- agb.ras[agb.ras < 20] <- NA
 
-# Look at AGB distributions ---- ######################################################
-agb.br <- brick(raster("data/biota_out/agb_2018_v6_mask2share.tif"),
-                 raster("data/biota_out/agb_2018_v6CI_2share.tif"))
+# Look at AGB distributions ---- ###################################################
+agb.br <- brick(raster("results/agb/agb_2018_v6_mask2share.tif"),
+                 raster("results/agb/agb_2018_v6CI_2share.tif"))
 names(agb.br) <- c('AGB', 'CI')
-saveRDS(agb.br, file = "data/R_out/AGB_95ci.rds")
+saveRDS(agb.br, file = "results/R_out/AGB_95ci.rds")
 
 get_brick_stats <- function(lc.br){
   # Get selection of percentiles for each LC
@@ -383,7 +387,7 @@ get_brick_stats <- function(lc.br){
 }
 agb.stats <- get_brick_stats(agb.br)
 
-# Graphing ---- ###########################################################
+# Graphing ---- ###################################################################
 # Sample the distribution of values in the raster
 agb.samp <- agb %>% 
   sampleRandom(100000, na.rm=TRUE) %>% 

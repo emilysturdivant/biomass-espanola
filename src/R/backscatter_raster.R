@@ -37,9 +37,8 @@ merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
 # Load island polygons
 isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
 isl_poly <- readOGR(dsn=here("data", "Hispaniola"), layer='Hisp_adm0')
-isl_poly <- readOGR(dsn="data/biota_out/vector", layer='hisp18_maskLand_clean')
-isl_poly <- sf::st_read("data/biota_out/vector/hisp18_maskLand_clean.shp")
-isl_poly <- sf::st_read(here("data", 'hisp18_maskLand_clean.shp'))
+isl_poly <- readOGR(dsn="results/masks/vector", layer='hisp18_maskLand_clean')
+isl_poly <- sf::st_read("results/masks/vector/hisp18_maskLand_clean.shp")
 sum(area(isl_poly))/1000000
 
 
@@ -56,13 +55,13 @@ dn_mask <- merge.alos.tiles('data/ALOS', '_18_mask_F02DAR$',
                             isl_poly, 'data/R_out/hisp18_mask.tif')
 dn_mask[dn_mask<75] <- NA
 dn_mask[!is.na(dn_mask)] <- 1
-writeRaster(dn_mask, 'data/R_out/hisp18_maskLand.tif')
-mask_land <- raster('data/R_out/hisp18_maskLand.tif')
+writeRaster(dn_mask, 'results/masks/hisp18_maskLand.tif')
+mask_land <- raster('results/masks/hisp18_maskLand.tif')
 
 # Load previously created mosaics
-dn_linci <- raster('data/R_out/hisp18_localincidence.tif')
-dn_mask <- raster('data/R_out/hisp18_mask.tif')
-dn_date <- raster('data/R_out/hisp18_date.tif')
+dn_linci <- raster('results/tifs_by_R/hisp18_localincidence.tif')
+dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
+dn_date <- raster('results/tifs_by_R/hisp18_date.tif')
 plot(dn_linci)
 plot(isl_poly, add=TRUE)
 
@@ -89,9 +88,8 @@ df <- data.frame(
             sum(vals==150, na.rm=TRUE)))
 df$value[2] / sum(df$value)
 df$value[3] / sum(df$value)
-setwd("data/R_out")
-save.image()
-load(".RData")
+saveRDS(df, 'results/R_out/mask_pcts.rds')
+df <- readRDS('results/R_out/mask_pcts.rds')
 
 # Barplot
 (bp <- ggplot(df, aes(x="", y=value, fill=group))+
@@ -102,15 +100,15 @@ load(".RData")
 
 # Count inland NA value in biota output ----
 # Load files
-g0 <- raster("data/biota_out/g0nu_2018_HV.tif")
+g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
 hti_poly <- readOGR(dsn="data/contextual_data/HTI_adm", layer='HTI_adm0')
 isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
 
 # Crop backscatter and reclass 0s to NA
 g0 <- crop(g0, hti_poly)
 g0[g0==0] <- NA
-writeRaster(g0, "data/biota_out/g0nu_2018_HV_haitiR.tif", overwrite=TRUE)
-g0 <- raster("data/biota_out/g0nu_2018_HV_haitiR.tif")
+writeRaster(g0, "results/g0nu_HV/g0nu_2018_HV_haitiR.tif", overwrite=TRUE)
+g0 <- raster("results/g0nu_HV/g0nu_2018_HV_haitiR.tif")
 
 # Convert island to land mask
 tmp_isl <- rasterize(isl_poly, g0, field=1) # land==1; sea==NA
@@ -133,16 +131,16 @@ f <- as.factor(msk) # or ratify(msk) ?
 x <- levels(f)[[1]]
 x$code <- c("land", "sea")
 levels(f) <- x
-writeRaster(f, "data/biota_out/mask_NAinland.tif")
+writeRaster(f, "results/masks/mask_NAinland.tif")
 
 # Land mask
 land <- msk
 land[is.na(land)] <- 1
 land[land==2] <- NA
-writeRaster(land, "data/biota_out/mask_land18.tif")
-land <- raster("data/biota_out/mask_land18.tif")
+writeRaster(land, "results/masks/mask_land18.tif")
+land <- raster("results/masks/mask_land18.tif")
 land_poly <- rasterToPolygons(land) # very slow, much faster with gdal_polygonize in QGIS 
-land_poly <- readOGR(dsn="data/biota_out/vector", layer='mask_land18_hti')
+land_poly <- readOGR(dsn="results/masks/vector", layer='mask_land18_hti')
 land_area <- sum(area(land_poly)) / 1000000
 
 # Get values and count NAs
@@ -161,9 +159,6 @@ cell_size <- cell_size[!cell_size==2]
 land_area<-length(cell_size)*median(cell_size)
 cell_size <- cell_size[is.na(cell_size)]
 NA_area<-length(cell_size)*median(cell_size)
-
-
-mask_ras <- raster("data/biota_out/mask_mosaic18_nosea.tif")
 
 # Get counts
 vals <- getValues(mask_ras)
@@ -192,7 +187,7 @@ writeRaster(lc, "data/LULC/Hisp_2017_resALOS.tif")
 lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
 
 # Make water and urban mask
-mask_land <- raster('data/R_out/hisp18_maskLand.tif') # 1 for land, NA for everything else
+mask_land <- raster('results/masks/hisp18_maskLand.tif') # 1 for land, NA for everything else
 # mask_land <- crop(mask_land, extent(-73, -72, 19, 20))
 # lc <- crop(lc, extent(-73, -72, 19, 20))
 # Overlay
@@ -218,17 +213,17 @@ df$value[2] / df$value[1]
 # Look at AGB map ----
 # Load data - Desktop
 # Load data - Mac
-g0_AGB <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu_AGB.csv")
+g0_AGB <- read_csv("results/plots_values/plots_g0nu_AGB.csv")
 # just get the two columns we care about
 g0.agb <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>% 
   rename(AGB = V1, backscatter =V2)
 # Linear model
 ols <- lm(g0.agb$AGB ~ g0.agb$backscatter, x=TRUE, y=TRUE)
 
-# Extract backscatter values to polygons ----
-g0 <- raster("data/biota_out/g0nu_2018_haiti_qLee1.tif")
+# Extract backscatter values to polygons ---- ####################################
+g0 <- raster("results/g0nu_HV/g0nu_2018_haiti_qLee1.tif")
 
-polys <- readOGR(dsn="~/GitHub/biomass-espanola/data", layer='AllPlots')
+polys <- readOGR(dsn="data/RAW_inventories", layer='AllPlots')
 ex <- extract(g0, polys)
 polys$g0l_mean <- unlist(lapply(ex, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
 count <- unlist(lapply(ex, function(x) length(x)))
@@ -236,7 +231,7 @@ polys$g0l_count <- count
 View(cbind(polys$X2018mean, polys$g0l_mean))
 View(cbind(polys$X2018count, polys$g0l_count))
 
-# Create 95% CI raster ----
+# Create 95% CI raster ---- #######################################################
 # Function to create raster of confidence intervals
 predict.ci.raster <- function(g0, model){
   names(g0) <- 'backscatter'
@@ -257,11 +252,11 @@ predict.ci.raster <- function(g0, model){
 ras.agb.ci <- predict.ci.raster(g0, ols)
 ras.agb.ci[agb.ras > 310] <- NA
 ras.agb.ci[agb.ras < 0] <- NA
-writeRaster(ras.agb.ci, "data/R_out/agb_CI_sub310.tif", overwrite=TRUE)
+writeRaster(ras.agb.ci, "results/agb/agb_CI_sub310.tif", overwrite=TRUE)
 
 # Get AGB percentiles ----
-agb <- raster("data/biota_out/AGB_2018_v5q_haiti.tif")
-agb <- raster("data/biota_out/agb_2018_v6r.tif")
+agb <- raster("results/agb/AGB_2018_v5q_haiti.tif")
+agb <- raster("results/agb/agb_2018_v6r.tif")
 
 #agb[agb < =0] <- NA
 qs.agb <- quantile(agb, probs=c(0, 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1))
@@ -348,8 +343,8 @@ get_brick_stats <- function(lc.br){
   colnames(stats) <- names(lc.br)
   agb.stats <- rbind(agb.qs, stats)
 }
-lc.br <- brick(raster("data/biota_out/agb_2018_v6_mask2share.tif"), 
-               raster("data/biota_out/agb_2018_v6CI_2share.tif"),
+lc.br <- brick(raster("results/agb/agb_2018_v6_mask2share.tif"), 
+               raster("results/agb/agb_2018_v6CI_2share.tif"),
                raster("data/LULC/Haiti2017_water_agb18v6.tif"), 
                raster("data/LULC/Haiti2017_urban_agb18v6.tif"), 
                raster("data/LULC/agb_lc3.tif"),
@@ -358,16 +353,16 @@ lc.br <- brick(raster("data/biota_out/agb_2018_v6_mask2share.tif"),
                raster("data/LULC/agb_lc6.tif"),
                raster("data/LULC/agb_lc_over3.tif"))
 names(lc.br) <- c('Haiti', 'CI', 'Water', 'Urban', 'Bareland', 'Tree cover', 'Grassland', 'Shrubs', 'Veg')
-saveRDS(lc.br, file = "data/R_out/brick_AGBv6_withLC.rds")
-lc.br <- readRDS(file = "data/R_out/brick_AGBv6_withLC.rds")
+saveRDS(lc.br, file = "results/R_out/brick_AGBv6_withLC.rds")
+lc.br <- readRDS(file = "results/R_out/brick_AGBv6_withLC.rds")
 lc.br
 
 agb.stats <- get_brick_stats(lc.br)
 # saveRDS(agb.qs, file = "data/R_out/agb_quantiles_v6.rds")
 # agb.qs <- readRDS(file = "data/R_out/agb_quantiles_v6.rds")
 # View(agb.qs)
-saveRDS(agb.stats, file = "data/R_out/agb_stats_v6.rds")
-agb.stats <- readRDS(file = "data/R_out/agb_stats_v6.rds")
+saveRDS(agb.stats, file = "results/R_out/agb_stats_v6.rds")
+agb.stats <- readRDS(file = "results/R_out/agb_stats_v6.rds")
 
 # Sample AGB by LC rasters for plotting ----
 sample_rasters <- function(stack, sampSize=100){
@@ -387,8 +382,8 @@ lc.samp <- sample_rasters(lc.br, 1000000)
 lc.sampNA <- lc.samp %>% na.omit()
 lc.sampNA$Category <- ordered(lc.sampNA$Category,
                               levels = names(lc.br))
-saveRDS(lc.sampNA, file = "data/R_out/lc_samp1mil_2share.rds")
-lc.sampNA <- readRDS("data/R_out/lc_samp_1mil_v6.rds")
+saveRDS(lc.sampNA, file = "results/R_out/lc_samp1mil_2share.rds")
+lc.sampNA <- readRDS("results/R_out/lc_samp_1mil_v6.rds")
 
 lc.samp.sub100 <- lc.sampNA[which(lc.sampNA$AGB <= 100),]
 lc.samp.sub200 <- lc.sampNA[which(lc.sampNA$AGB <= 200),]
@@ -529,7 +524,7 @@ ggplot(lulc.qs, aes(x=Land.cover,
 
 
 # Backscatter values ----
-g0 <- raster("data/biota_out/g0nu_2018_nofilt_HV.tif")
+g0 <- raster("results/g0nu_HV/g0nu_2018_nofilt_HV.tif")
 NAvalue(g0) <- 0
 qs.g0 <- quantile(g0, probs=c(0, 0.1,0.5,0.9,0.99, 0.999, 1))
 qs.g0[['100%']]

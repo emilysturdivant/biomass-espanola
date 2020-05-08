@@ -8,6 +8,7 @@ library(caret)
 library(boot)
 library(raster)
 library(tidyverse)
+library(tmap)
 
 # Load data - Desktop
 mstems <- read_csv("~/code/biomass-espanola/data/mstems_with_wooddensities.csv", col_types = cols(plot_no = col_integer()))
@@ -23,7 +24,7 @@ g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu_HV.csv")
 creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_specieslookup.csv")
 g0_fname <- "~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV_biotaLee.tif"
 
-# Look at data ----
+# Look at data ---- ####################################################################
 summary(mstems$dbh_cm, na.rm=TRUE)
 sd(mstems$dbh_cm, na.rm=TRUE)
 # 
@@ -50,7 +51,7 @@ mstems %>%
   ggtitle("Histogram of tree heights (N = 2,843, bin width = 1 m)")+
   theme_minimal())
 
-# Run Chave14 equation without computeAGB() ----
+# Compute AGB ---- ##################################################################
 # HEIGHTS, input: mstems$dbh_cm, mstems$ht_m, output: mstems$H, mstems$Hrse
 interp_heights <- function(.data){
   # Create H-D model and use to fill missing heights
@@ -87,7 +88,7 @@ AGBplot <- summaryByPlot(
   mstems$plot_no
 )
 
-# Look at data ----
+# Look at data ---- ####################################################################
 summary(mstems$meanWD)
 sd(mstems$meanWD, na.rm=TRUE)
 summary(mstems$agb)
@@ -135,13 +136,12 @@ plot.dens <- plot.sums %>% mutate_at(vars(dbh_cm_sum, H_sum, agb_sum), `/`, y = 
 summary(plot.dens$meanWD_sum)
 sd(plot.dens$dbh_cm_sum, na.rm=TRUE)
 
-#----
-# Convert AGB per plot to AGB per hectare
+# Convert AGB per plot to AGB per hectare ---- #########################################
 plots_agb <- merge(mplots, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
 plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area_ha
 plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
 
-# Look at data ----
+# Look at data ---- ####################################################################
 summary(plots_agb$AGB_ha)
 # Plots
 ggplot(plots_agb, aes(x=plot_no, y=AGB_ha))+
@@ -176,16 +176,14 @@ sd(mstems$agb, na.rm=TRUE)
 save.image(file = "~/GitHub/biomass-espanola/data/work_space.RData") 
 load("~/GitHub/biomass-espanola/data/work_space.RData")
 
-# Get mean backscatter for each plot ---- 
+# Get mean backscatter for each plot ---- #############################################
 # Load raster and polygon data
 # Raster was created by 
-# 1) download PALSAR mosaic tiles and convert HV backscatter to natural units. 
+# 1) download PALSAR mosaic tiles and convert HV backscatter to natural units in biota
 # 2) merge the tiles in QGIS, 
-# 3) Run SAGA::Multi Direction Lee Filter in QGIS with both est. noise==1 and method==1
+# 3) Run Radar Enhanced Lee Filter in python biota. 
 # 3.b) Possibly mask out water and urban features and extreme values. Convert to No Data using Raster Calc (0/0)
 # 4) Export Filtered Grid (No Data == -99999)
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_haiti_qLee1.tif")
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_nofilt_HV_haiti.tif")
 g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV_biotaLee.tif")
 polys <- readOGR(dsn="~/GitHub/biomass-espanola/data", layer='AllPlots')
 
@@ -226,11 +224,11 @@ mean(g0_AGB$area_ha)
 sd(g0_AGB$area_ha)
 range(g0_AGB$area_ha)
 
-# Save/load data ----
+# Save/load data ---- ####################################################################
 save.image(file = "~/GitHub/biomass-espanola/data/work_space.RData") 
 load("~/GitHub/biomass-espanola/data/work_space.RData")
 
-# Histograms of plot AGB and backscatter ---- 
+# Histograms of plot AGB and backscatter ---- ############################################
 # AGB
 p1 <-ggplot(g0.agb, aes(x=AGB)) + 
   geom_histogram(bins=30) +
@@ -248,14 +246,13 @@ p2 <-ggplot(g0.agb, aes(x=backscatter)) +
 #+ geom_vline(aes(xintercept=mean(backscatter)), color="black", linetype="dashed", size=.5)
 grid.arrange(p1, p2, nrow = 2)
 
-#---- 
-# Scatterplot - AGB against backscatter
+# Scatterplot - AGB against backscatter ---- ##############################################
 p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
        x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
 (p <- p + geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black'))
 
-# Linear regression ----
+# Linear regression ---- ###########################################################
 # See how correlation improves without plots 7 and 8, which are probably responding to soil moisture. 
 g0.agb <- g0.agb %>% filter(!(AGB==0 & backscatter>0.016))
 # Basic OLS regression
@@ -289,7 +286,7 @@ corr$estimate
 opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
 plot(ols, las = 1)
 
-# Repeated k-fold cross validation ----
+# Repeated k-fold cross validation ---- ###########################################################
 fxn.bias <- function(data, lev = NULL, model = NULL) {
   resids <- data$pred - data$obs
   rss <- sum(resids^2)
@@ -332,11 +329,11 @@ View(model.10000x5$results)
 model.10000x5$finalModel
 save(model.10000x10, file = "~/PROJECTS/Haiti_biomass/R_out/CVmodel_g0nuLee_10000x10.rds")
 
-# Save/load data ----
+# Save/load data ---- ###########################################################
 save.image(file = "~/GitHub/biomass-espanola/data/work_space.RData") 
 load("~/GitHub/biomass-espanola/data/work_space.RData")
 
-# Pairs Bootstrap ----
+# Pairs Bootstrap ---- ###########################################################
 set.seed(45)
 # OLS 
 boot.ols.100k <- boot(g0.agb, function(data=g0.agb, index) {
@@ -373,7 +370,7 @@ writeRaster(agb.ras, "~/PROJECTS/Haiti_biomass/R_out/agb18_v8.tif")
 agb.ras <- raster("~/PROJECTS/Haiti_biomass/R_out/agb18_haiti_v6_0to310.tif")
 agb.20to310 <- agb.ras[agb.ras < 20] <- NA
 
-# Look at AGB distributions ----
+# Look at AGB distributions ---- ######################################################
 agb.br <- brick(raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6_mask2share.tif"),
                  raster("~/PROJECTS/Haiti_biomass/biota_out/agb_2018_v6CI_2share.tif"))
 names(agb.br) <- c('AGB', 'CI')
@@ -397,7 +394,7 @@ get_brick_stats <- function(lc.br){
 }
 agb.stats <- get_brick_stats(agb.br)
 
-# Graphing ----
+# Graphing ---- ###########################################################
 # Sample the distribution of values in the raster
 agb.samp <- agb %>% 
   sampleRandom(100000, na.rm=TRUE) %>% 
@@ -420,139 +417,5 @@ p
 mean(agb.samp$AGB)
 median(agb.samp$AGB)
 
-# Import ALOS mosaic rasters (ENVI files) ----
-isl_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/Hispaniola", layer='Hisp_adm0')
-# List filenames of ALOS mask tiles. Tiles range from 18-21, 68-75
-fps <- list.files(path='~/PROJECTS/Haiti_biomass/ALOS',
-           pattern='_18_mask_F02DAR$',
-           full.names=TRUE,
-           recursive=TRUE,
-           include.dirs=FALSE)
-
-# Load and crop rasters and store in list
-load.crop.na <- function(fp, ext) try({r <- raster(fp); r <- crop(r, ext)}, silent=TRUE)
-rs <- lapply(fps, load.crop.na, ext=isl_poly)
-# There are two that don't seem to overlap with the polygon so throw an error. Remove them.
-l <- vector(mode="logical", length(rs))
-for(i in seq(1, length(rs))){
-  if(class(rs[[i]])=='try-error') l[i] <- TRUE
-}
-rs <- rs[!l]
-rs
-
-# Merge the tiles
-dn <- do.call(merge, rs)
-plot(dn)
-vals <- getValues(dn)
-df <- data.frame(
-  group = c("Normal", "Layover", "Shadowing"), 
-  value = c(sum(vals==255, na.rm=TRUE), 
-            sum(vals==100, na.rm=TRUE),
-            sum(vals==150, na.rm=TRUE)))
-df$value[2] / sum(df$value)
-df$value[3] / sum(df$value)
-setwd("~/PROJECTS/Haiti_biomass/R_out")
-save.image()
-load(".RData")
-
-
-# Count inland NA value in raster ----
-# Load files
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV.tif")
-hti_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/HTI_adm", layer='HTI_adm0')
-isl_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/contextual_data/Hispaniola", layer='Hisp_adm0')
-
-# Crop backscatter and reclass 0s to NA
-g0 <- crop(g0, hti_poly)
-g0[g0==0] <- NA
-writeRaster(g0, "~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV_haitiR.tif", overwrite=TRUE)
-g0 <- raster("~/PROJECTS/Haiti_biomass/biota_out/g0nu_2018_HV_haitiR.tif")
-
-# Convert island to land mask
-tmp_isl <- rasterize(isl_poly, g0, field=1) # land==1; sea==NA
-
-# Multiply backscatter classes x polygon classes 
-# reclass to (NA==NA; 1==land; 2==sea)
-msk <- overlay(g0, tmp_isl, 
-               fun=function(r1, r2){
-                 r1[!is.na(r1)] <- 0 # values in land-->0
-                 r1[is.na(r1)] <- 1 # NAs in land-->1
-                 r2[is.na(r2)] <- 2 # sea-->2 (land==1)
-                 r <- r1*r2 # create output (sea==2)
-                 r[r==1] <- NA # NAs in land --> NA
-                 r[r==0] <- 1 # valid land --> 1
-                 return(r)}
-               )
-plot(msk) 
-# define as categorical variable
-f <- as.factor(msk) # or ratify(msk) ?
-x <- levels(f)[[1]]
-x$code <- c("land", "sea")
-levels(f) <- x
-writeRaster(f, "~/PROJECTS/Haiti_biomass/biota_out/mask_NAinland.tif")
-
-# Land mask
-land <- msk
-land[is.na(land)] <- 1
-land[land==2] <- NA
-writeRaster(land, "~/PROJECTS/Haiti_biomass/biota_out/mask_land18.tif")
-land <- raster("~/PROJECTS/Haiti_biomass/biota_out/mask_land18.tif")
-land_poly <- rasterToPolygons(land) # very slow, much faster with gdal_polygonize in QGIS 
-land_poly <- readOGR(dsn="~/PROJECTS/Haiti_biomass/biota_out/vector", layer='mask_land18_hti')
-land_area <- sum(area(land_poly)) / 1000000
-
-# Get values and count NAs
-vals <- getValues(msk)
-df <- data.frame(
-  group = c("Land", "Nulls"), 
-  value = c(sum(vals==1, na.rm=TRUE), 
-            sum(is.na(vals)))
-)
-na_pct <- df$value[2] / (df$value[1] + df$value[2])
-
-# Convert to area
-msk[is.na(msk)] <- 0
-cell_size <- area(msk, na.rm=TRUE, weights=FALSE)
-cell_size <- cell_size[!cell_size==2]
-land_area<-length(cell_size)*median(cell_size)
-cell_size <- cell_size[is.na(cell_size)]
-NA_area<-length(cell_size)*median(cell_size)
-
-# Barplot
-(bp <- ggplot(df, aes(x="", y=value, fill=group))+
-  geom_bar(width = 1, stat = "identity")+ 
-  scale_fill_manual(values=c("#E69F00", "#999999")) +
-  theme_minimal())
-(pie <- bp + coord_polar("y", start=0))
-
-
-# Try ggplot plotting
-test_spdf <- as(msk, "SpatialPixelsDataFrame")
-test_df <- as.data.frame(test_spdf)
-colnames(test_df) <- c("value", "x", "y")
-ggplot() +  
-  geom_tile(data=test_df, aes(x=x, y=y, fill=value), alpha=0.8) + 
-  geom_polygon(data=OR, aes(x=long, y=lat, group=group), 
-               fill=NA, color="grey50", size=0.25) +
-  scale_fill_viridis() +
-  coord_equal() +
-  theme_map() +
-  theme(legend.position="bottom") +
-  theme(legend.key.width=unit(2, "cm"))
-
-
-
-mask_ras <- raster("~/PROJECTS/Haiti_biomass/biota_out/mask_mosaic18_nosea.tif")
-mask_ras
-mask_vals <- getValues(mask_ras)
-
-# Get counts
-na_ct <- sum(is.na(mask_vals))
-nonan_ct <- sum(!is.na(mask_vals))
-sea_ct <- sum(mask_vals==0, na.rm=TRUE)
-valid_ct <- sum(mask_vals==1, na.rm=TRUE)
-
-sea_ct + valid_ct == nonan_ct
-na_ct/valid_ct
 
 

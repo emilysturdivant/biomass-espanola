@@ -35,7 +35,6 @@ home = r'/Users/emilysturdivant/GitHub/biomass-espanola'
 
 #%% Filenames
 by_wd_fname = os.path.join(home, 'data', 'bwayo_densities_wFam.csv')
-plots_overview_fname = os.path.join(home, 'data', 'haiti_plots_meta.csv')
 by_table_fname = os.path.join(home, 'data', 'exploded_specieslookup.csv')
 out_filled_data_fname = os.path.join(home, 'data', 'haiti_data_filled.csv')
 master_lookup = os.path.join(home, 'data', 'master_lookup_2.csv')

@@ -50,6 +50,7 @@ g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>%
   rename(AGB = AGB_ha, backscatter = g0l_mean) 
 g0.agb %>% 
   saveRDS("results/R_out/plots_g0agb_dfslim.rds")
+g0.agb  <- readRDS("results/R_out/plots_g0agb_dfslim.rds")
 
 # Look at values
 (backscatter <- c(
@@ -90,7 +91,7 @@ p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
 # g0.agb <- g0.agb %>% filter(!(AGB==0 & backscatter>0.016))
 
 # Basic OLS regression
-ols <- lm(AGB ~ backscatter, data=g0.agb, x=TRUE, y=TRUE)
+ols <- lm(AGB ~ as.vector(backscatter), data=g0.agb, x=TRUE, y=TRUE)
 
 # Report results ---- ###########################################################
 report_ols_results <- function(ols){
@@ -181,6 +182,8 @@ model.10000x5 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
                        trControl = trainControl(method = "repeatedcv", 
                                                 number = 5, repeats = 10000,
                                                 summaryFunction = fxn.bias))
+model.10000x5 %>% saveRDS("results/R_out/CVmodel_g0nu_10000x5.rds")
+
 cv_r <- model.10000x5$results
 cv_r <- as_tibble(cbind(metric = names(cv_r), t(cv_r))) %>% 
   rename(value='1')
@@ -193,12 +196,12 @@ cv_r2 <- cv_r %>%
 cv_r <- bind_cols(cv_r1, cv_r2)
 View(cv_r)
 View(model.10000x5$results)
-model.10000x5$finalModel
-save(model.10000x10, file = "results/R_out/CVmodel_g0nuLee_10000x10.rds")
+model.10000x5$results[-1]
+mets <- cbind(vals[1], model.10000x5$results[-1]) %>% t()
 
 # Pairs Bootstrap ---- ###########################################################
-set.seed(45)
 # OLS 
+set.seed(45)
 boot.ols.100k <- boot(g0.agb, function(data=g0.agb, index) {
   data <- data[index,] # we sample along rows of the data frame
   model.boot <- lm(AGB ~ backscatter, data=data)
@@ -215,22 +218,40 @@ cis[['m']] <- ci$bca[4:5]
 cis <- as.data.frame(cis, row.names = c('lwr', 'upr'))
 
 # Save/Load outputs from before creating AGB raster
-save(mstems, mplots, polys, ex, g0.agb, model.10000x10, boot.ols.100k, file="calcAGB_outputs.RData")
-load("calcAGB_outputs.RData")
+boot.ols.100k %>% saveRDS("results/R_out/boot_g0nu_100k.rds")
 
 # Create AGB raster ---- ###########################################################
-# Load backscatter raster
-g0 <- raster(g0_fname)
-names(g0) <- 'backscatter'
+# Load backscatter using raster (vs. stars)
+# g0 <- raster(g0_fname)
+# names(g0) <- 'backscatter'
+# agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
 
 # Apply linear regression model to create AGB map
+names(g0) <- 'backscatter'
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-writeRaster(agb.ras, "results/tifs_by_R/agb18_v8.tif")
+write_stars(agb.ras, "results/tifs_by_R/agb18_v1_l0.tif")
 
-# Mask further
+# Mask
+# Report starting number of NAs
+# Look at proportion of values in each mask category
+dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
+dn_mask <- read_stars('results/tifs_by_R/hisp18_mask.tif')
+vals <- getValues(dn_mask)
+f <- as.factor(vals)
+levels(f)
+df <- data.frame(
+  group = c("Normal", "Layover", "Shadowing"), 
+  value = c(sum(vals==255, na.rm=TRUE), 
+            sum(vals==100, na.rm=TRUE),
+            sum(vals==150, na.rm=TRUE)))
+df$value[2] / sum(df$value)
+df$value[3] / sum(df$value)
+saveRDS(df, 'results/R_out/mask_pcts.rds')
+df <- readRDS('results/R_out/mask_pcts.rds')
+msk_land_hisp <- read_stars('results/masks/hisp18_maskLand.tif')
 # agb.ras[agb.ras > 310] <- NA
 # agb.ras[agb.ras < 20] <- NA
-agb.ras <- raster("results/tifs_by_R/agb18_haiti_v6_0to310.tif")
+# agb.ras <- raster("results/tifs_by_R/agb18_haiti_v6_0to310.tif")
 agb.20to310 <- agb.ras[agb.ras < 20] <- NA
 
 # Look at AGB distributions ---- ###################################################

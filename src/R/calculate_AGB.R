@@ -2,12 +2,50 @@
 library(readr)
 library(BIOMASS)
 library(tidyverse)
+library(sf)
+
+# Filenames
+plots_shp <- "results/plots_values/all_plots.shp"
 
 # Load CSVs
 mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
 mplots <- read_csv("data/species_and_wds/mplots_geoms.csv", col_types = cols(plot_no = col_integer()))
 creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
-# g0_plots <- read_csv("results/plots_values/plots_g0nu_HV.csv")
+
+# Consolidate plot polygons ---- ######################################################
+# Extract plot values from stems
+plots_no <- mstems %>% group_by(plot_no, plot_shp) %>% 
+  summarize()
+# Revise shp names to match raw data
+plots_no$plot_shp <- plots_no$plot_shp %>% 
+  str_replace('Pandiassou2', '2pandiassou') %>% 
+  str_replace('Campeche', 'Camapeche')
+
+# Load and standardize polygons
+standardize.names <- function(fp) try({
+  pol <- fp %>% 
+    # Read shapefile
+    sf::st_read(quiet=TRUE) %>% 
+    # Remove Z dimension from those that have it
+    st_zm() %>% 
+    # Transform to lat long
+    st_transform(4326)
+  pol$area <- st_area(pol) %>% units::set_units(value = ha) 
+  pol$Name <- fp %>% basename()
+  if (str_detect(pol$Name, 'No_?biomass')) {pol$biomass_tf <- 0
+    } else {pol$biomass_tf <- 1}
+  pol <- pol[c('Name', 'area', 'biomass_tf')]
+}, silent=FALSE)
+# Load and merge plot polygons into one DF
+fps <- list.files(path="data/plots_shps", pattern="\\.shp$", full.names=TRUE)
+plots <- fps %>% lapply(standardize.names)
+plots <- do.call(rbind, plots)
+
+# Join to plot_no from mstems
+plot_polys <- plots %>% full_join(plots_no, by=c('Name' ='plot_shp')) %>% 
+  filter(!is.na(plot_no)) 
+plot_polys %>% 
+  st_write(plots_shp, append=FALSE)
 
 # Look at data ---- ####################################################################
 summary(mstems$dbh_cm, na.rm=TRUE)
@@ -80,27 +118,26 @@ AGBplot <- summaryByPlot(
 )
 
 # Calculate AGB per hectare
-plots_agb <- merge(mplots, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
-plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area_ha
+plots_agb <- merge(plot_polys, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
+plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area
 plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
 
 saveRDS(plots_agb, 'results/R_out/plots_agb.rds')
 
 # Look at data ---- ####################################################################
 summary(mstems$meanWD)
-sd(mstems$meanWD, na.rm=TRUE)
+wd_sd=sd(mstems$meanWD, na.rm=TRUE)
 summary(mstems$agb)
 sd(mstems$agb, na.rm=TRUE)
 
 # Plot histograms and density plot
 mstems.filt <- mstems %>% filter(agb < 10)
-p <-ggplot(mstems.filt, aes(x=agb)) + 
+(p <-ggplot(mstems.filt, aes(x=agb)) + 
   geom_histogram(binwidth=0.05) +
   labs(y = "")+
   scale_x_continuous(name = "AGB") +
   ggtitle("Histogram of AGB (N = 6,256, bin width = 0.05 m)")+
-  theme_minimal()
-p
+  theme_minimal())
 limO <- 2
 mstems.filt %>% 
   mutate(x_new = ifelse(agb > limO, limO, agb)) %>% 
@@ -112,11 +149,10 @@ mstems.filt %>%
                      limits=c(0, limO)) +
   ggtitle(str_c("Histogram of AGB (N = 6,256, bin width = 0.05 m, outliers grouped at ",limO,")"))+
   theme_minimal()
-p.dens.agb <- ggplot(mstems.filt, aes(x=agb)) +
+(p.dens.agb <- ggplot(mstems.filt, aes(x=agb)) +
   geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)+ 
   labs(x = expression(paste("Aboveground biomass (MgC)")), 
-       y = "Density")
-p.dens.agb
+       y = "Density"))
 ggplot(mstems.filt, aes(x=plot_no, y=agb))+
   geom_boxplot()
 
@@ -156,16 +192,34 @@ p
 filt <- plots_agb %>% filter(AGB_ha > 0)
 summary(filt$AGB_ha)
 
-mean(mstems$dbh_cm, na.rm=TRUE)
-sd(mstems$dbh_cm, na.rm=TRUE)
-mean(mstems$H, na.rm=TRUE)
-sd(mstems$H, na.rm=TRUE)
-mean(mstems$meanWD, na.rm=TRUE)
-sd(mstems$meanWD, na.rm=TRUE)
-mean(mstems$sdWD, na.rm=TRUE)
-mean(mstems$agb, na.rm=TRUE)
-sd(mstems$agb, na.rm=TRUE)
 
+(summaries <- cbind(Mean = c(dbh=mean(mstems$dbh_cm, na.rm=TRUE),
+                              ht=mean(mstems$H, na.rm=TRUE),
+                              wd=mean(mstems$meanWD, na.rm=TRUE),
+                              sdWD=mean(mstems$sdWD, na.rm=TRUE),
+                              agb=mean(mstems$agb, na.rm=TRUE)), 
+                    SD = c(dbh=sd(mstems$dbh_cm, na.rm=TRUE), 
+                             ht=sd(mstems$H, na.rm=TRUE),
+                             wd=sd(mstems$meanWD, na.rm=TRUE),
+                             sdWD=NA, 
+                             agb=sd(mstems$agb, na.rm=TRUE))))
 
-
-
+# Look at values
+plots_agb$AGB <- as.vector(plots_agb$AGB_ha)
+plots_agb$area <- as.vector(plots_agb$area)
+AGB <- c(
+  all_mean=mean(g0.agb$AGB),
+  all_sd=sd(g0.agb$AGB),
+  bio_mean=mean(g0.agb[9:36, ]$AGB),
+  bio_sd=sd(g0.agb[9:36, ]$AGB),
+  min=min(g0.agb$AGB),
+  max=max(g0.agb$AGB))
+Area <- c(
+  all_mean=mean(g0_AGB$area),
+  all_sd=sd(g0_AGB$area),
+  bio_mean=mean(g0_AGB[9:36, ]$area),
+  bio_sd=sd(g0_AGB[9:36, ]$area),
+  min=min(g0_AGB$area),
+  max=max(g0_AGB$area))
+(summaries <- cbind(AGB, Area))
+(plots_agb$AGB[plots_agb$AGB > 98])

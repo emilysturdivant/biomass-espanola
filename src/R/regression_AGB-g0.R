@@ -9,85 +9,23 @@ library(boot)
 library(raster)
 library(tidyverse)
 library(sf)
-library(geobgu)
 library(stars)
+library(geobgu)
+library(broom)
 # library(tmap)
 
-# g0_plots <- read_csv("results/plots_values/plots_g0nu_HV.csv")
-g0_fname <- "results/g0nu_HV/g0nu_2018_HV_leeBiota.tif"
-plots_shp <- "results/plots_values/all_plots.shp"
-
-# Consolidate plot polygons ---- ######################################################
-# Load shp of all Biomass plots
-# plots_b <- st_read("data/plots_shps/BiomassPlots.shp")
-# plots_b <- plots_b[c('Name','Area_ha')] %>% 
-#   st_zm() %>% 
-#   st_transform(4326)
-mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
-plots_no <- mstems %>% group_by(plot_no, plot_shp, plot_area) %>% 
-  summarize()
-plots_no$plot_shp <- plots_no$plot_shp %>% 
-  str_replace('Pandiassou2', '2pandiassou') %>% 
-  str_replace('Campeche', 'Camapeche')
-
-# List shps
-# fps <- list.files(path="data/plots_shps", pattern="^P.+\\.shp$", full.names=TRUE)
-fps <- list.files(path="data/plots_shps", pattern="\\.shp$", full.names=TRUE)
-
-# Load and standardize polygons
-standardize.names <- function(fp) try({
-  pol <- fp %>% 
-    # Read shapefile
-    sf::st_read(quiet=TRUE) %>% 
-    # Remove Z dimension from those that have it
-    st_zm() %>% 
-    # Transform to lat long
-    st_transform(4326) # %>% 
-    # # Standardize names
-    # plyr::rename(c('Shape_Area' = 'Area_ha', 
-    #                'area_ha' = 'Area_ha'), warn_missing=FALSE)
-  pol$area <- st_area(pol) %>% units::set_units(value = ha) 
-  # nm <- fp %>% basename() %>% str_split('\\.', simplify=TRUE)
-  # pol$Name <- nm[1]
-  pol$Name <- fp %>% basename()
-  pol <- pol[c('Name', 'area')]
-}, silent=FALSE)
-plots <- fps %>% lapply(standardize.names)
-
-# Merge plots into one DF
-plots <- do.call(rbind, plots)
-
-# Join to plot_no from mstems
-plot_polys <- plots %>% full_join(plots_no, by=c('Name' ='plot_shp')) %>% 
-  filter(!is.na(plot_no)) 
-plot_polys %>% 
-  st_write(plots_shp)
-
-# # Merge Biomass and NoBiomass polys
-# plots <- do.call(rbind, plots_nb) %>% 
-#   rbind(plots_b) %>% 
-#   st_write("results/plots_values/")
+# *** VARIABLE ***
+g0_fname <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
 
 # Get mean backscatter for each plot ---- #############################################
 # Load raster and polygon data
 # Raster was created by 
-# 1) download PALSAR mosaic tiles and convert HV backscatter to natural units in biota
-# 2) merge the tiles in QGIS, 
-# 3) Run Radar Enhanced Lee Filter in python biota. 
+# 1) biota to download PALSAR mosaic tiles and convert HV backscatter to natural units
+# 2) QGIS to merge the tiles 
+# 3) biota to run Radar Enhanced Lee Filter 
 # 3.b) Possibly mask out water and urban features and extreme values. Convert to No Data using Raster Calc (0/0)
 # 4) Export Filtered Grid (No Data == -99999)
 g0 <- read_stars(g0_fname)
-
-# Extract backscatter values at plots using sf methods
-plot_polys <- st_read(plots_shp)
-plot_polys <-
-  plot_polys %>% mutate(
-    g0l_mean = raster_extract(g0, plot_polys, fun = mean, na.rm = TRUE)
-  )
-plot_polys %>%
-  st_set_geometry(NULL) %>%
-  knitr::kable()
-
 # Aggregate to 50m, as recommended by Saatchi 2015 and performed by Michelakis et al. 2015
 # g0.nofilt <- raster("results/g0nu_HV/g0nu_2018_nofilt_HV_haiti.tif")
 # g0.nofilt[g0.nofilt == 0] <- NA
@@ -95,35 +33,32 @@ plot_polys %>%
 #                     filename="results/g0nu_HV/g0nu_2018_haiti_agg50m.tif", 
 #                     overwrite=TRUE)
 
-# Merge plot AGB and backscatter data
+# Add plot backscatter mean to polygons
 plots_agb <- readRDS('results/R_out/plots_agb.rds')
-g0_AGB <- plot_polys[c('plot_no', 'g0l_mean')] %>% 
-  merge(plots_agb, by='plot_no', all=TRUE) %>% 
-  st_write("results/plots_values/plots_g0agb.shp")
+plots_agb %>% mutate(
+    g0l_mean = raster_extract(g0, plots_agb, fun = mean, na.rm = TRUE)
+  ) %>% 
+  saveRDS('results/R_out/plots_g0agb.rds')
+g0_AGB <- readRDS('results/R_out/plots_g0agb.rds')
+g0_AGB %>% 
+  st_write("results/plots_values/plots_g0agb.shp", append=FALSE)
 
 # Extract just AGB and backscatter as dataframe
 g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>% 
+  st_set_geometry(NULL) %>%
   as.data.frame() %>% 
   rename(AGB = AGB_ha, backscatter = g0l_mean) 
 g0.agb %>% 
   saveRDS("results/R_out/plots_g0agb_dfslim.rds")
 
 # Look at values
-agb_summary <- c(all_mean=mean(g0.agb$AGB),
-  all_sd=sd(g0.agb$AGB),
-  bio_mean=mean(g0.agb[9:36, ]$AGB),
-  bio_sd=sd(g0.agb[9:36, ]$AGB),
-  min=min(g0.agb$AGB),
-  max=max(g0.agb$AGB))
-area_summary <- c(bio_mean=mean(g0_AGB[9:36, ]$area_ha),
-  bio_sd=sd(g0_AGB[9:36, ]$area_ha),
-  all_mean=mean(g0_AGB$area_ha),
-  all_sd=sd(g0_AGB$area_ha),
-  min=min(g0_AGB$area_ha),
-  max=max(g0_AGB$area_ha))
-summaries <- cbind(agb_summary, area_summary)
-
-(g0.agb$AGB[g0.agb$AGB > 98])
+(backscatter <- c(
+  all_mean=mean(g0.agb$backscatter),
+  all_sd=sd(g0.agb$backscatter),
+  bio_mean=mean(g0.agb[9:36, ]$backscatter),
+  bio_sd=sd(g0.agb[9:36, ]$backscatter),
+  min=min(g0.agb$backscatter),
+  max=max(g0.agb$backscatter)))
 
 # Histograms of plot AGB and backscatter ---- ############################################
 # AGB
@@ -132,7 +67,6 @@ p1 <-ggplot(g0.agb, aes(x=AGB)) +
   labs(x = expression(paste("Aboveground biomass (MgC ha"^"-1", ")")), 
        y = "Number of plots (N = 36)")+ 
   ylim(0, 9) 
-p1
 #+  geom_vline(aes(xintercept=mean(AGB)), color="black", linetype="dashed", size=.5)
 # Backscatter
 p2 <-ggplot(g0.agb, aes(x=backscatter)) + 
@@ -141,11 +75,11 @@ p2 <-ggplot(g0.agb, aes(x=backscatter)) +
     paste("Radar backscatter, ", sigma['HV']^0, " (m"^2, "/m"^2, ")")), 
     y = "Number of plots (N = 36)")+ 
   ylim(0, 9)
-p2
 #+ geom_vline(aes(xintercept=mean(backscatter)), color="black", linetype="dashed", size=.5)
 grid.arrange(p1, p2, nrow = 2)
 
 # Scatterplot - AGB against backscatter ---- ##############################################
+g0.agb$AGB <- as.vector(g0.agb$AGB)
 p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
        x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
@@ -153,33 +87,67 @@ p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
 
 # Linear regression ---- ###########################################################
 # See how correlation improves without plots 7 and 8, which are probably responding to soil moisture. 
-g0.agb <- g0.agb %>% filter(!(AGB==0 & backscatter>0.016))
+# g0.agb <- g0.agb %>% filter(!(AGB==0 & backscatter>0.016))
+
 # Basic OLS regression
 ols <- lm(AGB ~ backscatter, data=g0.agb, x=TRUE, y=TRUE)
-summary(ols)
-confint(ols)
-mse <- mean((residuals(ols))^2)
-rss <- sum(residuals(ols)^2)
-acc_metrics <- list(
-  rmse = sqrt(mse), # RMSE
-  mae = mean(abs(residuals(ols))),
-  mse = mse,
-  rss = rss,
-  mss = sum(residuals(ols)^2)/ols$df.residual,
-  rse = sqrt(rss / ols$df.residual)
-)
-View(acc_metrics)
-(acc_metrics %>% as_tibble() %>% t())
 
-cov2cor(vcov(ols))
-anova(ols)
-coef(ols)
-# Get Spearman's rank correlation coefficient
-corr <- cor.test(x=g0.agb$backscatter, y=g0.agb$AGB, method = 'spearman')
-corr$estimate
-# Get Pearson's rank correlation coefficient
-corr <- cor.test(x=g0.agb$backscatter, y=g0.agb$AGB, method = 'pearson')
-corr$estimate
+# Report results ---- ###########################################################
+report_ols_results <- function(ols){
+  # Regression Coefficients
+  coefs <- tidy(ols) %>% cbind(confint(ols)) %>% 
+    mutate(term = str_replace(term, '\\(Intercept\\)', 'int')) %>% 
+    mutate(term = str_replace(term, 'backscatter', 'g0')) %>% 
+    pivot_wider(names_from=term, values_from=estimate:'97.5 %') %>% 
+    cbind(glance(ols))
+  coefs %>% t()
+  # Accuracy metrics
+  mse <- mean((residuals(ols))^2)
+  rss <- sum(residuals(ols)^2)
+  acc_metrics <- list(
+    rmse = sqrt(mse), # RMSE
+    mae = mean(abs(residuals(ols))),
+    mse = mse,
+    rss = rss,
+    mss = sum(residuals(ols)^2)/ols$df.residual,
+    rse = sqrt(rss / ols$df.residual),
+    cov = cov2cor(vcov(ols))[1,2]
+  )
+  # ANOVA
+  ANOVA <- anova(ols) %>% tidy() %>% 
+    mutate(term = str_replace(term, 'backscatter', 'g0')) %>% 
+    mutate(term = str_replace(term, 'Residuals', 'resid')) %>% 
+    pivot_wider(names_from=term, values_from=df:p.value)
+  # Correlation coefficients
+  sp <- cor.test(x=g0.agb$backscatter, y=g0.agb$AGB, method = 'spearman') %>% 
+    tidy() %>% 
+    select(-c(alternative, method)) %>% 
+    mutate(term='rhoSpear')
+  pe <- cor.test(x=g0.agb$backscatter, y=g0.agb$AGB, method = 'pearson') %>% 
+    tidy() %>% 
+    select(-c(alternative, method)) %>% 
+    mutate(term='Pearson')
+  # Join correlation coefficients
+  cors <- rbind(pivot_longer(sp, cols=estimate:p.value),
+                pivot_longer(pe, cols=estimate:conf.high)
+    ) %>%
+    mutate(stat = str_c(name, term, sep="_")) %>% 
+    select(-c(term, name)) %>% 
+    column_to_rownames('stat') %>% 
+    t()
+  # Combine
+  all_vals <- cbind(coefs, acc_metrics, ANOVA, cors) %>% t()
+  select_vals <- cbind(
+    coefs %>% select(starts_with('estimate')),
+    ci_int=(confint(ols)[1,2]-confint(ols)[1,1])/2,
+    ci_slope=(confint(ols)[2,2]-confint(ols)[2,1])/2,
+    acc_metrics %>% as.data.frame() %>% select(rmse, mae, mse, rss, mss, rse)
+  )
+  return(list(select_vals, all_vals))
+}
+vals <- report_ols_results(ols)
+vals[1]
+vals[2]
 
 # Plot error plots
 opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))

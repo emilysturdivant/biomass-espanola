@@ -90,8 +90,8 @@ def getAGB_forRegion(data_dir, y1, slope, intercept, output_dir=None, coord_list
     print('ALL DONE.')
 
 #%% Initialize file paths
-data_dir = r'/Users/emilysturdivant/PROJECTS/Haiti_biomass/ALOS'
-output_dir = r'/Users/emilysturdivant/PROJECTS/Haiti_biomass/biota_out'
+data_dir = r'/Users/emilysturdivant/PROJECTS/biomass-espanola/data/ALOS'
+output_dir = r'/Users/emilysturdivant/PROJECTS/biomass-espanola/results/g0nu_HV'
 
 #%% Create list of tile coordinates
 coord_list = []
@@ -111,19 +111,6 @@ y1 = 2018
 output_dir = r'/Users/emilysturdivant/Documents/CIGA/biota_out/AGB_2018'
 getAGB_forRegion(data_dir, y1, slope, intercept, output_dir, coord_list)
 
-#%%
-'''
-# In QGIS:
-gdal_merge.py -ot Float32 -of GTiff -o /home/esturdivant/Documents/biota_out/AGB_2018_v2/AGB_2018_v2.tif --optfile /tmp/processing_c054cfe79c5c4e7b946b1b6603d98e7b/4e8652a2142740759b28c1fcffea58da/mergeInputFiles.txt
-
-Raster > Miscellaneous > Merge
-Input layers: directory X
-
-Display output...
-Transparency: No Data value: 0
-Symbology: Singlebnad pseudocolor; Cumulative count cut: 2-98%; Color ramp: Viridis. Classify. Apply.
-Histogram analysis
-'''
 #%% Merge and Crop with rasterio. - TRY BELOW FIRST (not tested)
 # Rasterio package isn't installing properly in 'biota' env. Installed in 'python3'
 import fiona
@@ -244,7 +231,19 @@ out_meta.update({"driver": "GTiff",
 with rasterio.open(mosaiccrop_fp, "w", **out_meta) as dest:
     dest.write(out_img)
 
+#%%
+'''
+# In QGIS:
+gdal_merge.py -ot Float32 -of GTiff -o /home/esturdivant/Documents/biota_out/AGB_2018_v2/AGB_2018_v2.tif --optfile /tmp/processing_c054cfe79c5c4e7b946b1b6603d98e7b/4e8652a2142740759b28c1fcffea58da/mergeInputFiles.txt
 
+Raster > Miscellaneous > Merge
+Input layers: directory X
+
+Display output...
+Transparency: No Data value: 0
+Symbology: Singlebnad pseudocolor; Cumulative count cut: 2-98%; Color ramp: Viridis. Classify. Apply.
+Histogram analysis
+'''
 
 #%% Apply the Radar Enhanced Lee Filter in biota to the whole mosaic.
 import numpy as np
@@ -401,56 +400,13 @@ with rasterio.open(out_fn, 'w', **profile) as dst:
     dst.write(array)
 
 
-#%%
-import rasterio.features
-import rasterio.warp
-
-with rasterio.open(filt_fn) as ds:
-
-    # Read the dataset's valid data mask as a ndarray.
-    mask = ds.dataset_mask()
-
-    # Extract feature shapes and values from the array.
-    for geom, val in rasterio.features.shapes(
-            mask, transform=ds.transform):
-
-        # Print GeoJSON shapes to stdout.
-        print(geom)
-
-ds.nodata
-
-export_fn = r"/Users/emilysturdivant/PROJECTS/Haiti_biomass/biota_out/"
-with open(export_fn, 'w') as outfile:
-    geojson.dump(geom, outfile, sort_keys=True)
-
-#%% Polygonize with GDAL
-from osgeo import gdal, ogr
-import sys
-# Allow GDAL to throw Python Exceptions
-gdal.UseExceptions()
-
-#
-mask_fn = r"/Users/emilysturdivant/PROJECTS/Haiti_biomass/biota_out/mask_mosaic2018.tif"
-
-#  get raster datasource
-src_ds = gdal.Open(filt_fn)
-srcband = src_ds.GetRasterBand(1)
-
-#  create output datasource
-dst_layername = "mask18_polygonized"
-drv = ogr.GetDriverByName("ESRI Shapefile")
-dst_ds = drv.CreateDataSource(os.path.join(output_dir, dst_layername + ".shp"))
-dst_layer = dst_ds.CreateLayer(dst_layername, srs = None)
-
-gdal.Polygonize(srcband, None, dst_layer, -1, [], callback=None)
-
-
-
-
 
 
 
 #%% Experimental...
+latitude=20
+longitude=-73
+y1=2018
 tile = biota.LoadTile(data_dir, latitude, longitude, y1, lee_filter = True, forest_threshold = 15., area_threshold = 1, output_dir = output_dir)
 
 # Add river lines to the mask with a 250 m buffer

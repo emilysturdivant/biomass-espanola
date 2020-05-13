@@ -8,7 +8,6 @@ library(caret)
 library(boot)
 library(raster)
 library(tidyverse)
-library(sf)
 library(stars)
 library(geobgu)
 library(broom)
@@ -61,6 +60,13 @@ g0.agb  <- readRDS("results/R_out/plots_g0agb_dfslim.rds")
   min=min(g0.agb$backscatter),
   max=max(g0.agb$backscatter)))
 
+# Scatterplot - AGB against backscatter ---- ##############################################
+g0.agb$AGB <- as.vector(g0.agb$AGB)
+p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
+  labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
+       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
+(p <- p + geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black'))
+
 # Histograms of plot AGB and backscatter ---- ############################################
 # AGB
 p1 <-ggplot(g0.agb, aes(x=AGB)) + 
@@ -79,19 +85,13 @@ p2 <-ggplot(g0.agb, aes(x=backscatter)) +
 #+ geom_vline(aes(xintercept=mean(backscatter)), color="black", linetype="dashed", size=.5)
 grid.arrange(p1, p2, nrow = 2)
 
-# Scatterplot - AGB against backscatter ---- ##############################################
-g0.agb$AGB <- as.vector(g0.agb$AGB)
-p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
-  labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
-       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
-(p <- p + geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black'))
-
 # Linear regression ---- ###########################################################
 # See how correlation improves without plots 7 and 8, which are probably responding to soil moisture. 
 # g0.agb <- g0.agb %>% filter(!(AGB==0 & backscatter>0.016))
 
 # Basic OLS regression
-ols <- lm(AGB ~ as.vector(backscatter), data=g0.agb, x=TRUE, y=TRUE)
+# g0.agb$backscatter <- as.vector(g0.agb$backscatter)
+ols <- lm(as.vector(AGB) ~ as.vector(backscatter), data=g0.agb, x=TRUE, y=TRUE)
 
 # Report results ---- ###########################################################
 report_ols_results <- function(ols){
@@ -99,9 +99,10 @@ report_ols_results <- function(ols){
   coefs <- tidy(ols) %>% cbind(confint(ols)) %>% 
     mutate(term = str_replace(term, '\\(Intercept\\)', 'int')) %>% 
     mutate(term = str_replace(term, 'backscatter', 'g0')) %>% 
+    mutate(term = str_replace(term, 'as\\.vector\\(', '')) %>% 
+    mutate(term = str_replace(term, '\\)', '')) %>% 
     pivot_wider(names_from=term, values_from=estimate:'97.5 %') %>% 
     cbind(glance(ols))
-  coefs %>% t()
   # Accuracy metrics
   mse <- mean((residuals(ols))^2)
   rss <- sum(residuals(ols)^2)
@@ -113,10 +114,12 @@ report_ols_results <- function(ols){
     mss = sum(residuals(ols)^2)/ols$df.residual,
     rse = sqrt(rss / ols$df.residual),
     cov = cov2cor(vcov(ols))[1,2]
-  )
+  ) %>% as.data.frame()
   # ANOVA
   ANOVA <- anova(ols) %>% tidy() %>% 
-    mutate(term = str_replace(term, 'backscatter', 'g0')) %>% 
+    mutate(term = str_replace(term, 'backscatter', 'g0anova')) %>% 
+    mutate(term = str_replace(term, 'as\\.vector\\(', '')) %>% 
+    mutate(term = str_replace(term, '\\)', '')) %>% 
     mutate(term = str_replace(term, 'Residuals', 'resid')) %>% 
     pivot_wider(names_from=term, values_from=df:p.value)
   # Correlation coefficients
@@ -135,20 +138,20 @@ report_ols_results <- function(ols){
     mutate(stat = str_c(name, term, sep="_")) %>% 
     select(-c(term, name)) %>% 
     column_to_rownames('stat') %>% 
-    t()
+    t() %>% as.data.frame()
   # Combine
-  all_vals <- cbind(coefs, acc_metrics, ANOVA, cors) %>% t()
-  select_vals <- cbind(
-    coefs %>% select(starts_with('estimate')),
+  top <- cbind(
+    coefs %>% select(starts_with('estimate'), adj.r.squared),
     ci_int=(confint(ols)[1,2]-confint(ols)[1,1])/2,
     ci_slope=(confint(ols)[2,2]-confint(ols)[2,1])/2,
-    acc_metrics %>% as.data.frame() %>% select(rmse, mae, mse, rss, mss, rse)
-  )
-  return(list(select_vals, all_vals))
+    acc_metrics %>% as.data.frame() %>% select(rmse, mae, mse, rss, mss, rse),
+    coefs %>% select(!starts_with('estimate'), -adj.r.squared),
+    covariance=cov2cor(vcov(ols))[1,2],
+    ANOVA,
+    cors
+  ) %>% t() %>% as.data.frame()
 }
 vals <- report_ols_results(ols)
-vals[1]
-vals[2]
 
 # Plot error plots
 opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
@@ -230,25 +233,28 @@ boot.ols.100k %>% saveRDS("results/R_out/boot_g0nu_100k.rds")
 names(g0) <- 'backscatter'
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
 write_stars(agb.ras, "results/tifs_by_R/agb18_v1_l0.tif")
-
-# Mask
+agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+agb.ras$dn_mask <- dn_mask
+agb.ras
+# Mask ----
 # Report starting number of NAs
 # Look at proportion of values in each mask category
-dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
 dn_mask <- read_stars('results/tifs_by_R/hisp18_mask.tif')
-vals <- getValues(dn_mask)
-f <- as.factor(vals)
-levels(f)
-df <- data.frame(
-  group = c("Normal", "Layover", "Shadowing"), 
-  value = c(sum(vals==255, na.rm=TRUE), 
-            sum(vals==100, na.rm=TRUE),
-            sum(vals==150, na.rm=TRUE)))
-df$value[2] / sum(df$value)
-df$value[3] / sum(df$value)
+rvals <- dn_mask[[1]]
+df <- 
+  tibble(group = c("Normal", "Layover", "Shadowing"), 
+         count = c(sum(rvals==255, na.rm=TRUE), 
+                   sum(rvals==100, na.rm=TRUE),
+                   sum(rvals==150, na.rm=TRUE))) %>% 
+  mutate(pct= count / sum(count)) %>%
+  add_row(group='Land', count=sum(count))
 saveRDS(df, 'results/R_out/mask_pcts.rds')
 df <- readRDS('results/R_out/mask_pcts.rds')
+
 msk_land_hisp <- read_stars('results/masks/hisp18_maskLand.tif')
+msk_land_hisp %>% saveRDS('results/R_out/hisp18_maskLand.rds')
+
+
 # agb.ras[agb.ras > 310] <- NA
 # agb.ras[agb.ras < 20] <- NA
 # agb.ras <- raster("results/tifs_by_R/agb18_haiti_v6_0to310.tif")

@@ -9,6 +9,7 @@ library(rgdal)
 library(here)
 
 # Merge and resample LULC for Hispaniola ----
+dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
 fps <- c("data/LULC/Haiti2017_Clip.tif", 
         "data/LULC/DR_2017_clip.tif")
 rs <- lapply(fps, 
@@ -24,12 +25,31 @@ lc <- do.call(merge, rs)
 writeRaster(lc, "data/LULC/Hisp_2017_resALOS.tif")
 lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
 
+# Mask LULC to land as determined by ALOS 2018
+lc <- read_stars("data/LULC/Hisp_2017_resALOS.tif")
+msk_L <- read_stars('results/masks/hisp18_maskLand.tif')
+lc <- lc*msk_L
+lc %>% saveRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
+
+# Report pixel counts and percentages for each class
+rvals <- lc[[1]]
+df <- 
+  tibble(group = c("Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs"), 
+         count = c(sum(rvals==1, na.rm=TRUE), 
+                   sum(rvals==2, na.rm=TRUE),
+                   sum(rvals==3, na.rm=TRUE),
+                   sum(rvals==4, na.rm=TRUE), 
+                   sum(rvals==5, na.rm=TRUE),
+                   sum(rvals==6, na.rm=TRUE))) %>% 
+  mutate(pct= count / sum(count))
+df %>% saveRDS('results/R_out/lc_ALOS_pixel_counts_tbl.rds')
+
 # Make water and urban mask
-mask_land <- raster('results/masks/hisp18_maskLand.tif') # 1 for land, NA for everything else
-# mask_land <- crop(mask_land, extent(-73, -72, 19, 20))
+msk_L <- raster('results/masks/hisp18_maskLand.tif') # 1 for land, NA for everything else
+# msk_L <- crop(msk_L, extent(-73, -72, 19, 20))
 # lc <- crop(lc, extent(-73, -72, 19, 20))
 # Overlay
-mask_land_wu <- overlay(mask_land, lc, 
+mask_land_wu <- overlay(msk_L, lc, 
                fun=function(r1, r2){
                  r2[r2<3] <- NA
                  r2[!is.na(r2)] <- 1

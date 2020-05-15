@@ -5,6 +5,31 @@ library(tidyverse)
 require(boot)
 require(MASS)
 
+# Load data
+g0.agb  <- readRDS("results/R_out/plots_g0agb_dfslim.rds")
+
+# Pairs Bootstrap ---- ###########################################################
+# OLS 
+set.seed(45)
+boot.ols.100k <- boot(g0.agb, function(data=g0.agb, index) {
+  data <- data[index,] # we sample along rows of the data frame
+  model.boot <- lm(AGB ~ backscatter, data=data)
+  coef(model.boot)
+}, R=100000)
+# Results
+boot.ols.100k
+plot(boot.ols.100k, index=1)
+cis <- list()
+ci <- boot.ci(boot.ols.100k, conf=0.95, type=c("basic", "bca", "perc"), index=1)
+cis[['b']] <- ci$bca[4:5]
+ci <- boot.ci(boot.ols.100k, conf=0.95, type=c("basic", "bca", "perc"), index=2)
+cis[['m']] <- ci$bca[4:5]
+cis <- as.data.frame(cis, row.names = c('lwr', 'upr'))
+
+# Save/Load outputs from before creating AGB raster
+boot.ols.100k %>% saveRDS("results/R_out/boot_g0nu_100k.rds")
+
+# Experimentation, old ---- ###########################################################
 # Load data - Desktop
 # Load data - Mac
 g0_AGB <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu_AGB.csv")

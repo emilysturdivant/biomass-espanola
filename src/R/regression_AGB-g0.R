@@ -1,17 +1,25 @@
-# Calibrate regression model between AGB and backscatter 
-# Follows calculate_AGB.R, which calculates AGB by plot from field data
-# Requires backscatter image, plot polygons, AGB by plot
-library(readr)
-library(gridExtra)
-library(rgdal)
-library(caret)
-library(boot)
+# *************************************************************************************************
+# Script to:
+#     * Calibrate regression model between AGB and backscatter 
+# Proceeds:
+#     * calculate_AGB.R - calculates AGB by plot from field data
+#     * process_ALOS_tiles.R
+# Requires:
+#     * backscatter image (g0)
+#     * plot polygons with AGB by plot (plots_agb)
+#
+# *************************************************************************************************
+
+# Load libraries
+# library(gridExtra)
+# library(rgdal)
+# library(caret)
 library(raster)
 library(tidyverse)
 library(stars)
 library(geobgu)
 library(broom)
-# library(tmap)
+library(gdalUtils)
 
 # *** VARIABLE ***
 g0_fname <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
@@ -92,6 +100,7 @@ grid.arrange(p1, p2, nrow = 2)
 # Basic OLS regression
 # g0.agb$backscatter <- as.vector(g0.agb$backscatter)
 ols <- lm(as.vector(AGB) ~ as.vector(backscatter), data=g0.agb, x=TRUE, y=TRUE)
+ols %>% saveRDS("results/R_out/ols_AGBv1_g0v1.rds")
 
 # Report results ---- ###########################################################
 report_ols_results <- function(ols){
@@ -202,57 +211,113 @@ View(model.10000x5$results)
 model.10000x5$results[-1]
 mets <- cbind(vals[1], model.10000x5$results[-1]) %>% t()
 
-# Pairs Bootstrap ---- ###########################################################
-# OLS 
-set.seed(45)
-boot.ols.100k <- boot(g0.agb, function(data=g0.agb, index) {
-  data <- data[index,] # we sample along rows of the data frame
-  model.boot <- lm(AGB ~ backscatter, data=data)
-  coef(model.boot)
-}, R=100000)
-# Results
-boot.ols.100k
-plot(boot.ols.100k, index=1)
-cis <- list()
-ci <- boot.ci(boot.ols.100k, conf=0.95, type=c("basic", "bca", "perc"), index=1)
-cis[['b']] <- ci$bca[4:5]
-ci <- boot.ci(boot.ols.100k, conf=0.95, type=c("basic", "bca", "perc"), index=2)
-cis[['m']] <- ci$bca[4:5]
-cis <- as.data.frame(cis, row.names = c('lwr', 'upr'))
-
-# Save/Load outputs from before creating AGB raster
-boot.ols.100k %>% saveRDS("results/R_out/boot_g0nu_100k.rds")
-
 # Create AGB raster ---- ###########################################################
-# Load backscatter using raster (vs. stars)
-# g0 <- raster(g0_fname)
-# names(g0) <- 'backscatter'
-# agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-
+# Load data 
+g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif"); names(g0) <- 'backscatter'
+ols <- readRDS("results/R_out/ols_AGBv1_g0v1.rds")
 # Apply linear regression model to create AGB map
-names(g0) <- 'backscatter'
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-write_stars(agb.ras, "results/tifs_by_R/agb18_v1_l0.tif")
-agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
-agb.ras$dn_mask <- dn_mask
-agb.ras
-# Mask ----
-# Report starting number of NAs
-# Look at proportion of values in each mask category
-dn_mask <- read_stars('results/tifs_by_R/hisp18_mask.tif')
-rvals <- dn_mask[[1]]
-df <- 
-  tibble(group = c("Normal", "Layover", "Shadowing"), 
-         count = c(sum(rvals==255, na.rm=TRUE), 
-                   sum(rvals==100, na.rm=TRUE),
-                   sum(rvals==150, na.rm=TRUE))) %>% 
-  mutate(pct= count / sum(count)) %>%
-  add_row(group='Land', count=sum(count))
-saveRDS(df, 'results/R_out/mask_pcts.rds')
-df <- readRDS('results/R_out/mask_pcts.rds')
+agb.ras %>% writeRaster("results/tifs_by_R/agb18_v1_l0.tif")
 
-msk_land_hisp <- read_stars('results/masks/hisp18_maskLand.tif')
-msk_land_hisp %>% saveRDS('results/R_out/hisp18_maskLand.rds')
+# Masks ---- ####################################################################
+# Report starting number of NAs
+df_mskA <- readRDS('results/R_out/mask_pcts.rds')
+df_LCcounts <- readRDS('results/R_out/lc_ALOS_pixel_counts_tbl.rds')
+
+# ALOS Normal mask
+msk_A <- readRDS("results/R_out/mask_ALOS_raster.rds")
+
+# Load LC 
+lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
+
+# Mask out WaterUrban from land
+msk_WU <- lc; rm(lc)
+msk_WU[msk_WU<3] <- NA
+msk_WU[!is.na(msk_WU)] <- 1
+msk_WU %>% saveRDS("results/R_out/mask_WaterUrban_raster.rds")
+msk_WU <- readRDS("results/R_out/mask_WaterUrban_raster.rds")
+
+# Combine ALOS and WaterUrban masks
+msk_AWU <- msk_WU*msk_A
+msk_AWU %>% saveRDS("results/R_out/mask_ALOS_WaterUrban_raster.rds")
+msk_AWU <- readRDS("results/R_out/mask_ALOS_WaterUrban_raster.rds")
+
+plot(msk_AWU[1, 11000:14000, 7000:9000])
+
+# Create masks based on backscatter values
+g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+
+# Create mask of >0.3
+create_inverse_mask_at_threshold <- function(r, threshold, gt=TRUE, filename=NULL){
+  if (gt) {
+    r[r <= threshold] <- 0
+    r[r > threshold] <- 1
+  } else {
+    r[r < threshold] <- 1
+    r[r >= threshold] <- 0
+  }
+  if (filename) r %>% saveRDS(filename)
+}
+msk_p3 <- create_inverse_mask_at_threshold(
+  g0, 0.3, "results/R_out/mask_ALOS_g0overp3inverse_raster.rds"
+  )
+msk_p3 <- g0
+msk_p3[msk_p3<=0.3] <- 0
+msk_p3[msk_p3>0.3] <- 1
+msk_p3 %>% saveRDS("results/R_out/mask_ALOS_g0overp3inverse_raster.rds")
+msk_p3 <- readRDS("results/R_out/mask_ALOS_g0overp3inverse_raster.rds")
+(p3 <- sum(msk_p3[[1]]==1, na.rm=TRUE))
+
+# Create mask of >0.3
+msk_p2 <- g0; rm(g0)
+msk_p2[msk_p2<=0.2] <- 0
+msk_p2[msk_p2>0.2] <- 1
+msk_p2 %>% saveRDS("results/R_out/mask_ALOS_g0overp2inverse_raster.rds")
+msk_p2 <- readRDS("results/R_out/mask_ALOS_g0overp2inverse_raster.rds")
+(p2 <- sum(msk_p2[[1]]==1, na.rm=TRUE))
+
+# Create inverse mask for each new mask and then multiple by msk_A
+
+# Get presence of water/urban and then mask with ALOS
+msk_WU <- readRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
+msk_WU[msk_WU==2] <- 1 # Water is already 1 and now urban is as well
+msk_WU[msk_WU!=1] <- NA
+(wu1 <- sum(msk_WU[[1]]==1, na.rm=TRUE))
+mskinv_WU <- msk_WU*msk_A
+(wu0 <- sum(mskinv_WU[[1]]==1, na.rm=TRUE))
+
+plot(mskinv_WU[1, 11000:14000, 7000:9000])
+
+
+
+
+# Crop g0 to match 
+agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+msk_u20 <- agb.ras
+msk_u20[msk_u20 < 20] <- 1
+msk_u20[msk_u20 >= 20] <- 0
+msk_u20 %>% saveRDS("results/R_out/mask_AGB_under20_inverse_raster.rds")
+(u20 <- sum(msk_u20[[1]]==1, na.rm=TRUE))
+
+# Mask out WU
+msk_WU <- readRDS("results/R_out/mask_WaterUrban_raster.rds")
+msk_u20_noWU <- msk_u20*msk_WU
+(u20_noWU <- sum(msk_u20_noWU[[1]]==1, na.rm=TRUE))
+
+# Look at number of AGB<20 in the tree cover class
+lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
+# Mask out all but forest
+msk_Tinv <- lc; rm(lc)
+msk_Tinv[msk_Tinv!=4] <- 0
+msk_Tinv[msk_Tinv==4] <- 1
+
+msk_u20_T <- msk_u20*msk_Tinv
+plot(msk_Tinv[1, 11000:14000, 7000:9000])
+
+(u20_T <- sum(msk_u20_T[[1]]==1, na.rm=TRUE))
+(T <- sum(msk_Tinv[[1]]==1, na.rm=TRUE))
+
+
 
 
 # agb.ras[agb.ras > 310] <- NA

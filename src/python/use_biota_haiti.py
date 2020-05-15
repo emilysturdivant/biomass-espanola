@@ -245,7 +245,7 @@ Symbology: Singlebnad pseudocolor; Cumulative count cut: 2-98%; Color ramp: Viri
 Histogram analysis
 '''
 
-#%% Apply the Radar Enhanced Lee Filter in biota to the whole mosaic.
+#%% Apply the Radar Enhanced Lee Filter in biota to the whole mosaic. - DIDN'T WORK
 import numpy as np
 from matplotlib import pyplot as plt
 import biota

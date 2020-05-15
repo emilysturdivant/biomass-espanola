@@ -7,6 +7,14 @@ library(rgdal)
 library(tmap)
 library(rgdal)
 library(here)
+library(gdalUtils)
+library(here)
+
+# Merge Gamma0 backscatter tiles produced by biota ----
+year <- 2018
+mosaic_rasters(list.files(path='results/g0nu_HV/Gamma0_lee', pattern='.tif', full.names = TRUE), 
+               str_c('results/g0nu_HV/g0nu_', year, '_HV_lee.tif'), 
+               projwin=c(-74.48133, 20.09044, -68.32267, 17.47022))
 
 # Merge ALOS mosaic rasters ----
 merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
@@ -77,19 +85,24 @@ map_all <- tmap_arrange(lyr_linci + lyr_isl,
                         lyr_date + lyr_isl)
 map_all
 
-# Look at proportion of values in each mask category
-vals <- getValues(dn_mask)
-f <- as.factor(vals)
-levels(f)
-df <- data.frame(
-  group = c("Normal", "Layover", "Shadowing"), 
-  value = c(sum(vals==255, na.rm=TRUE), 
-            sum(vals==100, na.rm=TRUE),
-            sum(vals==150, na.rm=TRUE)))
-df$value[2] / sum(df$value)
-df$value[3] / sum(df$value)
+# STARS - Look at proportion of values in each mask category 
+dn_mask <- read_stars('results/tifs_by_R/hisp18_mask.tif')
+rvals <- dn_mask[[1]]
+df <- 
+  tibble(group = c("Normal", "Layover", "Shadowing"), 
+         count = c(sum(rvals==255, na.rm=TRUE), 
+                   sum(rvals==100, na.rm=TRUE),
+                   sum(rvals==150, na.rm=TRUE))) %>% 
+  mutate(pct= count / sum(count)) %>%
+  add_row(group='Land', count=sum(count))
 saveRDS(df, 'results/R_out/mask_pcts.rds')
 df <- readRDS('results/R_out/mask_pcts.rds')
+
+# Replicate ALOS Normal mask
+msk_A <- read_stars('results/tifs_by_R/hisp18_mask.tif')
+msk_A[msk_A<254] <- NA
+msk_A[!is.na(msk_A)] <- 1
+msk_A %>% saveRDS("results/R_out/mask_ALOS_raster.rds")
 
 # Barplot
 (bp <- ggplot(df, aes(x="", y=value, fill=group))+
@@ -98,7 +111,18 @@ df <- readRDS('results/R_out/mask_pcts.rds')
     theme_minimal())
 (pie <- bp + coord_polar("y", start=0))
 
-# Count inland NA value in biota output ----
+# Crop backscatter to Hispaniola extent and replace 0 with NA ---- ############################
+# Crop backscatter to the common Hispaniola extent
+gdal_translate("results/g0nu_HV/g0nu_2018_HV.tif", 
+               "results/g0nu_HV/g0nu_2018_HV_crop.tif", 
+               projwin=st_bbox(msk_AWU)[c(1, 4, 3, 2)])
+# Load backscatter and set 0 to NA
+g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_crop.tif")
+g0[g0==0] <- NA
+g0 %>% write_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+
+
+# Crop backscatter to Haiti extent ----
 # Load files
 g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
 hti_poly <- readOGR(dsn="data/contextual_data/HTI_adm", layer='HTI_adm0')
@@ -110,6 +134,7 @@ g0[g0==0] <- NA
 writeRaster(g0, "results/g0nu_HV/g0nu_2018_HV_haitiR.tif", overwrite=TRUE)
 g0 <- raster("results/g0nu_HV/g0nu_2018_HV_haitiR.tif")
 
+# OLD: Count inland NA value in biota output ----
 # Convert island to land mask
 tmp_isl <- rasterize(isl_poly, g0, field=1) # land==1; sea==NA
 

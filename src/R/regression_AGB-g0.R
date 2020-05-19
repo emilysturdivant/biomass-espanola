@@ -20,19 +20,16 @@ library(stars)
 library(geobgu)
 library(broom)
 library(gdalUtils)
-
-# *** VARIABLE ***
-g0_fname <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
+library(tmap)
+require(graphics)
 
 # Get mean backscatter for each plot ---- #############################################
 # Load raster and polygon data
 # Raster was created by 
 # 1) biota to download PALSAR mosaic tiles and convert HV backscatter to natural units
-# 2) QGIS to merge the tiles 
-# 3) biota to run Radar Enhanced Lee Filter 
-# 3.b) Possibly mask out water and urban features and extreme values. Convert to No Data using Raster Calc (0/0)
-# 4) Export Filtered Grid (No Data == -99999)
-g0 <- read_stars(g0_fname)
+# 2) process_ALOS_tiles.R to merge the tiles 
+g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_haitiR.tif")
+
 # Aggregate to 50m, as recommended by Saatchi 2015 and performed by Michelakis et al. 2015
 # g0.nofilt <- raster("results/g0nu_HV/g0nu_2018_nofilt_HV_haiti.tif")
 # g0.nofilt[g0.nofilt == 0] <- NA
@@ -215,115 +212,141 @@ mets <- cbind(vals[1], model.10000x5$results[-1]) %>% t()
 # Load data 
 g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif"); names(g0) <- 'backscatter'
 ols <- readRDS("results/R_out/ols_AGBv1_g0v1.rds")
+
 # Apply linear regression model to create AGB map
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
 agb.ras %>% writeRaster("results/tifs_by_R/agb18_v1_l0.tif")
 
-# Masks ---- ####################################################################
+# Make masks based on AGB ----####################################################################
+# AGB <20 mask
+agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+msk_u20 <- agb.ras
+msk_u20[msk_u20 < 20] <- NA
+msk_u20[msk_u20 >= 20] <- 1
+msk_u20 %>% saveRDS("results/R_out/mask_AGB_under20_stars.rds")
+
+# Inverse
+mskinv_u20 <- agb.ras
+mskinv_u20[mskinv_u20 < 20] <- 1
+mskinv_u20[mskinv_u20 >= 20] <- 0
+mskinv_u20 %>% saveRDS("results/R_out/mask_inv_AGB_under20_stars.rds")
+
+# Load masks ----########################################################
+# AGB-based
+msk_u20 <- # NA==AGB<20 and ALOS mask
+  readRDS("results/R_out/mask_AGB_under20_stars.rds")
+mskinv_u20 <- # 1== where AGB<20 in valid ALOS land
+  readRDS("results/R_out/mask_inv_AGB_under20_stars.rds")
+mskinv_u20_noWU <- # 1== AGB<20 with ALOS and WaterUrban masks applied
+  readRDS("results/R_out/mask_inv_AGBunder20_WU_stars.rds")
+# Previously-created from backscatter, land cover, and water features
+msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
+  readRDS("results/R_out/mask_landALOS_hisp18_stars.rds") 
+msk_A <- # NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels
+  readRDS("results/R_out/mask_ALOS_stars.rds") 
+msk_p3 <- # NA== g0>0.3
+  readRDS("results/R_out/mask_ALOSoverpt3_stars.rds")
+msk_WU <- # NA== WaterUrban and ALOS ocean; 1==all other land
+  readRDS("results/R_out/mask_WaterUrban_stars.rds")
+msk_Aw <- # NA== ALOS mask and OSM water with 25 m buffer
+  readRDS("results/R_out/mask_ALOS_OSMwater25_stars.rds")
+msk_B <- # NA== LC17 Bareland
+  readRDS("results/R_out/mask_Bareland_stars.rds")
+mskinv_T <- # 1== LC17 tree cover
+  readRDS("results/R_out/mask_inv_TreeCover_stars.rds")
+
+# Combined masks
+msk_AWU <- # 1==Valid ALOS land without WaterUrban
+  readRDS("results/R_out/mask_ALOS_WaterUrban_stars.rds")
+msk_Ww <- # NA==ALOS mask, LC17 water, and OSM water with 25 m buffer
+  readRDS("results/R_out/mask_ALOS_allwater_raster.rds")
+msk_Ww %>% st_as_stars() %>% saveRDS("results/R_out/mask_ALOS_allwater_stars.rds")
+
+water_polysb <- # OSM water with 25 m buffer
+  st_read('results/masks/vector/osm_water_buff25m.shp')
+sum(units::set_units(st_area(water_polysb), ha))
+
+# Inverse masks
+# In general, inverse masks are created by multipling inverse mask by msk_A
+mskinv_p3 <- # 1== g0>0.3; 0==g0<=0.3; NA=ALOS mask
+  readRDS("results/R_out/mask_inv_ALOSoverpt3_stars.rds")
+mskinv_p2 <- # 1== g0>0.2; 0==g0<=0.2; NA=ALOS mask
+  readRDS("results/R_out/mask_inv_ALOSoverpt2_stars.rds")
+mskinv_WU <- # 1==where WaterUrban overlap valid ALOS values
+  readRDS("results/R_out/mask_inv_ALOS_WU_raster.rds") 
+mskinv_WP <- # 1==where OSM water (no buffer) overlap valid ALOS values
+  readRDS("results/R_out/mask_inv_ALOS_OSMwater_raster.rds")
+mskinv_WPb <- # 1==where OSM water w/ 25 m buffer overlap valid ALOS values
+  readRDS("results/R_out/mask_inv_OSMwater25mbuffer_raster.rds")
+mskinv_WUWPb <- # >0 == where WaterUrban and OSM water 25m overlap valid ALOS land
+  readRDS("results/R_out/mask_inv_WUWPb_raster.rds")
+
 # Report starting number of NAs
 df_mskA <- readRDS('results/R_out/mask_pcts.rds')
 df_LCcounts <- readRDS('results/R_out/lc_ALOS_pixel_counts_tbl.rds')
 
-# ALOS Normal mask
-msk_A <- readRDS("results/R_out/mask_ALOS_raster.rds")
+# Get counts from mostly inverse masks
+(lnd <- sum(msk_land[[1]]==1, na.rm=TRUE))
+(wu <- sum(mskinv_WU[[1]]==1, na.rm=TRUE))
+(wp <- sum(getValues(mskinv_WP)==1, na.rm=TRUE))
+(wpb <- sum(getValues(mskinv_WPb)==1, na.rm=TRUE)) 
+(wuwpb <- sum(mskinv_WUWPb[[1]]>0, na.rm=TRUE))
 
-# Load LC 
-lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
-
-# Mask out WaterUrban from land
-msk_WU <- lc; rm(lc)
-msk_WU[msk_WU<3] <- NA
-msk_WU[!is.na(msk_WU)] <- 1
-msk_WU %>% saveRDS("results/R_out/mask_WaterUrban_raster.rds")
-msk_WU <- readRDS("results/R_out/mask_WaterUrban_raster.rds")
-
-# Combine ALOS and WaterUrban masks
-msk_AWU <- msk_WU*msk_A
-msk_AWU %>% saveRDS("results/R_out/mask_ALOS_WaterUrban_raster.rds")
-msk_AWU <- readRDS("results/R_out/mask_ALOS_WaterUrban_raster.rds")
-
-plot(msk_AWU[1, 11000:14000, 7000:9000])
-
-# Create masks based on backscatter values
-g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
-
-# Create mask of >0.3
-create_inverse_mask_at_threshold <- function(r, threshold, gt=TRUE, filename=NULL){
-  if (gt) {
-    r[r <= threshold] <- 0
-    r[r > threshold] <- 1
-  } else {
-    r[r < threshold] <- 1
-    r[r >= threshold] <- 0
-  }
-  if (filename) r %>% saveRDS(filename)
-}
-msk_p3 <- create_inverse_mask_at_threshold(
-  g0, 0.3, "results/R_out/mask_ALOS_g0overp3inverse_raster.rds"
-  )
-msk_p3 <- g0
-msk_p3[msk_p3<=0.3] <- 0
-msk_p3[msk_p3>0.3] <- 1
-msk_p3 %>% saveRDS("results/R_out/mask_ALOS_g0overp3inverse_raster.rds")
-msk_p3 <- readRDS("results/R_out/mask_ALOS_g0overp3inverse_raster.rds")
-(p3 <- sum(msk_p3[[1]]==1, na.rm=TRUE))
-
-# Create mask of >0.3
-msk_p2 <- g0; rm(g0)
-msk_p2[msk_p2<=0.2] <- 0
-msk_p2[msk_p2>0.2] <- 1
-msk_p2 %>% saveRDS("results/R_out/mask_ALOS_g0overp2inverse_raster.rds")
-msk_p2 <- readRDS("results/R_out/mask_ALOS_g0overp2inverse_raster.rds")
-(p2 <- sum(msk_p2[[1]]==1, na.rm=TRUE))
-
-# Create inverse mask for each new mask and then multiple by msk_A
-
-# Get presence of water/urban and then mask with ALOS
-msk_WU <- readRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
-msk_WU[msk_WU==2] <- 1 # Water is already 1 and now urban is as well
-msk_WU[msk_WU!=1] <- NA
-(wu1 <- sum(msk_WU[[1]]==1, na.rm=TRUE))
-mskinv_WU <- msk_WU*msk_A
-(wu0 <- sum(mskinv_WU[[1]]==1, na.rm=TRUE))
-
-plot(mskinv_WU[1, 11000:14000, 7000:9000])
+(tr <- sum(mskinv_T[[1]]==1, na.rm=TRUE))
 
 
 
-
-# Crop g0 to match 
-agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
-msk_u20 <- agb.ras
-msk_u20[msk_u20 < 20] <- 1
-msk_u20[msk_u20 >= 20] <- 0
-msk_u20 %>% saveRDS("results/R_out/mask_AGB_under20_inverse_raster.rds")
-(u20 <- sum(msk_u20[[1]]==1, na.rm=TRUE))
+# Counts
+(u20 <- sum(mskinv_u20[[1]]==1, na.rm=TRUE))
+(u20_noWU <- sum(mskinv_u20_noWU[[1]]==1, na.rm=TRUE))
+msk_u20_T <- msk_u20 * mskinv_T
+(u20_T <- sum(msk_u20_T[[1]]==1, na.rm=TRUE))
 
 # Mask out WU
-msk_WU <- readRDS("results/R_out/mask_WaterUrban_raster.rds")
 msk_u20_noWU <- msk_u20*msk_WU
-(u20_noWU <- sum(msk_u20_noWU[[1]]==1, na.rm=TRUE))
+msk_u20_noWU %>% saveRDS("results/R_out/mask_inv_AGBunder20_WU_stars.rds")
 
-# Look at number of AGB<20 in the tree cover class
-lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
-# Mask out all but forest
-msk_Tinv <- lc; rm(lc)
-msk_Tinv[msk_Tinv!=4] <- 0
-msk_Tinv[msk_Tinv==4] <- 1
-
-msk_u20_T <- msk_u20*msk_Tinv
-plot(msk_Tinv[1, 11000:14000, 7000:9000])
-
-(u20_T <- sum(msk_u20_T[[1]]==1, na.rm=TRUE))
-(T <- sum(msk_Tinv[[1]]==1, na.rm=TRUE))
+# Combine all masks
+msk_Ap3_WU_wb <- msk_WU * msk_p3 * msk_Aw 
+msk_Ap3_WU_wb %>% saveRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_stars.rds')
+msk_Ap3_WU_wb_u20 <- msk_Ap3_WU_wb * msk_u20
+msk_Ap3_WU_wb_u20 %>% saveRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds')
 
 
 
+# PLOT using tmap (interactive) ----############################################
+test_ext <- extent(-72.7, -72.5, 18.2, 18.35)
+tmap_mode("view")
 
-# agb.ras[agb.ras > 310] <- NA
-# agb.ras[agb.ras < 20] <- NA
-# agb.ras <- raster("results/tifs_by_R/agb18_haiti_v6_0to310.tif")
-agb.20to310 <- agb.ras[agb.ras < 20] <- NA
+# Crop for testing
+bb <- st_bbox(c(xmin=-72.68, xmax=-72.51, ymin=18.22, ymax=18.32)) %>% 
+  st_as_sfc()
+st_crs(bb) <- 4326
+
+# View some masks
+tm_shape(msk_Ap3_WU_wb[bb]) + tm_raster() +
+  tm_shape(msk_Ap3_WU_wb_u20[bb]) + tm_raster() +
+  tm_shape(water_polysb) + tm_borders()
+
+# View some masks
+tm_shape(crop(msk_Ap3_WU_wb, test_ext)) + tm_raster() +
+  tm_shape(crop(msk_Ap3_WU_wb_u20, test_ext)) + tm_raster() +
+  tm_shape(water_polysb) + tm_borders()
+
+# Layers
+lyr_g0 <- tm_shape(crop(g0, test_ext)) + 
+  tm_raster(style="order",
+            # breaks=seq(0, 0.1, 0.02), 
+            palette=palette(hcl.colors(8, "viridis")))
+lyr_water <- 
+  tm_shape(water_polys) + 
+  tm_borders() + 
+  tm_fill(col="cyan") 
+lyr_waterB <- tm_shape(water_polysb) + tm_borders() 
+
+# Map
+(map_g0w <- lyr_g0 + lyr_water + lyr_waterB)
+
 
 # Look at AGB distributions ---- ###################################################
 agb.br <- brick(raster("results/agb/agb_2018_v6_mask2share.tif"),

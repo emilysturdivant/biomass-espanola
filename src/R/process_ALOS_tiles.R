@@ -9,14 +9,15 @@ library(rgdal)
 library(here)
 library(gdalUtils)
 library(here)
+library(stars)
 
-# Merge Gamma0 backscatter tiles produced by biota ----
+# Merge ALOS backscatter tiles (Gamma0) produced by biota ----
 year <- 2018
 mosaic_rasters(list.files(path='results/g0nu_HV/Gamma0_lee', pattern='.tif', full.names = TRUE), 
                str_c('results/g0nu_HV/g0nu_', year, '_HV_lee.tif'), 
                projwin=c(-74.48133, 20.09044, -68.32267, 17.47022))
 
-# Merge ALOS mosaic rasters ----
+# Merge supplemental ALOS mosaic rasters ----
 merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
   # List filenames of ALOS mask tiles. Tiles range from 18-21, 68-75. ENVI format.
   fps <- list.files(path=path,
@@ -32,10 +33,6 @@ merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
   }, silent=TRUE)
   rs <- fps %>% lapply(load.crop.na, ext=clip_poly)
   # Remove any that threw error (don't overlap with the polygon)
-  # l <- vector(mode="logical", length(rs))
-  # for(i in seq(1, length(rs))){
-  #   if(class(rs[[i]])=='try-error') l[i] <- TRUE
-  # }
   l <- lapply(function(r) if(class(r) == 'try-error') {l <- TRUE} else {l <- FALSE})
   # Merge the tiles
   dn <- do.call(merge, rs[!l])
@@ -46,8 +43,10 @@ merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
 isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
 isl_poly <- readOGR(dsn=here("data", "Hispaniola"), layer='Hisp_adm0')
 isl_poly <- readOGR(dsn="results/masks/vector", layer='hisp18_maskLand_clean')
-isl_poly <- sf::st_read("results/masks/vector/hisp18_maskLand_clean.shp")
 sum(area(isl_poly))/1000000
+isl_poly <- sf::st_read("results/masks/vector/hisp18_maskLand_clean.shp")
+sum(units::set_units(st_area(isl_poly), ha))
+
 
 
 
@@ -103,6 +102,7 @@ msk_A <- read_stars('results/tifs_by_R/hisp18_mask.tif')
 msk_A[msk_A<254] <- NA
 msk_A[!is.na(msk_A)] <- 1
 msk_A %>% saveRDS("results/R_out/mask_ALOS_raster.rds")
+msk_A %>% as("Raster") %>% writeRaster("results/masks/mask_ALOS18.tif")
 
 # Barplot
 (bp <- ggplot(df, aes(x="", y=value, fill=group))+
@@ -121,8 +121,196 @@ g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_crop.tif")
 g0[g0==0] <- NA
 g0 %>% write_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 
+# Make masks (Hispaniola extent) ----##############################################
+# Load LC17 masked to ALOS land 
+lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
 
-# Crop backscatter to Haiti extent ----
+# WaterUrban mask
+msk_WU <- lc
+msk_WU[msk_WU<3] <- NA
+msk_WU[!is.na(msk_WU)] <- 1
+msk_WU %>% saveRDS("results/R_out/mask_WaterUrban_stars.rds")
+
+# Mask out all but forest
+mskinv_T <- lc
+mskinv_T[mskinv_T!=4] <- NA
+mskinv_T[mskinv_T==4] <- 1
+mskinv_T %>% saveRDS("results/R_out/mask_inv_TreeCover_stars.rds")
+
+# Mask out Bareland
+msk_B <- lc
+msk_B[msk_B!=3] <- 1
+msk_B[msk_B==3] <- NA
+msk_B %>% saveRDS("results/R_out/mask_Bareland_stars.rds")
+
+# Presence (Inverse mask) of LC17 Water
+mskinv_W <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
+mskinv_W[mskinv_W!=1] <- NA
+mskinv_W %>% saveRDS("results/R_out/mask_inv_ALOS_Water_raster.rds")
+
+# Combine ALOS and WaterUrban masks
+msk_A <- readRDS("results/R_out/mask_ALOS_stars.rds")
+msk_A %>% as("Raster") %>% writeRaster("results/masks/mask_ALOS18.tif")
+
+msk_AWU <- msk_WU * msk_A
+msk_AWU %>% saveRDS("results/R_out/mask_ALOS_WaterUrban_stars.rds")
+
+# Presence (Inverse mask) of LC17 Water/Urban with ALOS mask applied
+msk_WU <- lc
+msk_WU[msk_WU==2] <- 1 # Water is already 1 and now urban is as well
+msk_WU[msk_WU!=1] <- NA
+mskinv_WU <- msk_WU*msk_A
+mskinv_WU %>% # 1==where WaterUrban overlap valid ALOS values
+  saveRDS("results/R_out/mask_inv_ALOS_WU_raster.rds") 
+
+# Create water mask from OSM polygons with 25 m buffer
+# Create OSM water with 25 m buffer
+st_read('data/contextual_data/OSM_free/gis_osm_water_a_free_1.shp') %>% 
+  st_transform(32618) %>% 
+  st_buffer(dist = 25) %>% 
+  summarize() %>% 
+  st_transform(4326) %>% 
+  st_write('results/masks/vector/osm_water_buff25m.shp', append=FALSE)
+water_polysb <- st_read('results/masks/vector/osm_water_buff25m.shp')
+
+# Water from OSM polygons
+water_polys <- st_read('data/contextual_data/OSM_free/gis_osm_water_a_free_1.shp')
+mskinv_WP <- msk_A %>% 
+  as("Raster") %>% 
+  mask(water_polys, inverse=FALSE)
+mskinv_WP %>% saveRDS("results/R_out/mask_inv_ALOS_OSMwater_raster.rds")
+
+# Water from OSM polygons with 25 m buffer
+mskinv_WPb <- msk_A %>% 
+  as("Raster") %>% 
+  mask(water_polysb, inverse=FALSE)
+mskinv_WPb %>% saveRDS("results/R_out/mask_inv_OSMwater25mbuffer_raster.rds")
+
+# Create inverse mask of WU and OSM water 25 m
+mskinv_WU <- mskinv_WU %>% as("Raster")
+mskinv_WPb <- mskinv_WPb %>% st_as_stars()
+mskinv_WUWPb <- mskinv_WU + mskinv_WPb
+mskinv_WUWPb %>% saveRDS("results/R_out/mask_inv_WUWPb_raster.rds")
+
+# Mask all water
+msk_W <- # Initialize mask
+  readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
+msk_W[msk_W==1] <- NA
+msk_W[!is.na(msk_W)] <- 1
+msk_W %>% saveRDS("results/R_out/mask_WaterLC17_stars.rds")
+msk_Ww <- msk_W %>% 
+  as("Raster") %>% 
+  mask(water_polysb, inverse=TRUE) %>% 
+  st_as_stars()
+msk_Ww %>% saveRDS("results/R_out/mask_allwater_stars.rds")
+
+# Mask OSM water 25 (add to ALOS mask)
+msk_A <- # 1==Normal (i.e. valid) ALOS land pixels
+  readRDS("results/R_out/mask_ALOS_stars.rds") 
+msk_Aw <- msk_A %>% 
+  as("Raster") %>% 
+  mask(water_polysb, inverse=TRUE) %>% 
+  st_as_stars()
+msk_Aw %>% saveRDS("results/R_out/mask_ALOS_OSMwater25_stars.rds")
+
+# Try to mask with stars - too slow
+msk_w <- msk_A[water_polysb, crop=FALSE]
+msk_wb <- msk_w
+msk_wb[msk_w==1] <- NA
+msk_wb[is.na(msk_w)] <- 1
+msk_wb %>% saveRDS("results/R_out/mask_OSMwater25_stars.rds")
+
+# Crop for testing
+bb <- st_bbox(c(xmin=-72.68, xmax=-72.51, ymin=18.22, ymax=18.32)) %>% 
+  st_as_sfc()
+st_crs(bb) <- 4326
+msk_Ac <- msk_A[bb]
+
+# Create mask of backscatter >0.3
+msk_p3 <- # Initialize mask
+  read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+msk_p3[msk_p3>0.3] <- NA
+msk_p3[msk_p3<=0.3] <- 1
+msk_p3 %>% saveRDS("results/R_out/mask_ALOSoverpt3_stars.rds")
+
+# Create inverse mask of backscatter >0.3
+mskinv_p3 <- # Initialize mask
+  read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+mskinv_p3[mskinv_p3<=0.3] <- 0
+mskinv_p3[mskinv_p3>0.3] <- 1
+mskinv_p3 %>% saveRDS("results/R_out/mask_inv_ALOSoverpt3_stars.rds")
+(p3 <- sum(mskinv_p3[[1]]==1, na.rm=TRUE))
+
+# Create inverse mask of >0.2
+mskinv_p2 <- g0; rm(g0)
+mskinv_p2[mskinv_p2<=0.2] <- 0
+mskinv_p2[mskinv_p2>0.2] <- 1
+mskinv_p2 %>% saveRDS("results/R_out/mask_inv_ALOSoverpt2_stars.rds")
+(p2 <- sum(mskinv_p2[[1]]==1, na.rm=TRUE))
+
+# Test alternate ways of storing...
+masks <- c(msk_land, msk_A, along=3)
+names(masks)
+
+masks <- stack(raster("results/masks/hisp18_maskLand.tif"), 
+               raster("results/masks/mask_ALOS18.tif"))
+names(masks) <- c('land', 'alos')
+masks %>% saveRDS('results/R_out/masks_land_ALOS_rstack.rds')
+
+# PLOT using tmap (interactive) ----############################################
+test_ext <- extent(-72.7, -72.5, 18.2, 18.35)
+tmap_mode("view")
+
+# View masks
+tm_shape(crop(msk_W, test_ext)) + tm_raster() +
+  tm_shape(crop(msk_Aw, test_ext)) + tm_raster() +
+  tm_shape(water_polysb) + tm_borders()
+
+# Layers
+lyr_g0 <- tm_shape(crop(g0, test_ext)) + 
+  tm_raster(style="order",
+            # breaks=seq(0, 0.1, 0.02), 
+            palette=palette(hcl.colors(8, "viridis")))
+lyr_water <- 
+  tm_shape(water_polys) + 
+  tm_borders() + 
+  tm_fill(col="cyan") 
+lyr_waterB <- tm_shape(water_polysb) + tm_borders() 
+lyr_waterlc <- tm_shape(msk_W) + tm_raster()
+
+# Map
+(map_g0w <- lyr_g0 + lyr_waterlc + lyr_water + lyr_waterB)
+
+# PLOT with ggplot ----############################################
+g0c %>% 
+  rasterToPoints() %>% 
+  data.frame() %>% 
+  mutate(cuts = cut(backscatter, breaks=seq(0, 0.1, 0.02))) %>% 
+  
+  ggplot() + 
+  geom_tile(aes(x=x,y=y,fill=cuts)) + 
+  scale_fill_brewer(type = "seq", palette = "YlGn") +
+  coord_equal() +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank()) +
+  xlab("Longitude") + ylab("Latitude")
+# + geom_sf(data=water_polys, fill='blue') 
+
+g0m %>% 
+  # convert raster to point dataframe for ggplot
+  rasterToPoints() %>% 
+  data.frame() %>% 
+  mutate(cuts = cut(backscatter, breaks=seq(0, 0.1, 0.02))) %>% 
+  # use geom_tile to plot DF
+  ggplot() + 
+  geom_tile(aes(x=x, y=y, fill=cuts)) + 
+  scale_fill_brewer(type = "seq", palette = "YlGn") +
+  coord_equal() +
+  # theme_bw() +
+  theme(panel.grid.major = element_blank()) +
+  xlab("Longitude") + ylab("Latitude")
+
+# Crop backscatter to Haiti extent ----###########################################
 # Load files
 g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
 hti_poly <- readOGR(dsn="data/contextual_data/HTI_adm", layer='HTI_adm0')

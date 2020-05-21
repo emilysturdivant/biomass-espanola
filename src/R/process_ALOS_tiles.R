@@ -1,3 +1,15 @@
+# *************************************************************************************************
+# Script to:
+#     * Process ALOS mosaic tiles - load mosaic supplemental rasters, merge tiles, make masks
+# Preceeds:
+#     * calculate_AGB.R - calculates AGB by plot from field data
+# Requires:
+#     * downloaded ALOS mosaic tiles (currently performed with biota in command line)
+#     * study area polygons
+#
+# *************************************************************************************************
+
+# Load libraries
 #library(silvr)
 library(readr)
 library(raster)
@@ -5,10 +17,8 @@ library(tidyverse)
 library(ggridges)
 library(rgdal)
 library(tmap)
-library(rgdal)
 library(here)
 library(gdalUtils)
-library(here)
 library(stars)
 
 # Merge ALOS backscatter tiles (Gamma0) produced by biota ----
@@ -121,6 +131,26 @@ g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_crop.tif")
 g0[g0==0] <- NA
 g0 %>% write_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 
+# Make DF ----
+# Load rasters
+lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
+g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+agb <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+alos <- read_stars('results/tifs_by_R/hisp18_mask.tif')
+
+
+
+cell_numbers = g0
+cell_numbers[[1]][] = 1:length(cell_numbers[[1]])
+df <- 
+  tibble(cell=as.vector(cell_numbers[[1]]),
+         g0=as.vector(g0[[1]]) %>% round(4), 
+         agb=as.vector(agb.ras[[1]]) %>% round(1),
+         slope=as.vector(slp[[1]]) %>% round(1), 
+         aspect=as.vector(asp[[1]]) %>% round(1)) %>% 
+  filter(!is.na(g0)) 
+df %>% saveRDS("results/R_out/df_srtm_g0agb.rds")
+
 # Make masks (Hispaniola extent) ----##############################################
 # Load LC17 masked to ALOS land 
 lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
@@ -186,6 +216,19 @@ mskinv_WPb <- msk_A %>%
   mask(water_polysb, inverse=FALSE)
 mskinv_WPb %>% saveRDS("results/R_out/mask_inv_OSMwater25mbuffer_raster.rds")
 
+water_polysb <- st_read('results/masks/vector/osm_water_buff25m.shp')
+msk_wb = g0
+msk_wb[[1]][] = 1
+msk_wb <- msk_wb %>% 
+  as("Raster") %>% 
+  mask(water_polysb, inverse=TRUE) %>% 
+  st_as_stars()
+names(msk_wb) <- 'Mask'
+# View masks
+tm_shape(msk_wb[test_bb]) + tm_raster(col='Mask', palette='red') +
+  tm_shape(water_polysb) + tm_borders()
+
+
 # Create inverse mask of WU and OSM water 25 m
 mskinv_WU <- mskinv_WU %>% as("Raster")
 mskinv_WPb <- mskinv_WPb %>% st_as_stars()
@@ -241,21 +284,20 @@ mskinv_p3[mskinv_p3>0.3] <- 1
 mskinv_p3 %>% saveRDS("results/R_out/mask_inv_ALOSoverpt3_stars.rds")
 (p3 <- sum(mskinv_p3[[1]]==1, na.rm=TRUE))
 
+# Create inverse mask of backscatter >0.29
+mskinv_p29 <- # Initialize mask
+  read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+mskinv_p29[mskinv_p29<=0.29] <- NA
+mskinv_p29[mskinv_p29>0.29] <- 1
+mskinv_p29 %>% saveRDS("results/R_out/mask_inv_ALOSoverpt29_stars.rds")
+(p29 <- sum(mskinv_p29[[1]]==1, na.rm=TRUE))
+
 # Create inverse mask of >0.2
 mskinv_p2 <- g0; rm(g0)
 mskinv_p2[mskinv_p2<=0.2] <- 0
 mskinv_p2[mskinv_p2>0.2] <- 1
 mskinv_p2 %>% saveRDS("results/R_out/mask_inv_ALOSoverpt2_stars.rds")
 (p2 <- sum(mskinv_p2[[1]]==1, na.rm=TRUE))
-
-# Test alternate ways of storing...
-masks <- c(msk_land, msk_A, along=3)
-names(masks)
-
-masks <- stack(raster("results/masks/hisp18_maskLand.tif"), 
-               raster("results/masks/mask_ALOS18.tif"))
-names(masks) <- c('land', 'alos')
-masks %>% saveRDS('results/R_out/masks_land_ALOS_rstack.rds')
 
 # PLOT using tmap (interactive) ----############################################
 test_ext <- extent(-72.7, -72.5, 18.2, 18.35)
@@ -310,9 +352,37 @@ g0m %>%
   theme(panel.grid.major = element_blank()) +
   xlab("Longitude") + ylab("Latitude")
 
+# Look at biota Lee filter ----###########################################
+g0lee <- read_stars('results/g0nu_HV/Gamma0_lee/Gamma0_2018_N19W075.tif')
+g0agg <- read_stars('results/g0nu_HV/g0nu_2018_haiti_agg50m.tif')
+st_bbox(g0lee)
+
+# bounding box to crop for testing
+test_bb <- st_bbox(c(xmin=-74.05, xmax=-74, ymin=18.32, ymax=18.38)) %>% 
+  st_as_sfc()
+st_crs(test_bb) <- 4326
+parks_hti <- # Parks for context
+  st_read('data/contextual_data/OSM_free/hti_nature_reserves_osm.shp')
+
+names(mskinv_p29) <- 'Mask'
+
+# Look at map (small area)
+tmap_mode("view")
+tm_shape(g0lee[test_bb]) + tm_raster(style="order", palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(g0[test_bb]) + tm_raster(style="order", palette=palette(hcl.colors(8, "viridis")))
+tm_shape(g0lee[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(g0agg[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(g0[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(mskinv_p3[test_bb]) + tm_raster(col="Mask", palette=c("red", "white")) +
+  tm_shape(mskinv_p29[test_bb]) + tm_raster(col="Mask", palette="red") +
+  tm_shape(parks_hti) + tm_borders()
+
+
 # Crop backscatter to Haiti extent ----###########################################
 # Load files
+g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
+
 hti_poly <- readOGR(dsn="data/contextual_data/HTI_adm", layer='HTI_adm0')
 isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
 

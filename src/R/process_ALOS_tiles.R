@@ -57,6 +57,10 @@ sum(area(isl_poly))/1000000
 isl_poly <- sf::st_read("results/masks/vector/hisp18_maskLand_clean.shp")
 sum(units::set_units(st_area(isl_poly), ha))
 
+hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0.shp") %>% 
+  st_make_valid(hti_poly)
+hti_poly %>% st_write("data/contextual_data/HTI_adm/HTI_adm0_fix.shp", append=F)
+
 
 
 
@@ -131,7 +135,7 @@ g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_crop.tif")
 g0[g0==0] <- NA
 g0 %>% write_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 
-# Make DF ----
+# Make DF - INCOMPLETE ----
 # Load rasters
 lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
 g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
@@ -151,7 +155,20 @@ df <-
   filter(!is.na(g0)) 
 df %>% saveRDS("results/R_out/df_srtm_g0agb.rds")
 
-# Make masks (Hispaniola extent) ----##############################################
+# Crop WorldClim rasters -------------------------------------------------------------------
+bb <- st_bbox(g0) #te=c(xmin,ymin,xmax,ymax)
+srclist <- list.files(path='data/WorldClim/monthly_precip_2010_2018', 
+                      pattern='.tif', full.names = TRUE)
+dstlist <- file.path('data', 'WorldClim', 'monthly_precip_hisp', basename(srclist))
+
+for (i in seq_along(srclist)) {
+  gdalwarp(srcfile=srclist[[i]], 
+           dstfile=dstlist[[i]], 
+           te=bb, 
+           overwrite=T)
+}
+
+# Make masks (Hispaniola extent) ------------------------------------------------------------
 # Load LC17 masked to ALOS land 
 lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
 
@@ -172,6 +189,18 @@ msk_B <- lc
 msk_B[msk_B!=3] <- 1
 msk_B[msk_B==3] <- NA
 msk_B %>% saveRDS("results/R_out/mask_Bareland_stars.rds")
+
+# Mask out all but grassland and shrubs
+mskinv_GS <- lc
+mskinv_GS[mskinv_GS<5] <- NA
+mskinv_GS[mskinv_GS>4] <- 1
+mskinv_GS %>% saveRDS("results/R_out/mask_inv_GrasslandShrubs_stars.rds")
+
+# Mask out all but tree cover, grassland and shrubs
+mskinv_GS <- lc
+mskinv_GS[mskinv_GS<4] <- NA
+mskinv_GS[mskinv_GS>3] <- 1
+mskinv_GS %>% saveRDS("results/R_out/mask_inv_LC17_vegTreeCGrasslandShrubs_stars.rds")
 
 # Presence (Inverse mask) of LC17 Water
 mskinv_W <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
@@ -353,9 +382,14 @@ g0m %>%
   xlab("Longitude") + ylab("Latitude")
 
 # Look at biota Lee filter ----###########################################
+g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 g0lee <- read_stars('results/g0nu_HV/Gamma0_lee/Gamma0_2018_N19W075.tif')
 g0agg <- read_stars('results/g0nu_HV/g0nu_2018_haiti_agg50m.tif')
-st_bbox(g0lee)
+
+mskinv_p3 <- readRDS("results/R_out/mask_inv_ALOSoverpt3_stars.rds")
+mskinv_p29 <- readRDS("results/R_out/mask_inv_ALOSoverpt29_stars.rds")
+names(mskinv_p29) <- 'Mask'
+names(mskinv_p3) <- 'Mask'
 
 # bounding box to crop for testing
 test_bb <- st_bbox(c(xmin=-74.05, xmax=-74, ymin=18.32, ymax=18.38)) %>% 
@@ -364,18 +398,16 @@ st_crs(test_bb) <- 4326
 parks_hti <- # Parks for context
   st_read('data/contextual_data/OSM_free/hti_nature_reserves_osm.shp')
 
-names(mskinv_p29) <- 'Mask'
-
 # Look at map (small area)
 tmap_mode("view")
-tm_shape(g0lee[test_bb]) + tm_raster(style="order", palette=palette(hcl.colors(8, "viridis"))) +
-  tm_shape(g0[test_bb]) + tm_raster(style="order", palette=palette(hcl.colors(8, "viridis")))
 tm_shape(g0lee[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
   tm_shape(g0agg[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
   tm_shape(g0[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
   tm_shape(mskinv_p3[test_bb]) + tm_raster(col="Mask", palette=c("red", "white")) +
   tm_shape(mskinv_p29[test_bb]) + tm_raster(col="Mask", palette="red") +
   tm_shape(parks_hti) + tm_borders()
+tm_shape(g0lee[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(g0[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(hcl.colors(8, "viridis")))
 
 
 # Crop backscatter to Haiti extent ----###########################################

@@ -193,14 +193,76 @@ ct_treecover/land_ct
 tc_o132 <- treecover_masked * msk_o132
 (pct_tc_o132 = (sum(is.na(tc_o132[[1]])) - nanct2_treecover) / ct_treecover)
 
+# Look at values in Grassland, Shrubs
+mskinv_GS <- # 1== LC17 grassland and shrubs
+  readRDS("results/R_out/mask_inv_GrasslandShrubs_stars.rds")
+msk_default <- # NA==ALOS mask, LC17 water and urban, OSM water 25 m buffer, AGB<20
+  readRDS("results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds")
+msk_o132 <- 
+  readRDS("results/R_out/mask_AGB_over132_stars.rds")
 
+GS_masked <- mskinv_GS * msk_default
+ct_GS <- sum(mskinv_GS[[1]]==1, na.rm=T)
+nanct_GS <- sum(is.na(mskinv_GS[[1]]))
+nanct2_GS <- sum(is.na(GS_masked[[1]]))
+ct_GS/land_ct
+(pct_tc = (sum(is.na(GS_masked[[1]])) - nanct_GS) / ct_GS)
 
+GS_o132 <- GS_masked * msk_o132
+(pct_GS_o132 = (sum(is.na(GS_o132[[1]])) - nanct2_GS) / ct_GS)
 
-# Counts
-(u20 <- sum(mskinv_u20[[1]]==1, na.rm=TRUE))
-(u20_noWU <- sum(mskinv_u20_noWU[[1]]==1, na.rm=TRUE))
-msk_u20_T <- msk_u20 * mskinv_T
-(u20_T <- sum(msk_u20_T[[1]]==1, na.rm=TRUE))
+# Look at values in Tree Cover, Grassland, Shrubs
+mskinv_GS[is.na(mskinv_GS)] <- 0
+mskinv_T[is.na(mskinv_T)] <- 0
+mskinv_veg <- mskinv_T + mskinv_GS
+mskinv_veg[mskinv_veg==0] <- NA
+mskinv_veg %>% saveRDS("results/R_out/mask_inv_LC17_vegTGS_stars.rds")
+
+ct1 <- sum(mskinv_veg[[1]]==1, na.rm=T)
+nanct <- sum(is.na(mskinv_veg[[1]]))
+
+veg_masked <- mskinv_veg * msk_default
+nanct2 <- sum(is.na(veg_masked[[1]]))
+ct1/land_ct
+(pct_tc = (nanct2 - nanct) / ct1)
+
+veg_o132 <- veg_masked * msk_o132
+(pct_veg_o132 = (sum(is.na(veg_o132[[1]])) - nanct2) / ct1)
+
+# Write function ----
+get_counts <- function(valuesraster, msk_zone, msk_0, threshold=132){
+  
+  # Convert rasters to DF
+  df <- 
+    tibble(zone=as.vector(msk_zone[[1]]),
+           agb=as.vector(valuesraster[[1]]) %>% round(4), 
+           mask=as.vector(msk_0[[1]])) %>% 
+    filter(!is.na(zone)) 
+  total = length(df[[1]])
+  # Filter by mask
+  df1 <- df %>% filter(!is.na(mask))
+  total1 = length(df1[[1]])
+  # Filter by (upper) threshold value
+  df2 <- df1 %>% filter(!agb > threshold)
+  total2 = length(df2[[1]])
+  # Tally it up
+  cts_df <- tibble(
+    masked = total-total1,
+    over_thresh = total1-total2,
+    valid=total2
+    ) %>% 
+    pivot_longer(everything()) %>% 
+    mutate(pct = value/sum(value))
+}
+df <- get_counts(agb.ras, mskinv_GS, msk_default, 132)
+
+# Barplot
+(bp <- ggplot(df, aes(x="", y=value, fill=group))+
+    geom_bar(width = 1, stat = "identity")+ 
+    scale_fill_manual(values=c("#E69F00", "#999999", "#999000")) +
+    theme_minimal())
+(pie <- bp + coord_polar("y", start=0))
+
 
 # Mask out WU
 msk_u20_noWU <- msk_u20 * msk_WU
@@ -212,6 +274,9 @@ mskinv_u20_noWU <- # 1== AGB<20 with ALOS and WaterUrban masks applied
 msk_Ap3_WU_wb <- msk_WU * msk_p3 * msk_Aw 
 msk_Ap3_WU_wb %>% 
   saveRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_stars.rds')
+msk_Ap3_WU_wb <- 
+  readRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_stars.rds')
+
 msk_Ap3_WU_wb_u20 <- msk_Ap3_WU_wb * msk_u20
 msk_Ap3_WU_wb_u20 %>% 
   saveRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds')
@@ -221,6 +286,10 @@ agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
 msk_Ap3_WU_wb_u20 <- 
   readRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds')
 
+agb_mskd <- agb.ras * msk_Ap3_WU_wb
+agb_mskd %>% as("Raster") %>% 
+  writeRaster('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25.tif')
+
 agb_mskd <- agb.ras * msk_Ap3_WU_wb_u20
 agb_mskd %>% as("Raster") %>% 
   writeRaster('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
@@ -229,6 +298,13 @@ agb_mskd2 <- agb_mskd * msk_o310
 agb_mskd2 %>% as("Raster") %>% 
   writeRaster('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20o310.tif')
 agb_mskd2 <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20o310.tif')
+
+# Apply value cap to AGB ----#######################################################
+agb_sat <- agb_mskd
+agb_sat <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
+
+saturation_pt <- 250
+agb_sat[agb_sat > saturation_pt] <- saturation_pt
 
 # PLOT using tmap (interactive) ----############################################
 # Load contextual data for mapping
@@ -251,10 +327,6 @@ names(mskinv_o275) <- 'Mask'
 tm_shape(agb_mskd2[test_bb]) + tm_raster() +
   tm_shape(mskinv_o275[test_bb]) + tm_raster(col="Mask", palette="red") +
   tm_shape(parks_hti) + tm_borders()
-
-style="order",
-# breaks=seq(0, 0.1, 0.02), 
-palette=palette(hcl.colors(7, "viridis"))
 
 # Layers
 lyr_g0 <- tm_shape(crop(g0, test_ext)) + 

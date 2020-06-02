@@ -17,6 +17,67 @@ library(raster)
 library(tidyverse)
 library(stars)
 library(tmap)
+library(gdalUtils)
+
+# Load SRTM DEM and reproject and resample to match AGB ------------------------------------
+agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+
+fp_crop <- "data/SRTM/dem_1arc_hisp.tif"
+gdalwarp(srcfile="data/SRTM/dem_1arc_utm18n.tif", 
+         dstfile=fp_crop, 
+         t_srs=st_crs(agb.ras)$proj4string,
+         te=st_bbox(agb.ras), 
+         overwrite=T, verbose=T)
+dem <- read_stars(fp_crop)
+demr1 <- dem %>% st_warp(agb.ras, method="bilinear", use_gdal=TRUE)
+
+fp_crop <- "data/SRTM/dem_1arc_resamp.tif"
+gdalwarp(srcfile="data/SRTM/dem_1arc_utm18n.tif", 
+         dstfile=fp_crop, 
+         t_srs=st_crs(agb.ras)$proj4string,
+         te=st_bbox(agb.ras), 
+         tr=c(st_dimensions(agb.ras)$x$delta, st_dimensions(agb.ras)$y$delta),
+         r='bilinear',
+         overwrite=T, verbose=T)
+
+
+demr <- read_stars("data/SRTM/dem_1arc_resamp.tif")
+demr
+
+get_neighbors = function(m, pos) {
+  i = (pos[1]-1):(pos[1]+1)
+  j = (pos[2]-1):(pos[2]+1)
+  as.vector(t(m[i, j]))
+}
+focal2 = function(r, fun, ...) {
+  template = r
+  input = t(template[[1]])
+  output = matrix(NA, nrow = nrow(input), ncol = ncol(input))
+  for(i in 2:(nrow(input) - 1)) {
+    for(j in 2:(ncol(input) - 1)) {
+      v = get_neighbors(input, c(i, j))
+      output[i, j] = fun(v, ...)
+    }
+  }
+  template[[1]] = t(output)
+  return(template)
+}
+slope = function(x, res) {
+  dzdx = ((x[3] + 2*x[6] + x[9]) - (x[1] + 2*x[4] + x[7])) / (8 * res)
+  dzdy = ((x[7] + 2*x[8] + x[9]) - (x[1] + 2*x[2] + x[3])) / (8 * res)
+  atan(sqrt(dzdx^2 + dzdy^2)) * (180 / pi)
+}
+dem_slope = focal2(dem, slope, res = st_dimensions(dem)$x$delta)
+names(dem_slope) = "slope"
+library(units)
+dem_slope[[1]] = set_units(dem_slope[[1]], "degree")
+dem_slope %>% as("Raster") %>% 
+  writeRaster("results/tifs_by_R/dem_slope_focal2.tif")
+dem %>% as("Raster") %>% 
+  terrain(opt='slope', unit='degrees', neighbors=8, 
+          filename="results/tifs_by_R/dem_slope_terrain8.tif")
+slp2 <- read_stars("results/tifs_by_R/dem_slope_terrain8.tif")
+slp1 <- read_stars("results/tifs_by_R/dem_slope_focal2.tif")
 
 # Reproject and resample slope and aspect to match AGB ------------------------------------
 agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")

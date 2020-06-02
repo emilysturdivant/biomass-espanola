@@ -7,7 +7,6 @@
 # Requires:
 #     * backscatter image (g0)
 #     * plot polygons with AGB by plot (plots_agb)
-#
 # *************************************************************************************************
 
 # Load libraries
@@ -166,16 +165,18 @@ plot(ols, las = 1)
 
 # Repeated k-fold cross validation ---- ###########################################################
 fxn.bias <- function(data, lev = NULL, model = NULL) {
-  resids <- data$pred - data$obs
+  # resids <- data$pred - data$obs
+  resids <- residuals(lm(pred ~ obs, data))
   rss <- sum(resids^2)
   n <- length(resids)
   df <- n-2
   mse <- rss / n
-  c(RMSE=sqrt(mse),
-    Rsquared=summary(lm(pred ~ obs, data))$r.squared,
+  c(r.squared=summary(lm(pred ~ obs, data))$r.squared,
+    adj.r.squared=summary(lm(pred ~ obs, data))$adj.r.squared,
+    Bias=abs(sum(resids) / n),
+    RMSE=sqrt(mse),
     MAE=sum(abs(resids)) / n,
     MSE=mse,
-    B=abs(sum(resids) / n),
     RSS=rss,
     MSS=rss/df,
     RSE=sqrt(rss / df))
@@ -193,6 +194,7 @@ model.10000x5 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
                                                 number = 5, repeats = 10000,
                                                 summaryFunction = fxn.bias))
 model.10000x5 %>% saveRDS("results/R_out/CVmodel_g0nu_10000x5.rds")
+model.10000x5 <- readRDS("results/R_out/CVmodel_g0nu_10000x5.rds")
 
 cv_r <- model.10000x5$results
 cv_r <- as_tibble(cbind(metric = names(cv_r), t(cv_r))) %>% 
@@ -203,8 +205,8 @@ cv_r2 <- cv_r %>%
   filter(str_detect(metric, 'SD$')) %>% 
   select(value) %>% 
   rename(SD=value)
-cv_r <- bind_cols(cv_r1, cv_r2)
-View(cv_r)
+cv_r3 <- bind_cols(cv_r1, cv_r2)
+View(cv_r3)
 View(model.10000x5$results)
 model.10000x5$results[-1]
 mets <- cbind(vals[1], model.10000x5$results[-1]) %>% t()

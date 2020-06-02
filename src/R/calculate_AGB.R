@@ -1,4 +1,17 @@
-# Script where most of the processing happens
+# ---------------------------------------------------------------------------------------------
+# Script to:
+#     * Calculate plot AGB from field inventory data
+# Proceeds:
+#     * python scripts to preprocess field data
+# Preceeds:
+#     * regression_AGB-g0.R - creates AGB map
+# Requires:
+#     * plot outline polygons 
+#     * field data table with plot ID, tree name, DBH, H
+#     * lookup table to match tree names with wood densities
+# ---------------------------------------------------------------------------------------------
+
+# Load libraries
 library(readr)
 library(BIOMASS)
 library(tidyverse)

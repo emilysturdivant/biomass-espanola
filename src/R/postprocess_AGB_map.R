@@ -231,7 +231,6 @@ veg_o132 <- veg_masked * msk_o132
 
 # Write function ----
 get_counts <- function(valuesraster, msk_zone, msk_0, threshold=132){
-  
   # Convert rasters to DF
   df <- 
     tibble(zone=as.vector(msk_zone[[1]]),
@@ -302,9 +301,24 @@ agb_mskd2 <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20o310.tif
 # Apply value cap to AGB ----#######################################################
 agb_sat <- agb_mskd
 agb_sat <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
+saturation_pt <- 132
 
-saturation_pt <- 250
+# Apply saturation point to AGB and save
 agb_sat[agb_sat > saturation_pt] <- saturation_pt
+agb_sat %>% saveRDS('results/R_out/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.rds')
+agb_sat %>% as("Raster") %>% 
+  writeRaster('results/tifs_by_R/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
+
+# Look at test area
+test_bb <- st_bbox(c(xmin=-72.7, xmax=-72.5, ymin=18.2, ymax=18.35), crs=4326) %>% 
+  st_as_sfc()
+tmap_mode("view")
+tm_shape(agb_sat1[test_bb]) + tm_raster() +
+  tm_shape(hti_poly) + tm_borders()
+
+# Look at forest cover based on different thresholds ----###########################
+agb_sat <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
+
 
 # PLOT using tmap (interactive) ----############################################
 # Load contextual data for mapping
@@ -315,9 +329,8 @@ parks_hti <- # OSM water with 25 m buffer
 # extent for raster
 test_ext <- extent(-72.7, -72.5, 18.2, 18.35)
 # bounding box for stars
-test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.17, ymin=18.3, ymax=18.38)) %>% 
+test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.17, ymin=18.3, ymax=18.38), crs=4326) %>% 
   st_as_sfc()
-st_crs(test_bb) <- 4326
 
 # Set tmap to interactive viewing (vs. "plot")
 tmap_mode("view")

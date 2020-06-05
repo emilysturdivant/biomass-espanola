@@ -17,6 +17,8 @@ library(tidyverse)
 library(stars)
 library(tmap)
 library(gdalUtils)
+library(units)
+
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=10000){
@@ -302,9 +304,8 @@ p_esa
 
 # Make crop bounding box/extent for testing
 # bounding box for stars
-test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.17, ymin=18.3, ymax=18.38)) %>% 
+test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.17, ymin=18.3, ymax=18.38), crs=4326) %>% 
   st_as_sfc()
-st_crs(test_bb) <- 4326
 parks_hti <- # Parks for context
   st_read('data/contextual_data/OSM_free/hti_nature_reserves_osm.shp')
 lyr_context <- tm_shape(parks_hti) + tm_borders()
@@ -347,3 +348,91 @@ lyr_avit_diff <- diff_avit[test_bb] %>%
   tm_raster(breaks=seq(-200, 200, 10), palette="RdBu", n=9)
 
 (lyr_agb + lyr_esa + lyr_avit + lyr_esa_diff + lyr_avit_diff + lyr_context)
+
+# Get forest area ---------------------------------------------------------------------------------
+# Function to crop and mask raster to polygon
+crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp){
+  tmp_fp <- tempfile(pattern = sub(pattern = "(.*)\\..*$", replacement = "\\1", basename(in_fp)), 
+                     tmpdir = tempdir(), 
+                     fileext = "tif")
+  # Crop
+  gdalwarp(srcfile=in_fp, 
+           dstfile=tmp_fp, 
+           te=st_bbox(msk_poly), overwrite=T)
+  # Mask
+  msk_land <- raster(tmp_fp)
+  msk_land <- msk_land %>% 
+    mask(msk_poly, inverse=FALSE) 
+  msk_land %>% writeRaster(out_fp, overwrite=T)
+}
+
+# AGB: Crop and mask to Haiti - 
+hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+crop_and_mask_to_polygon('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif', 
+                         hti_poly, 
+                         'results/tifs_by_R/agb18_hti_v1_l1_mask_Ap3WUw25_u20.tif')
+
+# Land mask: Crop and mask to Haiti
+hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+crop_and_mask_to_polygon('results/masks/hisp18_maskLand.tif', 
+                         hti_poly, 
+                         'results/masks/hti18_maskLand_clip2border.tif')
+
+# AGB: Crop and mask to DR
+dr_poly <- st_read("data/contextual_data/DOM_adm/DOM_adm0.shp")
+crop_and_mask_to_polygon('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif', 
+                         dr_poly, 
+                         'results/tifs_by_R/agb18_dr_v1_l1_mask_Ap3WUw25_u20.tif')
+
+# Land mask: Crop and mask to DR
+dr_poly <- st_read("data/contextual_data/DOM_adm/DOM_adm0.shp")
+crop_and_mask_to_polygon('results/masks/hisp18_maskLand.tif', 
+                         dr_poly, 
+                         'results/masks/dr18_maskLand_clip2border.tif')
+
+# Get area and number of pixels in Haiti
+land_area <- sum(st_area(hti_poly))
+units(land_area) <- with(ud_units, ha)
+
+msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
+  read_stars("results/masks/hti18_maskLand_clip2border.tif") 
+ct_land_hti = sum(!is.na(msk_land[[1]]))
+
+# Get number of 'forest' pixels and calculate percent of land and approximate area
+agb_sat <- read_stars('results/tifs_by_R/agb18_hti_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
+ct_valid_agb = sum(!is.na(agb_sat[[1]]))
+# Calculations
+pct_of_land <- ct_valid_agb / ct_land_hti
+est_area <- ct_valid_agb / ct_land_hti * land_area
+
+
+
+# Get area and number of pixels in DR
+land_area_dr <- sum(st_area(dr_poly))
+units(land_area_dr) <- with(ud_units, ha)
+
+msk_land_dr <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
+  read_stars("results/masks/dr18_maskLand_clip2border.tif") 
+ct_land_dr = sum(!is.na(msk_land_dr[[1]]))
+
+# Get number of 'forest' pixels and calculate percent of land and approximate area
+agb_sat <- read_stars('results/tifs_by_R/agb18_dr_v1_l1_mask_Ap3WUw25_u20.tif')
+ct_valid_agb = sum(!is.na(agb_sat[[1]]))
+# Calculations
+land_area_dr
+pct_of_land <- ct_valid_agb / ct_land_dr
+est_area <- ct_valid_agb / ct_land_dr * land_area_dr
+
+
+
+# Apply saturation point to AGB and save
+agb_sat[agb_sat > saturation_pt] <- saturation_pt
+agb_sat %>% saveRDS('results/R_out/agb18_hti_v1_l2_mask_Ap3WUw25_u20_cap132.rds')
+agb_sat %>% as("Raster") %>% 
+  writeRaster('results/tifs_by_R/agb18_hti_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
+
+agb_sat <- raster('results/tifs_by_R/agb18_hti_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
+ct_valid_agb = sum(!is.na(agb_sat1[[1]]))
+           
+           
+           

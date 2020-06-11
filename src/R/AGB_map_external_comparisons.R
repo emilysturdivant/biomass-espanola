@@ -118,8 +118,31 @@ r <- raster(in_fp)
 gdalwarp(srcfile=in_fp, dstfile=bmloss_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
 
 
+# GlobBiomass ----------------------------------------------------------------------------------------
+# Crop GlobBiomass to our Hispaniola extent and convert 0s to NA
+in_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb.tif"
+crop_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_crop.tif"
+r <- raster(in_fp)
+gdalwarp(srcfile=in_fp, dstfile=crop_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+r <- read_stars(crop_fp)
+r[r == 0] <- NA
+r %>% as("Raster") %>%
+  writeRaster("data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif", 
+              options=c("dstnodata=-99999"), overwrite=T)
+
+# Do the same for error (per-pixel uncertainty expressed as standard error in m3/ha)
+in_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_err.tif"
+crop_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_err_crop.tif"
+r <- raster(in_fp)
+gdalwarp(srcfile=in_fp, dstfile=crop_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+r <- read_stars(crop_fp)
+r[r == 0] <- NA
+r %>% as("Raster") %>%
+  writeRaster("data/ext_AGB_maps/GlobBiomass/N40W100_agb_err_cropNA.tif", 
+              options=c("dstnodata=-99999"), overwrite=T)
+
 # ESA ----------------------------------------------------------------------------------------
-# Create cropped version of ESA with NA values (instead of 0s)
+# Crop ESA to our Hispaniola extent and convert 0s to NA
 in_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif"
 esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_crop.tif"
 r <- raster(in_fp)

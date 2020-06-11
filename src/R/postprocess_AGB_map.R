@@ -44,14 +44,14 @@ get_counts <- function(valuesraster, msk_zone, msk_0, threshold=132){
   # Tally it up
   cts_df <- tibble(
     masked = total-total1,
-    str_c('over_',threshold) = total1-total2,
+    over_thresh = total1-total2,
     valid=total2
   ) %>% 
     pivot_longer(everything()) %>% 
     mutate(pct = value/sum(value))
 }
 
-# Work with different versions of AGB  --------------------------------------------------------------------
+# Get values for Haiti: SAGA filter (v3) --------------------------------------------------------------------
 # Load AGB map
 fn_suff <- '_qLee' # filename suffix (from regression_AGB-g0.R)
 agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v3_l0",fn_suff,".tif"))
@@ -61,38 +61,244 @@ msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buff
   readRDS(str_c("results/R_out/mask_AGB_ALOS_WaterUrban_water25_stars",fn_suff,".rds"))
 msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
   read_stars("results/masks/hti18_maskLand_clip2border.tif") 
+mskinv_T <- # 1== LC17 tree cover
+  readRDS("results/R_out/mask_inv_TreeCover_stars.rds")
 
 # set extent and crop
 bb <- st_intersection(st_bbox(agb.ras) %>% st_as_sfc(), 
                       st_bbox(msk_land) %>% st_as_sfc()) %>% 
   st_bbox() %>% as.vector()
 bbex <- extent(bb[c(1,3,2,4)])
+msk_land <- msk_land %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+msk_AWUwb <- msk_AWUwb %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+mskinv_T <- mskinv_T %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
 agb.ras <- agb.ras %>% as("Raster") %>% crop(bbex)
 agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_v3_l0_hti",fn_suff,".tif"))
-msk_land <- msk_land %>% as("Raster") %>% crop(bbex)
-msk_AWUwb <- msk_AWUwb %>% as("Raster") %>% crop(bbex)
-
 agb.ras <- agb.ras %>% st_as_stars()
-msk_land <- msk_land %>% st_as_stars()
-msk_AWUwb <- msk_AWUwb %>% st_as_stars()
+
+agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v3_l0_hti",fn_suff,".tif"))
 
 # AGB <20 mask
 msk_u20 <- agb.ras
 msk_u20[msk_u20 < 20] <- NA
 msk_u20[msk_u20 >= 20] <- 1
 msk_u20 %>% saveRDS(str_c("results/R_out/mask_AGB_under20_stars",fn_suff,"_hti.rds"))
-
-# Count NAs
-df <- get_counts(agb.ras, msk_land, msk_AWUwb, 310)
 msk_AWUwb_u20 <- msk_AWUwb * msk_u20
+
+# g0 >0.3 mask (AGB>316.76)
+msk_p3 <- agb.ras
+msk_p3[msk_p3 > 316.76] <- NA
+msk_p3[msk_p3 <= 316.76] <- 1
+msk_p3 %>% saveRDS(str_c("results/R_out/mask_ALOSoverpt3_stars",fn_suff,"_hti.rds"))
+msk_Ap3WUwb_u20 <- msk_AWUwb_u20 * msk_p3
+
+# Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+agb.r <- agb.ras * msk_Ap3WUwb_u20
+agb.r %>% as("Raster") %>% 
+  writeRaster(str_c("results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti",fn_suff,".tif"), overwrite=T)
+
+agb.r <- read_stars(str_c("results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti",fn_suff,".tif"))
+mn <- mean(agb.r[[1]], na.rm=T)
+ct_valid_pixels <- sum(!is.na(agb.r[[1]]))
+est_area_ha <- (25*25*0.0001) * ct_valid_pixels
+est_total_AGB <- mn * est_area_ha
+
+# Count NAs as percent of all land
+df <- get_counts(agb.ras, msk_land, msk_Ap3WUwb_u20, 310)
+AWUwb <- df %>% filter(name=='masked') %>% select('pct')
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 310)
+AWUwb_u20 <- df %>% filter(name=='masked') %>% select('pct')
+over310 <- df %>% filter(name=='over_thresh') %>% select('pct')
 df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 300)
-df <- get_counts(agb.ras, msk_land, msk_u20, 300)
+over300 <- df %>% filter(name=='over_thresh') %>% select('pct')
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 250)
+over250 <- df %>% filter(name=='over_thresh') %>% select('pct')
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 200)
+over200 <- df %>% filter(name=='over_thresh') %>% select('pct')
 df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 132)
+over132 <- df %>% filter(name=='over_thresh') %>% select('pct')
 
 # get Tree Cover
-df <- get_counts(agb.ras, msk_land, msk_u20, 300)
+df <- get_counts(agb.ras, mskinv_T, msk_u20, 132)
+df <- get_counts(agb.ras, mskinv_T, msk_AWUwb_u20, 132)
 
+# Get values for Haiti: Unfiltered AGB (v1) --------------------------------------------------------------------
+# Load AGB map
+fn_suff <- '' # filename suffix (from regression_AGB-g0.R)
+agb.ras <- raster(str_c("results/tifs_by_R/agb18_v1_l0_htiR",fn_suff,".tif"))
+hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+agb.ras <- agb.ras %>% mask(hti_poly, inverse=FALSE) %>% st_as_stars()
 
+# Load default mask (ALOS, water, and urban)
+msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buffer
+  readRDS(str_c("results/R_out/mask_AGB_ALOS_WaterUrban_water25_stars_qLee.rds"))
+msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
+  read_stars("results/masks/hti18_maskLand_clip2border.tif") 
+mskinv_T <- # 1== LC17 tree cover
+  readRDS("results/R_out/mask_inv_TreeCover_stars.rds")
+
+# set extent and crop
+bb <- st_intersection(st_bbox(agb.ras) %>% st_as_sfc(), 
+                      st_bbox(msk_land) %>% st_as_sfc()) %>% 
+  st_bbox() %>% as.vector()
+bbex <- extent(bb[c(1,3,2,4)])
+msk_land <- msk_land %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+msk_AWUwb <- msk_AWUwb %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+mskinv_T <- mskinv_T %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+agb.ras <- agb.ras %>% as("Raster") %>% crop(bbex)
+agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_v1_l0_hti",fn_suff,".tif"))
+agb.ras <- agb.ras %>% st_as_stars()
+
+agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v1_l0_hti",fn_suff,".tif"))
+
+# AGB <20 mask
+msk_u20 <- agb.ras
+msk_u20[msk_u20 < 20] <- NA
+msk_u20[msk_u20 >= 20] <- 1
+msk_u20 %>% saveRDS(str_c("results/R_out/mask_AGB_under20_stars",fn_suff,"_hti.rds"))
+msk_AWUwb_u20 <- msk_AWUwb * msk_u20
+
+# g0 >0.3 mask (AGB>316.76)
+msk_p3 <- agb.ras
+msk_p3[msk_p3 > 310.02] <- NA
+msk_p3[msk_p3 <= 310.02] <- 1
+msk_p3 %>% saveRDS(str_c("results/R_out/mask_ALOSoverpt3_stars",fn_suff,"_hti.rds"))
+msk_Ap3WUwb_u20 <- msk_AWUwb_u20 * msk_p3
+
+# Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+agb.r <- agb.ras * msk_Ap3WUwb_u20
+agb.r %>% as("Raster") %>% 
+  writeRaster(str_c("results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20_hti",fn_suff,".tif"), overwrite=T)
+
+agb.r <- read_stars(str_c("results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20_hti",fn_suff,".tif"))
+mn <- mean(agb.r[[1]], na.rm=T)
+ct_valid_pixels <- sum(!is.na(agb.r[[1]]))
+est_area_ha <- (25*25*0.0001) * ct_valid_pixels
+est_total_AGB <- mn * est_area_ha
+
+# Count NAs as percent of all land
+df <- get_counts(agb.ras, msk_land, msk_AWUwb, 310)
+(AWUwb <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_Ap3WUwb_u20, 310)
+(Ap3WUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_u20, 310)
+(u20 <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb, 310)
+(o310 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 310)
+(AWUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
+(over310 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 300)
+(over300 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 250)
+(over250 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 200)
+(over200 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 132)
+(over132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+
+# get Tree Cover
+df <- get_counts(agb.ras, mskinv_T, msk_u20, 132)
+(TCu20 <- df %>% filter(name=='masked') %>% select('pct'))
+(TCo132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, mskinv_T, msk_AWUwb_u20, 132)
+(TC_AWUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
+(TCover132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, mskinv_T, mskinv_T, 132)
+(TCo132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, mskinv_T, msk_AWUwb, 132)
+(TC_AWUwb <- df %>% filter(name=='masked') %>% select('pct'))
+
+# Get values for Haiti: Aggregate 50 m (v2) --------------------------------------------------------------------
+# Load AGB map
+fn_suff <- '_agg50m' # filename suffix (from regression_AGB-g0.R)
+agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v2_l0_hti",fn_suff,".tif"))
+t.ras <- read_stars(str_c("results/tifs_by_R/agb18_v1_l0_hti.tif"))
+agb.ras <- agb.ras %>% st_warp(t.ras, method="near", use_gdal=TRUE)
+agb.ras %>% as("Raster") %>% 
+  writeRaster(str_c("results/tifs_by_R/agb18_v2_l0_hti",fn_suff,"_downsample.tif"), overwrite=T)
+
+# Load default mask (ALOS, water, and urban)
+msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buffer
+  readRDS(str_c("results/R_out/mask_AGB_ALOS_WaterUrban_water25_stars_qLee.rds"))
+msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
+  read_stars("results/masks/hti18_maskLand_clip2border.tif") 
+mskinv_T <- # 1== LC17 tree cover
+  readRDS("results/R_out/mask_inv_TreeCover_stars.rds")
+
+# set extent and crop
+bb <- st_intersection(st_bbox(agb.ras) %>% st_as_sfc(), 
+                      st_bbox(msk_land) %>% st_as_sfc()) %>% 
+  st_bbox() %>% as.vector()
+bbex <- extent(bb[c(1,3,2,4)])
+msk_land <- msk_land %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+msk_AWUwb <- msk_AWUwb %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+mskinv_T <- mskinv_T %>% as("Raster") %>% crop(bbex) %>% st_as_stars()
+agb.ras <- agb.ras %>% as("Raster") %>% crop(bbex)
+agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_v2_l0_hti",fn_suff,"_downsample.tif"), overwrite=T)
+agb.ras <- agb.ras %>% st_as_stars()
+
+agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v2_l0_hti",fn_suff,"_downsample.tif"))
+
+# AGB <20 mask
+msk_u20 <- agb.ras
+msk_u20[msk_u20 < 20] <- NA
+msk_u20[msk_u20 >= 20] <- 1
+msk_u20 %>% saveRDS(str_c("results/R_out/mask_AGB_under20_stars",fn_suff,"_hti.rds"))
+msk_AWUwb_u20 <- msk_AWUwb * msk_u20
+
+# g0 >0.3 mask (AGB>316.76)
+msk_p3 <- agb.ras
+msk_p3[msk_p3 > 304.71] <- NA
+msk_p3[msk_p3 <= 304.71] <- 1
+msk_p3 %>% saveRDS(str_c("results/R_out/mask_ALOSoverpt3_stars",fn_suff,"_hti.rds"))
+msk_Ap3WUwb_u20 <- msk_AWUwb_u20 * msk_p3
+
+# Apply non-negotiable mask (msk_AWUwb_u20)
+agb.r <- agb.ras * msk_Ap3WUwb_u20
+agb.r %>% as("Raster") %>% 
+  writeRaster(str_c("results/tifs_by_R/agb18_v2_l1_mask_Ap3WUw25_u20_hti",
+                    fn_suff,"_downsample.tif"), overwrite=T)
+
+agb.r <- read_stars(str_c("results/tifs_by_R/agb18_v2_l1_mask_Ap3WUw25_u20_hti", fn_suff,"_downsample.tif"))
+mn <- mean(agb.r[[1]], na.rm=T)
+ct_valid_pixels <- sum(!is.na(agb.r[[1]]))
+est_area_ha <- (25*25*0.0001) * ct_valid_pixels
+est_total_AGB <- mn * est_area_ha
+
+# Inputs: agb.ras, msk_land, msk_AWUwb, msk_Ap3WUwb_u20, msk_u20, mskinv_T, msk_AWUwb_u20
+# Count NAs as percent of all land
+df <- get_counts(agb.ras, msk_land, msk_AWUwb, 310)
+(AWUwb <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_Ap3WUwb_u20, 310)
+(Ap3WUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_u20, 310)
+(u20 <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb, 310)
+(o310 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 310)
+(AWUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
+(over310 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 300)
+(over300 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 250)
+(over250 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 200)
+(over200 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 132)
+(over132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+
+# get Tree Cover
+df <- get_counts(agb.ras, mskinv_T, msk_u20, 132)
+(TCu20 <- df %>% filter(name=='masked') %>% select('pct'))
+(TCo132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, mskinv_T, mskinv_T, 132)
+(TCo132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
+df <- get_counts(agb.ras, mskinv_T, msk_AWUwb, 132)
+(TC_AWUwb <- df %>% filter(name=='masked') %>% select('pct'))
+df <- get_counts(agb.ras, mskinv_T, msk_AWUwb_u20, 132)
+(TC_AWUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
+(TCover132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
 
 # Original  ---------------------------------------------------------------------------------------
 

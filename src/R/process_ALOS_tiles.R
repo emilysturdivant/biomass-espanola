@@ -21,13 +21,13 @@ library(here)
 library(gdalUtils)
 library(stars)
 
-# Merge ALOS backscatter tiles (Gamma0) produced by biota ----
+# Merge ALOS backscatter tiles (Gamma0) produced by biota --------------------------------------------
 year <- 2018
 mosaic_rasters(list.files(path='results/g0nu_HV/Gamma0_lee', pattern='.tif', full.names = TRUE), 
                str_c('results/g0nu_HV/g0nu_', year, '_HV_lee.tif'), 
                projwin=c(-74.48133, 20.09044, -68.32267, 17.47022))
 
-# Merge supplemental ALOS mosaic rasters ----
+# Merge supplemental ALOS mosaic rasters ------------------------------------------------------------
 merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
   # List filenames of ALOS mask tiles. Tiles range from 18-21, 68-75. ENVI format.
   fps <- list.files(path=path,
@@ -127,13 +127,20 @@ msk_A %>% as("Raster") %>% writeRaster("results/masks/mask_ALOS18.tif")
 
 # Crop backscatter to Hispaniola extent and replace 0 with NA ---- ############################
 # Crop backscatter to the common Hispaniola extent
-gdal_translate("results/g0nu_HV/g0nu_2018_HV.tif", 
-               "results/g0nu_HV/g0nu_2018_HV_crop.tif", 
+gdal_translate("results/g0nu_HV/g0nu_2018_HV_uncropped.tif", 
+               "results/g0nu_HV/g0nu_2018_HV.tif", 
                projwin=st_bbox(msk_AWU)[c(1, 4, 3, 2)])
 # Load backscatter and set 0 to NA
 g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_crop.tif")
 g0[g0==0] <- NA
 g0 %>% write_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+
+# Aggregate to 50m, as recommended by Saatchi 2015 and performed by Michelakis et al. 2015
+g0.nofilt <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
+sum(is.na(g0.nofilt))
+g0.agg <- aggregate(g0.nofilt, fact=2, fun=mean, na.rm=TRUE,
+                    filename="results/g0nu_HV/g0nu_2018_agg50m.tif",
+                    overwrite=TRUE)
 
 # Make DF - INCOMPLETE ----
 # Load rasters
@@ -411,6 +418,22 @@ tm_shape(g0lee[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(h
 
 
 # Crop backscatter to Haiti extent ----###########################################
+hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+r <- raster("results/g0nu_HV/g0nu_2018_HV_haitiR.tif") %>% 
+  mask(hti_poly, inverse=FALSE) 
+r %>% writeRaster("results/g0nu_HV/g0nu_2018_HV_hticlip.tif", overwrite=T)
+g0 <- raster("results/g0nu_HV/g0nu_2018_HV_hticlip.tif")
+
+msk_land <- raster("results/masks/hti18_maskLand_clip2border.tif")
+extent(msk_land)
+extent(g0)
+
+# View
+test_ext <- extent(-71.8, -71.65, 18.22, 18.32)
+tm_shape(crop(msk_land, test_ext)) + tm_raster() +
+  tm_shape(crop(g0, test_ext)) + tm_raster() +
+  tm_shape(hti_poly) + tm_borders()
+
 # Load files
 g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")

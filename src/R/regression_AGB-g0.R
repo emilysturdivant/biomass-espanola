@@ -1,6 +1,6 @@
 # *************************************************************************************************
 # Script to:
-#     * Calibrate regression model between AGB and backscatter 
+#     * Calibrate regression model between AGB and backscatter; Convert backscatter to AGB map
 # Proceeds:
 #     * calculate_AGB.R - calculates AGB by plot from field data
 #     * process_ALOS_tiles.R
@@ -10,9 +10,7 @@
 # *************************************************************************************************
 
 # Load libraries
-# library(gridExtra)
-# library(rgdal)
-# library(caret)
+library(caret)
 library(raster)
 library(tidyverse)
 library(stars)
@@ -21,20 +19,19 @@ library(broom)
 library(gdalUtils)
 library(tmap)
 require(graphics)
+library(patchwork)
 
-# Get mean backscatter for each plot ---- #############################################
+fn_suff <- '_qLee'
+fn_suff <- '_agg50m'
+g0_fp <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
+g0_fp <- "results/g0nu_HV/g0nu_2018_haiti_qLee1.tif"
+
+# Get mean backscatter for each plot --------------------------------------------------------------
 # Load raster and polygon data
 # Raster was created by 
 # 1) biota to download PALSAR mosaic tiles and convert HV backscatter to natural units
 # 2) process_ALOS_tiles.R to merge the tiles 
-g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_haitiR.tif")
-
-# Aggregate to 50m, as recommended by Saatchi 2015 and performed by Michelakis et al. 2015
-# g0.nofilt <- raster("results/g0nu_HV/g0nu_2018_nofilt_HV_haiti.tif")
-# g0.nofilt[g0.nofilt == 0] <- NA
-# g0.agg <- aggregate(g0.nofilt, fact=2, fun=mean, na.rm=TRUE, 
-#                     filename="results/g0nu_HV/g0nu_2018_haiti_agg50m.tif", 
-#                     overwrite=TRUE)
+g0 <- read_stars(g0_fp)
 
 # Add plot backscatter mean to polygons
 plots_agb <- readRDS('results/R_out/plots_agb.rds')
@@ -42,10 +39,10 @@ max(plots_agb$AGB_ha)
 plots_agb %>% mutate(
     g0l_mean = raster_extract(g0, plots_agb, fun = mean, na.rm = TRUE)
   ) %>% 
-  saveRDS('results/R_out/plots_g0agb.rds')
-g0_AGB <- readRDS('results/R_out/plots_g0agb.rds')
+  saveRDS(str_c('results/R_out/plots_g0agb',fn_suff,'.rds'))
+g0_AGB <- readRDS(str_c('results/R_out/plots_g0agb',fn_suff,'.rds'))
 g0_AGB %>% 
-  st_write("results/plots_values/plots_g0agb.shp", append=FALSE)
+  st_write(str_c("results/plots_values/plots_g0agb",fn_suff,".shp"), append=FALSE)
 
 # Extract just AGB and backscatter as dataframe
 g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>% 
@@ -53,8 +50,9 @@ g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>%
   as.data.frame() %>% 
   rename(AGB = AGB_ha, backscatter = g0l_mean) 
 g0.agb %>% 
-  saveRDS("results/R_out/plots_g0agb_dfslim.rds")
-g0.agb  <- readRDS("results/R_out/plots_g0agb_dfslim.rds")
+  saveRDS(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".rds"))
+g0.agb  <- readRDS(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".rds"))
+g0.agb$AGB <- as.vector(g0.agb$AGB)
 
 # Look at values
 (backscatter <- c(
@@ -65,41 +63,26 @@ g0.agb  <- readRDS("results/R_out/plots_g0agb_dfslim.rds")
   min=min(g0.agb$backscatter),
   max=max(g0.agb$backscatter)))
 
-# Scatterplot - AGB against backscatter ---- ##############################################
-g0.agb$AGB <- as.vector(g0.agb$AGB)
-p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
+# Scatterplot - AGB against backscatter -------------------------------------------------------------
+(p <- ggplot(g0.agb, aes(x=backscatter, y=AGB)) + geom_point() +
   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
-       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")")))
-(p <- p + geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black'))
+       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) + 
+  geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) + 
+  geom_rug() + 
+  theme_minimal())
+p
+ggsave(str_c("figures/qc_plots/scatter_g0agb",fn_suff,".png"), width=15, height=13, units='cm')
 
-# Histograms of plot AGB and backscatter ---- ############################################
-# AGB
-p1 <-ggplot(g0.agb, aes(x=AGB)) + 
-  geom_histogram(bins=30) +
-  labs(x = expression(paste("Aboveground biomass (MgC ha"^"-1", ")")), 
-       y = "Number of plots (N = 36)")+ 
-  ylim(0, 9) 
-#+  geom_vline(aes(xintercept=mean(AGB)), color="black", linetype="dashed", size=.5)
-# Backscatter
-p2 <-ggplot(g0.agb, aes(x=backscatter)) + 
-  geom_histogram() +
-  labs(x = expression(
-    paste("Radar backscatter, ", sigma['HV']^0, " (m"^2, "/m"^2, ")")), 
-    y = "Number of plots (N = 36)")+ 
-  ylim(0, 9)
-#+ geom_vline(aes(xintercept=mean(backscatter)), color="black", linetype="dashed", size=.5)
-grid.arrange(p1, p2, nrow = 2)
-
-# Linear regression ---- ###########################################################
+# Linear regression ---------------------------------------------------------------------------------
 # See how correlation improves without plots 7 and 8, which are probably responding to soil moisture. 
 # g0.agb <- g0.agb %>% filter(!(AGB==0 & backscatter>0.016))
 
 # Basic OLS regression
 # g0.agb$backscatter <- as.vector(g0.agb$backscatter)
 ols <- lm(as.vector(AGB) ~ as.vector(backscatter), data=g0.agb, x=TRUE, y=TRUE)
-ols %>% saveRDS("results/R_out/ols_AGBv1_g0v1.rds")
+ols %>% saveRDS(str_c("results/R_out/ols_AGBv1_g0v1",fn_suff,".rds"))
 
-# Report results ---- ###########################################################
+# Report results -------------------------------------------------------------------------------------
 report_ols_results <- function(ols){
   # Regression Coefficients
   coefs <- tidy(ols) %>% cbind(confint(ols)) %>% 
@@ -163,10 +146,10 @@ vals <- report_ols_results(ols)
 opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
 plot(ols, las = 1)
 
-# Repeated k-fold cross validation ---- ###########################################################
+# Repeated k-fold cross validation ---------------------------------------------------------------------
 fxn.bias <- function(data, lev = NULL, model = NULL) {
-  # resids <- data$pred - data$obs
-  resids <- residuals(lm(pred ~ obs, data))
+  resids <- data$pred - data$obs
+  # resids <- residuals(lm(pred ~ obs, data)) # This produces very different results than the alternative above
   rss <- sum(resids^2)
   n <- length(resids)
   df <- n-2
@@ -181,6 +164,7 @@ fxn.bias <- function(data, lev = NULL, model = NULL) {
     MSS=rss/df,
     RSE=sqrt(rss / df))
 }
+
 set.seed(45)
 model.10000x10 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
                         trControl = trainControl(method = "repeatedcv", 
@@ -188,13 +172,25 @@ model.10000x10 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
                                                  summaryFunction = fxn.bias))
 cv_results <- t(model.10000x10$results)
 View(model.10000x10$results)
+cv_r <- model.10000x10$results
+cv_r <- as_tibble(cbind(metric = names(cv_r), t(cv_r))) %>% 
+  rename(value='1')
+cv_r1 <- cv_r %>% 
+  filter(!str_detect(metric, 'SD$'), !str_detect(metric, 'intercept'))
+cv_r2 <- cv_r %>% 
+  filter(str_detect(metric, 'SD$')) %>% 
+  select(value) %>% 
+  rename(SD=value)
+cv_r3.10000x10 <- bind_cols(cv_r1, cv_r2)
+View(cv_r3.10000x10)
+
 set.seed(45)
 model.10000x5 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
                        trControl = trainControl(method = "repeatedcv", 
                                                 number = 5, repeats = 10000,
                                                 summaryFunction = fxn.bias))
-model.10000x5 %>% saveRDS("results/R_out/CVmodel_g0nu_10000x5.rds")
-model.10000x5 <- readRDS("results/R_out/CVmodel_g0nu_10000x5.rds")
+model.10000x5 %>% saveRDS(str_c("results/R_out/CVmodel_g0nu_10000x5",fn_suff,".rds"))
+model.10000x5 <- readRDS(str_c("results/R_out/CVmodel_g0nu_10000x5",fn_suff,".rds"))
 
 cv_r <- model.10000x5$results
 cv_r <- as_tibble(cbind(metric = names(cv_r), t(cv_r))) %>% 
@@ -205,17 +201,20 @@ cv_r2 <- cv_r %>%
   filter(str_detect(metric, 'SD$')) %>% 
   select(value) %>% 
   rename(SD=value)
-cv_r3 <- bind_cols(cv_r1, cv_r2)
-View(cv_r3)
-View(model.10000x5$results)
-model.10000x5$results[-1]
-mets <- cbind(vals[1], model.10000x5$results[-1]) %>% t()
+cv_r3.10000x5 <- bind_cols(cv_r1, cv_r2)
+View(cv_r3.10000x5)
 
-# Create AGB raster ---- ###########################################################
+cv_vals <- model.10000x5$results[-1] %>% tibble() %>% pivot_longer(cols=everything())
+cv_vals$type <- 'test'
+train_vals <- vals[1] %>% as_tibble(rownames='name')
+train_vals$type <- 'train'
+mets <- rbind(train_vals, cv_vals)
+
+# Create AGB raster --------------------------------------------------------------------------------
 # Load data 
-g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif"); names(g0) <- 'backscatter'
-ols <- readRDS("results/R_out/ols_AGBv1_g0v1.rds")
+g0 <- raster(g0_fp); names(g0) <- 'backscatter'
+ols <- readRDS(str_c("results/R_out/ols_AGBv1_g0v1",fn_suff,".rds"))
 
 # Apply linear regression model to create AGB map
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-agb.ras %>% writeRaster("results/tifs_by_R/agb18_v1_l0.tif")
+agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_v3_l0",fn_suff,".tif"))

@@ -21,70 +21,140 @@ library(gdalUtils)
 library(tmap)
 require(graphics)
 
-# Load AGB map
-agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+# Functions ------------------------------------------------------------------------------------------
+get_counts <- function(valuesraster, msk_zone, msk_0, threshold=132){
+  # For given area of interest (msk_zone!=NA), 
+  # count non-masked values (msk_0!=NA) and values>threshold after masking 
+  #  - msk_zone - defines zone of interest ("total")
+  #  - msk_0 - which pixels to count inside msk_zone ("masked")
+  #  - threshold - count values > threshold after masking
+  # 1. Convert rasters to DF
+  df <- 
+    tibble(zone=as.vector(msk_zone[[1]]),
+           agb=as.vector(valuesraster[[1]]) %>% round(4), 
+           mask=as.vector(msk_0[[1]])) %>% 
+    filter(!is.na(zone)) 
+  total = length(df[[1]])
+  # Filter by mask
+  df1 <- df %>% filter(!is.na(mask))
+  total1 = length(df1[[1]])
+  # Filter by (upper) threshold value
+  df2 <- df1 %>% filter(!agb > threshold)
+  total2 = length(df2[[1]])
+  # Tally it up
+  cts_df <- tibble(
+    masked = total-total1,
+    str_c('over_',threshold) = total1-total2,
+    valid=total2
+  ) %>% 
+    pivot_longer(everything()) %>% 
+    mutate(pct = value/sum(value))
+}
 
-# Make masks based on AGB ----############################################
+# Work with different versions of AGB  --------------------------------------------------------------------
+# Load AGB map
+fn_suff <- '_qLee' # filename suffix (from regression_AGB-g0.R)
+agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v3_l0",fn_suff,".tif"))
+
+# Load default mask (ALOS, water, and urban)
+msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buffer
+  readRDS(str_c("results/R_out/mask_AGB_ALOS_WaterUrban_water25_stars",fn_suff,".rds"))
+msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
+  read_stars("results/masks/hti18_maskLand_clip2border.tif") 
+
+# set extent and crop
+bb <- st_intersection(st_bbox(agb.ras) %>% st_as_sfc(), 
+                      st_bbox(msk_land) %>% st_as_sfc()) %>% 
+  st_bbox() %>% as.vector()
+bbex <- extent(bb[c(1,3,2,4)])
+agb.ras <- agb.ras %>% as("Raster") %>% crop(bbex)
+agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_v3_l0_hti",fn_suff,".tif"))
+msk_land <- msk_land %>% as("Raster") %>% crop(bbex)
+msk_AWUwb <- msk_AWUwb %>% as("Raster") %>% crop(bbex)
+
+agb.ras <- agb.ras %>% st_as_stars()
+msk_land <- msk_land %>% st_as_stars()
+msk_AWUwb <- msk_AWUwb %>% st_as_stars()
+
 # AGB <20 mask
 msk_u20 <- agb.ras
 msk_u20[msk_u20 < 20] <- NA
 msk_u20[msk_u20 >= 20] <- 1
-msk_u20 %>% saveRDS("results/R_out/mask_AGB_under20_stars.rds")
+msk_u20 %>% saveRDS(str_c("results/R_out/mask_AGB_under20_stars",fn_suff,"_hti.rds"))
+
+# Count NAs
+df <- get_counts(agb.ras, msk_land, msk_AWUwb, 310)
+msk_AWUwb_u20 <- msk_AWUwb * msk_u20
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 300)
+df <- get_counts(agb.ras, msk_land, msk_u20, 300)
+df <- get_counts(agb.ras, msk_land, msk_AWUwb_u20, 132)
+
+# get Tree Cover
+df <- get_counts(agb.ras, msk_land, msk_u20, 300)
+
+
+
+# Original  ---------------------------------------------------------------------------------------
+
+# Load AGB map
+agb.ras <- read_stars(str_c("results/tifs_by_R/agb18_v3_l0",fn_suff,".tif"))
+
+# Make masks based on AGB --------------------------------------------------------------------------
+# AGB <20 mask
+msk_u20 <- agb.ras
+msk_u20[msk_u20 < 20] <- NA
+msk_u20[msk_u20 >= 20] <- 1
+msk_u20 %>% saveRDS(str_c("results/R_out/mask_AGB_under20_stars",fn_suff,".rds"))
 
 # Inverse <20 mask
 mskinv_u20 <- agb.ras
 mskinv_u20[mskinv_u20 < 20] <- 1
 mskinv_u20[mskinv_u20 >= 20] <- 0
-mskinv_u20 %>% saveRDS("results/R_out/mask_inv_AGB_under20_stars.rds")
+mskinv_u20 %>% saveRDS(str_c("results/R_out/mask_inv_AGB_under20_stars",fn_suff,".rds"))
 
 # AGB >310 mask
+val <- 310
 msk_o310 <- agb.ras
-msk_o310[msk_o310 > 310] <- NA
-msk_o310[msk_o310 <= 310] <- 1
-msk_o310 %>% saveRDS("results/R_out/mask_AGB_over310_stars.rds")
+msk_o310[msk_o310 > val] <- NA
+msk_o310[msk_o310 <= val] <- 1
+msk_o310 %>% saveRDS(str_c("results/R_out/mask_AGB_over",val,"_stars",fn_suff,".rds"))
 
 # Inverse >310 mask
 mskinv_o310 <- agb.ras
 mskinv_o310[msk_o310 == 1] <- 0
-mskinv_o310[mskinv_o310 > 310] <- 1
-mskinv_o310 %>% saveRDS("results/R_out/mask_inv_AGB_over310_stars.rds")
+mskinv_o310[mskinv_o310 > val] <- 1
+mskinv_o310 %>% saveRDS(str_c("results/R_out/mask_inv_AGB_over",val,"_stars",fn_suff,".rds"))
 
 # AGB >300 mask
+val <- 300
 msk_o300 <- agb.ras
-msk_o300[msk_o300 > 300] <- NA
-msk_o300[msk_o300 <= 300] <- 1
-msk_o300 %>% saveRDS("results/R_out/mask_AGB_over300_stars.rds")
+msk_o300[msk_o300 > val] <- NA
+msk_o300[msk_o300 <= val] <- 1
+msk_o300 %>% saveRDS(str_c("results/R_out/mask_AGB_over",val,"_stars",fn_suff,".rds"))
 
 # Inverse >300 mask
 mskinv_o300 <- agb.ras
 mskinv_o300[msk_o300 == 1] <- NA
-mskinv_o300[mskinv_o310 > 300] <- 1
-mskinv_o300 %>% saveRDS("results/R_out/mask_inv_AGB_over300_stars.rds")
+mskinv_o300[mskinv_o310 > val] <- 1
+mskinv_o300 %>% saveRDS(str_c("results/R_out/mask_inv_AGB_over",val,"_stars",fn_suff,".rds"))
 
 # Inverse >275 mask
+val <- 275
 mskinv_o275 <- agb.ras
-mskinv_o275[mskinv_o275 <= 275] <- NA
-mskinv_o275[mskinv_o275 > 275] <- 1
+mskinv_o275[mskinv_o275 <= val] <- NA
+mskinv_o275[mskinv_o275 > val] <- 1
 names(mskinv_o275) <- 'Mask'
-mskinv_o275 %>% saveRDS("results/R_out/mask_inv_AGB_over275_stars.rds")
-mskinv_o275 <- readRDS("results/R_out/mask_inv_AGB_over275_stars.rds")
+mskinv_o275 %>% saveRDS(str_c("results/R_out/mask_inv_AGB_over",val,"_stars",fn_suff,".rds"))
+mskinv_o275 <- readRDS(str_c("results/R_out/mask_inv_AGB_over",val,"_stars",fn_suff,".rds"))
 
-# AGB >300 mask
+# AGB >132 mask
+val <- 132
 msk_o132 <- agb.ras
-msk_o132[msk_o132 > 132] <- NA
-msk_o132[msk_o132 <= 132] <- 1
-msk_o132 %>% saveRDS("results/R_out/mask_AGB_over132_stars.rds")
+msk_o132[msk_o132 > val] <- NA
+msk_o132[msk_o132 <= val] <- 1
+msk_o132 %>% saveRDS(str_c("results/R_out/mask_AGB_over",val,"_stars",fn_suff,".rds"))
 
-# Load masks ----########################################################
-# AGB-based
-msk_u20 <- # NA==AGB<20 and ALOS mask
-  readRDS("results/R_out/mask_AGB_under20_stars.rds")
-mskinv_u20 <- # 1== where AGB<20 in valid ALOS land; 0==AGB>=20
-  readRDS("results/R_out/mask_inv_AGB_under20_stars.rds")
-msk_o310 <- # NA==AGB>310 and ALOS mask
-  readRDS("results/R_out/mask_AGB_over310_stars.rds")
-mskinv_o310 <- # 1== where AGB>310 in valid ALOS land; 0==AGB<=310
-  readRDS("results/R_out/mask_inv_AGB_over310_stars.rds")
+# Load masks ---------------------------------------------------------------------------------
 # Previously-created from backscatter, land cover, and water features
 msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
   readRDS("results/R_out/mask_landALOS_hisp18_stars.rds") 
@@ -101,7 +171,19 @@ msk_B <- # NA== LC17 Bareland
 mskinv_T <- # 1== LC17 tree cover
   readRDS("results/R_out/mask_inv_TreeCover_stars.rds")
 
+# AGB-based
+msk_u20 <- # NA==AGB<20 and ALOS mask
+  readRDS("results/R_out/mask_AGB_under20_stars.rds")
+mskinv_u20 <- # 1== where AGB<20 in valid ALOS land; 0==AGB>=20
+  readRDS("results/R_out/mask_inv_AGB_under20_stars.rds")
+msk_o310 <- # NA==AGB>310 and ALOS mask
+  readRDS("results/R_out/mask_AGB_over310_stars.rds")
+mskinv_o310 <- # 1== where AGB>310 in valid ALOS land; 0==AGB<=310
+  readRDS("results/R_out/mask_inv_AGB_over310_stars.rds")
+
 # Combined masks
+msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buffer
+  readRDS(str_c("results/R_out/mask_AGB_ALOS_WaterUrban_water25_stars",fn_suff,".rds"))
 msk_AWU <- # 1==Valid ALOS land without WaterUrban
   readRDS("results/R_out/mask_ALOS_WaterUrban_stars.rds")
 msk_Ww <- # NA==ALOS mask, LC17 water, and OSM water with 25 m buffer
@@ -136,8 +218,8 @@ df_LCcounts <- readRDS('results/R_out/lc_ALOS_pixel_counts_tbl.rds')
 # Combine some masks
 msk_WUwb <- msk_WU * msk_Ww # Mask of all water and urban
 msk_AWUwb <- msk_WUwb * msk_A
+msk_AWUwb %>% saveRDS(str_c("results/R_out/mask_AGB_ALOS_WaterUrban_water25_stars",fn_suff,".rds"))
 
-msk_AWUwb <- msk_Ww * msk_AWU
 msk_default <- msk_Ww * msk_WU * msk_p3 * msk_u20
 
 # Get counts and percents of masked and unmasked pixels
@@ -229,9 +311,14 @@ ct1/land_ct
 veg_o132 <- veg_masked * msk_o132
 (pct_veg_o132 = (sum(is.na(veg_o132[[1]])) - nanct2) / ct1)
 
-# Write function ----
+# Write get_counts: Count non-masked values (msk_0!=NA) and values>threshold within land category ----
 get_counts <- function(valuesraster, msk_zone, msk_0, threshold=132){
-  # Convert rasters to DF
+  # For given area of interest (msk_zone!=NA), 
+  # count non-masked values (msk_0!=NA) and values>threshold after masking 
+  #  - msk_zone - defines zone of interest ("total")
+  #  - msk_0 - which pixels to count inside msk_zone ("masked")
+  #  - threshold - count values > threshold after masking
+  # 1. Convert rasters to DF
   df <- 
     tibble(zone=as.vector(msk_zone[[1]]),
            agb=as.vector(valuesraster[[1]]) %>% round(4), 
@@ -280,7 +367,8 @@ msk_Ap3_WU_wb_u20 <- msk_Ap3_WU_wb * msk_u20
 msk_Ap3_WU_wb_u20 %>% 
   saveRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds')
 
-# Apply masks to AGB ----#######################################################
+
+# Apply masks to AGB --------------------------------------------------------------------------------------
 agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
 msk_Ap3_WU_wb_u20 <- 
   readRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds')
@@ -308,17 +396,6 @@ agb_sat[agb_sat > saturation_pt] <- saturation_pt
 agb_sat %>% saveRDS('results/R_out/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.rds')
 agb_sat %>% as("Raster") %>% 
   writeRaster('results/tifs_by_R/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
-
-# Look at test area
-test_bb <- st_bbox(c(xmin=-72.7, xmax=-72.5, ymin=18.2, ymax=18.35), crs=4326) %>% 
-  st_as_sfc()
-tmap_mode("view")
-tm_shape(agb_sat1[test_bb]) + tm_raster() +
-  tm_shape(hti_poly) + tm_borders()
-
-# Look at forest cover based on different thresholds ----###########################
-agb_sat <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
-
 
 # PLOT using tmap (interactive) ----############################################
 # Load contextual data for mapping

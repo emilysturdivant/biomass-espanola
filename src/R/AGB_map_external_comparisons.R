@@ -104,21 +104,35 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
     theme_minimal()
   return(p)
 }
+summarize_raster_differences <- function(int_r, ext_r){
+  df <- bind_cols(external=as.vector(ext_r[[1]]), 
+                  internal=as.vector(int_r[[1]])) %>% 
+    filter(!is.na(external), !is.na(internal)) %>% 
+    mutate(value=internal-external)
+  s <- summary(df$value) %>% as.vector()
+  cs <- c(df$value %>% IQR(), df$value %>% sd()) %>% as.vector()
+  pe <- cor.test(x=df$external, y=df$internal, method = 'pearson') 
+  mad <- mean(abs(df$value))
+  s_tbl <- c(as.vector(pe$estimate), s, cs, dim(df)[1], mad) %>% as_tibble()
+  hist(df$value, xlim=c(-200, 200), breaks = 50)
+  return(list(diffs=df, summary=s_tbl))
+}
+scatter_AGB_differences_from_DF <- function(df){
+  if (length(df[[1]]) > 100000) {
+    print("Sampling...")
+    df <- df %>% sample_n(100000)
+  }
+  p <- ggplot(df, aes(x=external, y=internal)) + 
+    geom_point(alpha=0.05, fill="royalblue", color="blue") +
+    labs(y = expression(paste("Internal AGB estimate")), 
+         x = expression(paste("External AGB estimate"))) +
+    theme_minimal() + 
+    geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black')
+  return(p)
+}
 
-# Load AGB map -------------------------------------------------------------------------------
-# agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")agb18_v1_l1_mask_Ap3WUw25.tif
-# agb.ras <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20o310.tif')
-agb.ras <- read_stars('results/tifs_by_R/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
-names(agb.ras) <- 'Our AGB 2018'
-
-# Biomass loss from Baccini ------------------------------------------------------------------
-in_fp <- "data/ext_AGB_maps/Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000.tif"
-bmloss_fp <- "data/ext_AGB_maps/Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000_crop.tif"
-r <- raster(in_fp)
-gdalwarp(srcfile=in_fp, dstfile=bmloss_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
-
-
-# GlobBiomass ----------------------------------------------------------------------------------------
+# Standardize external maps -------------------------------------------------------------------------------
+# GlobBiomass ------
 # Crop GlobBiomass to our Hispaniola extent and convert 0s to NA
 in_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb.tif"
 crop_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_crop.tif"
@@ -129,6 +143,7 @@ r[r == 0] <- NA
 r %>% as("Raster") %>%
   writeRaster("data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif", 
               options=c("dstnodata=-99999"), overwrite=T)
+glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
 
 # Do the same for error (per-pixel uncertainty expressed as standard error in m3/ha)
 in_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_err.tif"
@@ -141,7 +156,7 @@ r %>% as("Raster") %>%
   writeRaster("data/ext_AGB_maps/GlobBiomass/N40W100_agb_err_cropNA.tif", 
               options=c("dstnodata=-99999"), overwrite=T)
 
-# ESA ----------------------------------------------------------------------------------------
+# ESA ------
 # Crop ESA to our Hispaniola extent and convert 0s to NA
 in_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif"
 esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_crop.tif"
@@ -153,50 +168,107 @@ agb_esa[agb_esa == 0] <- NA
 agb_esa %>% as("Raster") %>%
   writeRaster("data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif", 
               options=c("dstnodata=-99999"), overwrite=T)
-# Resample our AGB to ESA 
-agb.ras <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
-agb_res <- agb.ras %>% st_warp(agb_esa, method="bilinear", use_gdal=TRUE)
+# Avitabile  ------
+in_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_Map.tif"
+avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
+r <- raster(in_fp)
+gdalwarp(srcfile=in_fp, dstfile=avit_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+
+# Baccini -----
+in_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000.tif"
+bacc_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif"
+r <- raster(in_fp)
+gdalwarp(srcfile=in_fp, dstfile=bacc_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+
+# Biomass loss from Baccini ------
+in_fp <- "data/ext_AGB_maps/Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000.tif"
+bmloss_fp <- "data/ext_AGB_maps/Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000_crop.tif"
+r <- raster(in_fp)
+gdalwarp(srcfile=in_fp, dstfile=bmloss_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+
+##################################################################################################
+# External map filepaths
+glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
+esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif"
+avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
+bacc_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif"
+agb_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
+
+# Load AGB map -------------------------------------------------------------------------------
+agb.ras <- read_stars(agb_fp)
+names(agb.ras) <- 'Our AGB 2018'
+
+# GlobBiomass ----------------------------------------------------------------------------------------
+# Resample our AGB to GlobBiomass (same as ESA) 
+agb_glob <- raster(glob_fp)
+agb.ras <- raster(agb_fp)
+agb_res <- agb.ras %>% raster::resample(agb_glob, method="bilinear")
 agb_res %>% as("Raster") %>%
-  writeRaster('results/tifs_by_R/resESAbl_agb18_v1_l1_mask_Ap3WUw25_u20.tif', 
+  writeRaster('results/tifs_by_R/resamp_toGlobB_agb18v3l1a_bl.tif', 
               options=c("dstnodata=-99999"), overwrite=T)
 
-# Compare
-df_bl <- bind_cols(ESA=as.vector(agb_esa[[1]]), 
-                AGB=as.vector(agb_res[[1]])) %>% 
-  filter(!is.na(ESA), !is.na(AGB)) %>% 
-  mutate(value=AGB-ESA)
-s <- summary(df_bl$value) %>% as.vector()
-cs <- c(df_bl$value %>% IQR(), df_bl$value %>% sd()) %>% as.vector()
-pe <- cor.test(x=df_bl$ESA, y=df_bl$AGB, method = 'pearson') 
-s_bl <- c(s, cs, dim(df_bl)[1], as.vector(pe$estimate)) %>% as_tibble()
-hist(df_bl$value, xlim=c(-200, 200), breaks = 50)
-# Plot histogram and density
-(p <- plot_hist_density(df_bl, -300, 300, 10, sample_size=500000) + 
-    scale_x_continuous(breaks = seq(-400, 400, 100)) + 
-    xlim(c(-310, 310)) +
-    xlab(expression(paste("Difference (t/ha): our AGB - ESA 2017"))))
+# Get summary stats of differences and Pearson correlation
+df <- summarize_raster_differences(agb_res, agb_glob)
 
+# Plot scatterplot
+diffs <- df$diffs
+(p <- scatter_AGB_differences_from_DF(diffs))
+
+# Difference map: L1 mask
+agb_res <- read_stars('results/tifs_by_R/resamp_toGlobB_agb18v3l1a_bl.tif')
+agb_glob <- read_stars(glob_fp)
+diff_glob <- agb_res - agb_glob
+diff_glob %>% as("Raster") %>% 
+  writeRaster('results/ext_comparisons/diff_GlobBiomass_v_agb18v3l1a.tif', overwrite=TRUE)
+
+# ESA ----------------------------------------------------------------------------------------
 # Resample our AGB to ESA 
-agb.ras <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
-agb_resNN <- agb.ras %>% st_warp(agb_esa, method="near", use_gdal=TRUE)
-agb_resNN %>% as("Raster") %>%
-  writeRaster('results/tifs_by_R/resESAnn_agb18_v1_l1_mask_Ap3WUw25_u20.tif', 
+agb_esa <- raster(esa_fp)
+agb_res <- agb.ras %>% as("Raster") %>% raster::resample(agb_esa, method="bilinear")
+agb_res %>% as("Raster") %>%
+  writeRaster('results/tifs_by_R/resamp_toESA_agb18v3l1a_blrasterresample.tif', 
               options=c("dstnodata=-99999"), overwrite=T)
-# Compare
-df_nn <- bind_cols(ESA=as.vector(agb_esa[[1]]), 
-                AGB=as.vector(agb_resNN[[1]])) %>% 
-  filter(!is.na(ESA), !is.na(AGB)) %>% 
-  mutate(value=AGB-ESA)
-s <- summary(df_nn$value) %>% as.vector()
-cs <- c(df_nn$value %>% IQR(), df_nn$value %>% sd()) %>% as.vector()
-pe <- cor.test(x=df_nn$ESA, y=df_nn$AGB, method = 'pearson') 
-s_nn <- c(s, cs, dim(df_nn)[1], as.vector(pe$estimate)) %>% as_tibble()
-hist(df_nn$value, xlim=c(-200, 200), breaks = 50)
-# Plot histogram and density
-(p <- plot_hist_density(df_nn, -300, 300, 10, sample_size=500000) + 
-    scale_x_continuous(breaks = seq(-400, 400, 100)) + 
-    xlim(c(-310, 310)) +
-    xlab(expression(paste("Difference (t/ha): our AGB - ESA 2017"))))
+
+# Get summary stats of differences and Pearson correlation
+df <- summarize_raster_differences(agb_res, agb_esa)
+
+# Plot scatterplot
+diffs <- df$diffs
+(p <- scatter_AGB_differences_from_DF(diffs))
+
+# Difference map: L1 mask
+agb_res <- read_stars('results/tifs_by_R/resamp_toESA_agb18v3l1a_blrasterresample.tif')
+agb_esa <- read_stars(esa_fp)
+diff_esa <- agb_res - agb_esa
+diff_esa %>% as("Raster") %>% 
+  writeRaster('results/ext_comparisons/diff_ESA_v_agb18v3l1a.tif', overwrite=TRUE)
+
+# View
+tmap_mode("view")
+# bounding box for stars
+test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.17, ymin=18.3, ymax=18.38), crs=4326) %>% 
+  st_as_sfc()
+test_bb <- extent(c(xmin=-72.34, xmax=-72.3, ymin=18.4, ymax=18.44)[c(1,3,2,4)])
+tm_shape(crop(agb_res, test_bb)) + 
+  tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(crop(agb_esa, test_bb)) + 
+  tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(crop(diff_esa, test_bb)) + 
+  tm_raster(breaks=seq(-200, 200, 10), palette=palette(hcl.colors(8, "viridis")))
+# View
+tmap_mode("view")
+# bounding box for stars
+test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.3, ymin=18.4, ymax=18.4), crs=4326) %>% 
+  st_as_sfc()
+# test_bb <- extent(c(xmin=-72.34, xmax=-72.3, ymin=18.4, ymax=18.44)[c(1,3,2,4)])
+tm_shape(agb_res[test_bb]) + 
+  tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis")))
+
++
+  tm_shape(agb_esa[test_bb]) + 
+  tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(diff_esa[test_bb]) + 
+  tm_raster(breaks=seq(-200, 200, 10), palette=palette(hcl.colors(8, "viridis")))
 
 # Cap values
 df_bl <- df_bl %>% 
@@ -212,19 +284,6 @@ hist(df_bl$value, xlim=c(-200, 200), breaks = 50)
     scale_x_continuous(breaks = seq(-400, 400, 100)) + 
     xlim(c(-310, 310)) +
     xlab(expression(paste("Difference (t/ha): our AGB - ESA 2017"))))
-# Plot scatterplot
-df <- df_bl
-if (length(df[[1]]) > 100000) {
-  print("Sampling...")
-  df <- df %>% sample_n(100000)
-}
-(p <- ggplot(df, aes(x=ESA, y=AGB)) + 
-  geom_point(alpha=0.05, fill="royalblue", color="blue") +
-  labs(y = expression(paste("Our AGB")), 
-       x = expression(paste("ESA 2017 AGB"))) +
-  theme_minimal() + 
-  geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black'))
-
 
 
 # Resample ESA
@@ -305,10 +364,39 @@ length(diff_df_esam$value)
 ggsave('figures/ext_comparisons/hist_diff_Avitabile_AGB_mask.png', width=150, height=100, units='mm')
 
 # Avitabile  -----------------------------------------------------------------------------------------------
-in_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_Map.tif"
-avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
-r <- raster(in_fp)
-gdalwarp(srcfile=in_fp, dstfile=avit_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+# Resample our AGB to Avitabile 
+agb_avit <- raster(avit_fp)
+agb.ras <- raster(agb_fp)
+agb_res <- agb.ras %>% raster::resample(agb_avit, method="bilinear")
+agb_res %>% as("Raster") %>%
+  writeRaster('results/tifs_by_R/resamp_toAvit_agb18v3l1a_bl.tif', 
+              options=c("dstnodata=-99999"), overwrite=T)
+
+# View
+tmap_mode("view")
+# bounding box for stars
+test_bb <- st_bbox(c(xmin=-72.34, xmax=-72.17, ymin=18.3, ymax=18.38), crs=4326) %>% 
+  st_as_sfc()
+test_bb <- extent(c(xmin=-72.34, xmax=-72.27, ymin=18.3, ymax=18.38)[c(1,3,2,4)])
+tm_shape(crop(agb_res, test_bb)) + 
+  tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis"))) +
+  tm_shape(crop(agb_avit, test_bb)) + 
+  tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis")))
+
+# Get summary stats of differences and Pearson correlation
+dfs <- summarize_raster_differences(agb_res, agb_avit)
+
+# Plot scatterplot
+diffs <- dfs$diffs
+(p <- scatter_AGB_differences_from_DF(diffs))
+
+# Difference map: L1 mask
+agb_res <- read_stars('results/tifs_by_R/resamp_toAvit_agb18v3l1a_bl.tif')
+agb_avit <- read_stars(avit_fp)
+diff_avit <- agb_res - agb_avit
+diff_avit %>% as("Raster") %>% 
+  writeRaster('results/ext_comparisons/diff_Avitabile_v_agb18v3l1a.tif', overwrite=TRUE)
+
 
 # resampled to ALOS ----------------------------------------------------------------------------------------
 agb_avit <- crop_and_resample(in_fp="data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_Map.tif", 

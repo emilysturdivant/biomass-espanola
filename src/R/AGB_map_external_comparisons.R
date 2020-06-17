@@ -131,7 +131,31 @@ scatter_AGB_differences_from_DF <- function(df){
   return(p)
 }
 
+# External map filepaths -------------------------------------------------------------------------------
+glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
+esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif"
+avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
+bacc_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif"
+agb_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
+
 # Standardize external maps -------------------------------------------------------------------------------
+# Load AGB map
+agb.ras <- read_stars(agb_fp)
+
+# Land cover from zipped file ------
+# Crop GlobBiomass to our Hispaniola extent and convert 0s to NA
+# **File too big to unzip and haven't been able to access without unzipping.**
+in_fp <- "~/Downloads/dataset-satellite-land-cover-9bc57a16-b204-4a4a-a478-6c4a3d5510cc.zip/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.nc"
+crop_fp <- "data/ext_AGB_maps/Landcover/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.tif"
+r <- raster(in_fp)
+gdalwarp(srcfile=in_fp, dstfile=crop_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+r <- read_stars(crop_fp)
+r[r == 0] <- NA
+r %>% as("Raster") %>%
+  writeRaster("", 
+              options=c("dstnodata=-99999"), overwrite=T)
+lc_fp <- ""
+
 # GlobBiomass ------
 # Crop GlobBiomass to our Hispaniola extent and convert 0s to NA
 in_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb.tif"
@@ -187,13 +211,6 @@ r <- raster(in_fp)
 gdalwarp(srcfile=in_fp, dstfile=bmloss_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
 
 ##################################################################################################
-# External map filepaths
-glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
-esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif"
-avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
-bacc_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif"
-agb_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
-
 # Load AGB map -------------------------------------------------------------------------------
 agb.ras <- read_stars(agb_fp)
 names(agb.ras) <- 'Our AGB 2018'

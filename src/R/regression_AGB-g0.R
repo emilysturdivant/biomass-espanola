@@ -52,6 +52,7 @@ g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>%
 g0.agb %>% 
   saveRDS(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".rds"))
 g0.agb  <- readRDS(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".rds"))
+g0.agb %>% write_csv(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".csv"))
 g0.agb$AGB <- as.vector(g0.agb$AGB)
 
 # Look at values

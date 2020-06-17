@@ -57,6 +57,9 @@ convert_netcdf_to_geotiff <- function(in_fp, extent, var){
 }
 
 # Check out the data -------------------------------------------------------------------------
+# Downloaded netCDF files of soil moisture and ancillary rasters by registering with the ESA.
+# host: ftp.geo.tuwien.ac.at; username: esacci_sm_v047; password: zN1xr3apWhEE; port: 22
+# Downloaded using FileZilla
 nc_data <- ncdf4::nc_open('data/SoilMoisture/ESACCI-SOILMOISTURE-L3S-SSMV-COMBINED-20160902000000-fv04.7.nc')
 # Save the print(nc) dump to a text file
 {
@@ -72,12 +75,18 @@ dim(sm.array)  # lon 1440 x lat 720
 ncdf4::nc_close(nc_data) 
 
 # Convert NetCDFs to cropped GeoTiffs -------------------------------------------------------------------------------
+ext <- raster('results/g0nu_HV/g0nu_2018_HV.tif') %>% extent()
 fps <- list.files(path='data/SoilMoisture',
                   pattern='nc$',
                   full.names=T,
                   recursive=F,
                   include.dirs=F)
 rs <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='sm')
+rs <- stack(rs)
+
+
+
+# Ancillary datasets
 rs_daynight <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='dnflag')
 rs_uncertainty <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='sm_uncertainty')
 rs_flag <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='flag') # I don't see any pixels flagged as just dense vegetation. 
@@ -85,6 +94,17 @@ rs_flag <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='flag') # 
 r1 <- rs[[3]] - rs[[2]]
 plot(rs_flag[[7]]) 
 plot(rs[[2]])
+
+library(tmap)
+tmap_mode('view')
+tm_shape(rs[[1]]) + tm_raster() +
+  tm_shape(rs[[2]]) + tm_raster() +
+  tm_shape(rs[[3]]) + tm_raster() +
+  tm_shape(rs[[4]]) + tm_raster() +
+  tm_shape(rs[[5]]) + tm_raster() +
+  tm_shape(rs[[6]]) + tm_raster() +
+  tm_shape(rs[[7]]) + tm_raster()
+
 
 # Ancillary files ---------------------------------------------------------------------------------------
 # Land and Rainforest mask

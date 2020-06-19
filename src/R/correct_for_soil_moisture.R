@@ -14,8 +14,86 @@ library(rgdal) # package for geospatial analysis
 library(ggplot2) # package for plotting
 library(tidyverse)
 library(tools)
+library(stars)
+library(rhdf5)
+library(reshape)
+# library(tmap)
+# tmap_mode('view')
+library(rasterVis)
+library(smapr)
 
-# Function ------------------------------------------------------------
+# Process Surface/Rootzone Soil Moisture Analysis Update (SPL4SMAU) using smapr -----------------
+# https://nsidc.org/data/SPL4SMAU/versions/4
+# date accessed: 2020-06-19
+get_smap_rasters <- function(dates, dir='data/SoilMoisture/SMAP', id='SPL4SMAU', 
+                             version=4, name='/Analysis_Data/sm_surface_analysis'){
+  # Download files
+  files <- find_smap(id, dates = dates, version = version)
+  local_files <- download_smap(files, overwrite = FALSE, verbose = T)
+  sm_raster <- extract_smap(local_files, name)
+  names(sm_raster) <- names(sm_raster) %>% str_extract("T[0-9]{4,}")
+  
+  # Crop to Hispaniola
+  ext <- raster('results/g0nu_HV/g0nu_2018_HV.tif') %>% 
+    projectExtent(crs(sm_raster[[1]])) %>% 
+    extent()
+  sm_raster <- crop(sm_raster, ext)
+  
+  # Save
+  d <- dates %>% str_replace_all('-','')
+  n <- name %>% basename()
+  out_fp <- file.path(dir, id, str_glue('{n}_{d}.grd'))
+  newr <- sm_raster %>% writeRaster(out_fp, 
+                                    format='raster', overwrite=T)
+  hdr(newr, format = "ENVI")
+  return(newr)
+}
+get_stack_means <- function(in_fp){
+  # Load stack
+  smr <- stack(in_fp)
+  # Calculate mean
+  mean_sm <- calc(smr, fun=mean)
+  d <- in_fp %>% str_extract('[0-9]{8,}')
+  names(mean_sm) <- str_glue('D{d}')
+  return(mean_sm)
+}
+
+dates <- c('2015-08-30', '2016-09-02', '2016-09-08', '2016-09-09', 
+           '2016-09-13', '2016-09-18', '2016-09-30', '2017-06-14', 
+           '2017-09-14', '2017-09-19', '2017-09-24', '2018-11-13')
+dates %>% lapply(get_smap_rasters)
+# Load
+smr <- stack('data/SoilMoisture/SMAP/SPL4SMAU/sm_surface_analysis_20160908.grd')
+levelplot(smr)
+citation("smapr")
+
+# Get daily means
+fps <- list.files(path='data/SoilMoisture/SMAP/SPL4SMAU', pattern='grd$',
+                  full.names=T, recursive=F, include.dirs=F)
+sm_means <- fps %>% lapply(get_stack_means)
+sm_means <- stack(sm_means)
+# Save raster stack 
+out_fp <- file.path('data/SoilMoisture/SMAP/SPL4SMAU', str_glue('daily_means.grd'))
+newr <- sm_means %>% writeRaster(out_fp, format='raster', overwrite=T)
+hdr(newr, format = "ENVI")
+
+# Look
+levelplot(newr)
+
+sm_means <- stack(file.path('data/SoilMoisture/SMAP/SPL4SMAU', str_glue('daily_means.grd')))
+levelplot(sm_means)
+
+
+
+
+
+
+
+
+
+
+
+# ESA soil moisture data ------------------------------------------------------------
 convert_sm_netcdf_to_gtif <- function(in_fp, extent, var='sm'){
   # Set output filename
   b <- in_fp %>% basename() %>% str_split_fixed('-', n=6)
@@ -84,8 +162,6 @@ fps <- list.files(path='data/SoilMoisture',
 rs <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='sm')
 rs <- stack(rs)
 
-
-
 # Ancillary datasets
 rs_daynight <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='dnflag')
 rs_uncertainty <- fps %>% lapply(convert_sm_netcdf_to_gtif, extent=ext,  var='sm_uncertainty')
@@ -95,7 +171,6 @@ r1 <- rs[[3]] - rs[[2]]
 plot(rs_flag[[7]]) 
 plot(rs[[2]])
 
-library(tmap)
 tmap_mode('view')
 tm_shape(rs[[1]]) + tm_raster() +
   tm_shape(rs[[2]]) + tm_raster() +
@@ -146,7 +221,7 @@ rc <- convert_netcdf_to_geotiff(in_fp, ext, var = 'wetland_fraction')
 plot(rc)
 
 # Porosity
-in_fp <- 'data/SoilMoisture/ancillary/ESACCI-SOILMOISTURE-POROSITY_V01.1.nc'
+in_fp <- 'data/SoilMoisture/ESA/ancillary/ESACCI-SOILMOISTURE-POROSITY_V01.1.nc'
 # Open file
 nc_data <- ncdf4::nc_open(in_fp)
 {
@@ -156,3 +231,70 @@ nc_data <- ncdf4::nc_open(in_fp)
 }
 rc <- convert_netcdf_to_geotiff(in_fp, ext, var = 'porosity')
 plot(rc)
+
+# Perform interpolation  ---------------------------------------------------------------------------------------
+# If files were already created:
+fps <- list.files(path='data/SoilMoisture/ESA',
+                  pattern='sm_hisp.tif$',
+                  full.names=T,
+                  recursive=F,
+                  include.dirs=F)
+rs <- stack(fps)
+
+
+rs_df <- as.data.frame(rs, xy = TRUE) %>%
+  melt(id.vars = c('x','y'))
+
+ggplot() +
+  geom_raster(data = rs_df , aes(x = x, y = y, fill = value)) +
+  facet_wrap(~ variable)
+
+
+# SMAP data  ---------------------------------------------------------------------------------------
+convert_sm_hdf5_to_gtif <- function(in_fp){
+  # Set output filename
+  b <- in_fp %>% basename() %>% str_split('_')
+  d <- b[[1]][[6]] %>% str_sub(1,8)
+  tile <- b[[1]][[8]]
+  out_fp <- file.path(dirname(in_fp), str_glue('SMAP_sm1km_{d}_{tile}.tif'))
+  # Get data extent
+  met <- h5readAttributes(in_fp, "/Metadata/Extent")
+  ext <- extent(met$polygonPosList[2], met$polygonPosList[4],
+                met$polygonPosList[5], met$polygonPosList[1])
+  # Get data, replace fills with NA, transpose and convert to raster
+  sm <- h5read(in_fp,"/Soil_Moisture_Retrieval_Data_1km/soil_moisture_1km")
+  sm[sm==-9999] <- NA
+  smr <- raster(t(sm), crs=crs(paste0("+init=epsg:",4326)))
+  extent(smr) <- ext
+  # Save as GeoTIFF
+  writeRaster(smr, out_fp, overwrite=T)
+}
+
+# SPL2SMAP_S: SMAP/Sentinel-1 L2 Radiometer/Radar 30-Second Scene 3 km EASE-Grid Soil Moisture, Version 2
+fps <- list.files(path='data/SoilMoisture/SMAP/3km_v2',
+                  pattern='h5$',
+                  full.names=T,
+                  recursive=F,
+                  include.dirs=F)
+rs <- fps %>% lapply(convert_sm_hdf5_to_gtif)
+fps <- list.files(path='data/SoilMoisture/SMAP/3km_v2/2017',
+                  pattern='h5$',
+                  full.names=T,
+                  recursive=F,
+                  include.dirs=F)
+rs <- fps %>% lapply(convert_sm_hdf5_to_gtif)
+
+# Take a look
+tm_shape(rs[[1]]) + tm_raster()+
+  tm_shape(rs[[2]]) + tm_raster()+
+  tm_shape(rs[[3]]) + tm_raster()+
+  tm_shape(rs[[4]]) + tm_raster()+
+  tm_shape(rs[[5]]) + tm_raster()+
+  tm_shape(rs[[6]]) + tm_raster()+
+  tm_shape(rs[[7]]) + tm_raster()+
+  tm_shape(rs[[8]]) + tm_raster()+
+  tm_shape(rs[[9]]) + tm_raster()+
+  tm_shape(rs[[10]]) + tm_raster()
+
+
+

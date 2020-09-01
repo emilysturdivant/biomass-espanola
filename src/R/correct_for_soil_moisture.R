@@ -106,29 +106,38 @@ levelplot(smr, main=id)
 agb_fp <- 'results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25.tif'
 sm_fp <- file.path('data/SoilMoisture/SMAP/', 'SPL4SMAU', 'SPL4SMAU_daily_means.grd')
 date_fp <- 'results/tifs_by_R/hisp18_date.tif'
-date_fp2 <- 'results/tifs_by_R/hisp18_date_r-smap.tif'
+date_fp2 <- 'results/tifs_by_R/hisp18_date_r_smaptemp.tif'
+date_fp3 <- 'results/tifs_by_R/hisp18_date_r_smap.tif'
+date_fp3 <- 'results/tifs_by_R/hisp18_date_r_smap.tif'
 
-a_date <- raster(date_fp)
-agb <- raster(agb_fp)
 
 
-library(gdalUtils)
 # Resample dates mosaic to SMAP
-gdalwarp(srcfile=date_fp, dstfile=date_fp2, s_srs='EPSG::4326', t_srs=crs(sm),
-         te=extent(sm), tr=c(xres(sm), yres(sm)), tap=T, overwrite=T)
-library(rgdal)
-OGRSpatialReference.SetFromUserInput('EPSG:4326')
+a_date <- raster(date_fp)
+sm <- raster(sm_fp, band = 1)
+bb <- extent(sm)
+gdalUtils::gdalwarp(srcfile=date_fp, dstfile=date_fp3, s_srs=crs(a_date), t_srs=crs(sm),
+         te=c(bb[1], bb[3], bb[2], bb[4]), tr=c(xres(sm), yres(sm)), tap=T, overwrite=T)
+
+tm_shape(sm[[11]]) + tm_raster() + tm_facets(as.layers = TRUE) +
+  tm_shape(a_date) + tm_raster()
+
+a_date3
 
 # Create mosaic of SMAP by mapping to dates
+agb <- raster(agb_fp)
+
 
 
 
 # - Map date codes to dates
 d <- c(463, 832, 836, 837, 841, 846, 860, # Unique date codes
        1117, 1209, 1214, 1219, 1634)
-as.Date(d, '2014-05-24')
+rcl <- cbind(d, date=as.Date(d, '2014-05-24'))
+
 as.numeric(as.Date('20140524', "%Y%m%d")) - as.numeric(as.Date('2014-05-24'))
 
+a_date3 %>% reclassify(rcl, filename=)
 
 
 

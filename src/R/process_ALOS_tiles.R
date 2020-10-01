@@ -64,7 +64,7 @@ hti_poly %>% st_write("data/contextual_data/HTI_adm/HTI_adm0_fix.shp", append=F)
 
 
 
-plot(dn_mask)
+
 dn_date <- merge.alos.tiles('data/ALOS', '_18_date_F02DAR$', 
                             isl_poly, 'data/R_out/hisp18_date.tif')
 # writeRaster(dn_date, 'data/R_out/hisp18_date.tif')
@@ -74,6 +74,7 @@ dn_linci <- merge.alos.tiles('data/ALOS', '_18_linci_F02DAR$',
 # writeRaster(dn_linci, 'data/R_out/hisp18_localincidence.tif')
 dn_mask <- merge.alos.tiles('data/ALOS', '_18_mask_F02DAR$', 
                             isl_poly, 'data/R_out/hisp18_mask.tif')
+plot(dn_mask)
 dn_mask[dn_mask<75] <- NA
 dn_mask[!is.na(dn_mask)] <- 1
 writeRaster(dn_mask, 'results/masks/hisp18_maskLand.tif')
@@ -84,6 +85,8 @@ dn_linci <- raster('results/tifs_by_R/hisp18_localincidence.tif')
 dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
 dn_date <- raster('results/tifs_by_R/hisp18_date.tif')
 plot(dn_linci)
+plot(dn_mask)
+plot(dn_date)
 plot(isl_poly, add=TRUE)
 
 # Trying to use tmap, but the files are too big.

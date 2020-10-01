@@ -69,8 +69,8 @@ slope = function(x, res) {
 }
 dem_slope = focal2(dem, slope, res = st_dimensions(dem)$x$delta)
 names(dem_slope) = "slope"
-library(units)
-dem_slope[[1]] = set_units(dem_slope[[1]], "degree")
+
+dem_slope[[1]] = units::set_units(dem_slope[[1]], "degree")
 dem_slope %>% as("Raster") %>% 
   writeRaster("results/tifs_by_R/dem_slope_focal2.tif")
 dem %>% as("Raster") %>% 

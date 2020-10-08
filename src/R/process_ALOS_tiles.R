@@ -148,7 +148,7 @@ g0.agg <- aggregate(g0.nofilt, fact=2, fun=mean, na.rm=TRUE,
 # Make DF - INCOMPLETE ----
 # Load rasters
 lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
-g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
 agb <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
 alos <- read_stars('results/tifs_by_R/hisp18_mask.tif')
 
@@ -181,24 +181,34 @@ for (i in seq_along(srclist)) {
 # Make masks (Hispaniola extent) ------------------------------------------------------------
 # Load LC17 masked to ALOS land 
 lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
+lc <- raster("data/LULC/Hisp_2017_resALOS_mskLand.tif")
 
 # WaterUrban mask
 msk_WU <- lc
 msk_WU[msk_WU<3] <- NA
 msk_WU[!is.na(msk_WU)] <- 1
-msk_WU %>% saveRDS("results/R_out/mask_WaterUrban_stars.rds")
+msk_WU %>% writeRaster("results/masks/mask_WaterUrban_raster.tif")
+msk_WU %>% saveRDS("results/R_out/mask_WaterUrban_raster.rds")
+
+# Water mask
+msk_W <- lc
+msk_W[msk_W==1] <- NA
+msk_W[!is.na(msk_W)] <- 1
+msk_W %>% writeRaster("results/masks/mask_Water_raster.tif")
+msk_W %>% saveRDS("results/R_out/mask_WaterLC17_raster.rds")
 
 # Mask out all but forest
 mskinv_T <- lc
 mskinv_T[mskinv_T!=4] <- NA
 mskinv_T[mskinv_T==4] <- 1
-mskinv_T %>% saveRDS("results/R_out/mask_inv_TreeCover_stars.rds")
+mskinv_T %>% writeRaster("results/masks/mask_inv_TreeCover.tif")
+mskinv_T %>% saveRDS("results/R_out/mask_inv_TreeCover_raster.rds")
 
 # Mask out Bareland
 msk_B <- lc
 msk_B[msk_B!=3] <- 1
 msk_B[msk_B==3] <- NA
-msk_B %>% saveRDS("results/R_out/mask_Bareland_stars.rds")
+msk_B %>% saveRDS("results/R_out/mask_Bareland_raster.rds")
 
 # Mask out all but grassland and shrubs
 mskinv_GS <- lc
@@ -213,7 +223,7 @@ mskinv_GS[mskinv_GS>3] <- 1
 mskinv_GS %>% saveRDS("results/R_out/mask_inv_LC17_vegTreeCGrasslandShrubs_stars.rds")
 
 # Presence (Inverse mask) of LC17 Water
-mskinv_W <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
+mskinv_W <- lc
 mskinv_W[mskinv_W!=1] <- NA
 mskinv_W %>% saveRDS("results/R_out/mask_inv_ALOS_Water_raster.rds")
 
@@ -221,8 +231,16 @@ mskinv_W %>% saveRDS("results/R_out/mask_inv_ALOS_Water_raster.rds")
 msk_A <- readRDS("results/R_out/mask_ALOS_stars.rds")
 msk_A %>% as("Raster") %>% writeRaster("results/masks/mask_ALOS18.tif")
 
+rm(list=ls()) 
+
+msk_A <-  # NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels # HISPANIOLA
+  raster("results/masks/mask_ALOS18.tif")
+msk_WU <- # NA== WaterUrban and ALOS ocean; 1==all other land
+  raster("results/masks/mask_WaterUrban_raster.tif")
+
 msk_AWU <- msk_WU * msk_A
-msk_AWU %>% saveRDS("results/R_out/mask_ALOS_WaterUrban_stars.rds")
+msk_AWU %>% writeRaster("results/masks/mask_ALOS_WaterUrban.tif")
+msk_AWU %>% saveRDS("results/R_out/mask_ALOS_WaterUrban_raster.rds")
 
 # Presence (Inverse mask) of LC17 Water/Urban with ALOS mask applied
 msk_WU <- lc
@@ -242,27 +260,33 @@ st_read('data/contextual_data/OSM_free/gis_osm_water_a_free_1.shp') %>%
   st_write('results/masks/vector/osm_water_buff25m.shp', append=FALSE)
 water_polysb <- st_read('results/masks/vector/osm_water_buff25m.shp')
 
+water_polysb <- st_read('results/masks/vector/osm_water_buff25m.shp')
+msk_wb = msk_AWU
+values(msk_wb) <- 1
+msk_wb <- msk_wb %>% 
+  mask(water_polysb, inverse=TRUE)
+names(msk_wb) <- 'Mask'
+msk_wb %>% writeRaster("results/masks/mask_osm_water_buff25m.tif")
+
+# Mask OSM water 25 (add to ALOS mask)
+msk_A <-  # NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels # HISPANIOLA
+  raster("results/masks/mask_ALOS18.tif")
+msk_Aw <- msk_A %>% 
+  mask(water_polysb, inverse=TRUE)
+msk_Aw %>% saveRDS("results/R_out/mask_ALOS_OSMwater25_raster.rds")
+
 # Water from OSM polygons
 water_polys <- st_read('data/contextual_data/OSM_free/gis_osm_water_a_free_1.shp')
 mskinv_WP <- msk_A %>% 
-  as("Raster") %>% 
   mask(water_polys, inverse=FALSE)
 mskinv_WP %>% saveRDS("results/R_out/mask_inv_ALOS_OSMwater_raster.rds")
 
 # Water from OSM polygons with 25 m buffer
 mskinv_WPb <- msk_A %>% 
-  as("Raster") %>% 
   mask(water_polysb, inverse=FALSE)
 mskinv_WPb %>% saveRDS("results/R_out/mask_inv_OSMwater25mbuffer_raster.rds")
 
-water_polysb <- st_read('results/masks/vector/osm_water_buff25m.shp')
-msk_wb = g0
-msk_wb[[1]][] = 1
-msk_wb <- msk_wb %>% 
-  as("Raster") %>% 
-  mask(water_polysb, inverse=TRUE) %>% 
-  st_as_stars()
-names(msk_wb) <- 'Mask'
+
 # View masks
 tm_shape(msk_wb[test_bb]) + tm_raster(col='Mask', palette='red') +
   tm_shape(water_polysb) + tm_borders()
@@ -275,32 +299,10 @@ mskinv_WUWPb <- mskinv_WU + mskinv_WPb
 mskinv_WUWPb %>% saveRDS("results/R_out/mask_inv_WUWPb_raster.rds")
 
 # Mask all water
-msk_W <- # Initialize mask
-  readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
-msk_W[msk_W==1] <- NA
-msk_W[!is.na(msk_W)] <- 1
-msk_W %>% saveRDS("results/R_out/mask_WaterLC17_stars.rds")
-msk_Ww <- msk_W %>% 
-  as("Raster") %>% 
-  mask(water_polysb, inverse=TRUE) %>% 
-  st_as_stars()
-msk_Ww %>% saveRDS("results/R_out/mask_allwater_stars.rds")
-
-# Mask OSM water 25 (add to ALOS mask)
-msk_A <- # 1==Normal (i.e. valid) ALOS land pixels
-  readRDS("results/R_out/mask_ALOS_stars.rds") 
-msk_Aw <- msk_A %>% 
-  as("Raster") %>% 
-  mask(water_polysb, inverse=TRUE) %>% 
-  st_as_stars()
-msk_Aw %>% saveRDS("results/R_out/mask_ALOS_OSMwater25_stars.rds")
-
-# Try to mask with stars - too slow
-msk_w <- msk_A[water_polysb, crop=FALSE]
-msk_wb <- msk_w
-msk_wb[msk_w==1] <- NA
-msk_wb[is.na(msk_w)] <- 1
-msk_wb %>% saveRDS("results/R_out/mask_OSMwater25_stars.rds")
+msk_W <- readRDS("results/R_out/mask_WaterLC17_raster.rds")
+msk_wb <- raster("results/masks/mask_osm_water_buff25m.tif")
+msk_Ww <- msk_W * msk_wb 
+msk_Ww %>% saveRDS("results/R_out/mask_allwater_raster.rds")
 
 # Crop for testing
 bb <- st_bbox(c(xmin=-72.68, xmax=-72.51, ymin=18.22, ymax=18.32)) %>% 

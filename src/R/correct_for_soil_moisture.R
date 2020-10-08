@@ -260,8 +260,8 @@ date_codes_df
 # SPL4SMGP: Surface/Rootzone Soil Moisture Geophysical Data ----
 id <- 'SPL4SMGP'
 name <- '/Geophysical_Data/sm_surface'
-geophys_means <- download_crop_average_smap_sm(id, name, dates)
-levelplot(geophys_means, main=id)
+sm_means <- download_crop_average_smap_sm(id, name, date_codes_df$date_str)
+levelplot(sm_means, main=id)
 
 smr <- stack(file.path(folder, id, str_glue('sm_surface_20160908.grd')))
 levelplot(smr, main=id)
@@ -361,7 +361,7 @@ df_smres <- bind_cols(AGB=as.vector(agb_res),
 
 # Get Pearson's correlation coefficient
 (pe <- cor.test(x = df_smres$AGB, y = df_smres$SM, method = 'pearson') )
-
+lm(AGB ~ SM, df_smres)
 # Plot scatterplot
 cor_est <- pe$estimate %>% round(2) %>% as.numeric
 (p_smres <- scatter_AGB_vs_SM(df_smres) + 
@@ -495,43 +495,6 @@ p_box_agb | p_box_sm
 
 
 
-
-
-
-
-
-
-# Project SM to AGB CRS and extent
-sm_proj <- projectRaster(sm, crs=crs(agb))
-
-
-test_bb <- extent(c(xmin=-72.5, xmax=-72.1, ymin=18.3, ymax=18.6))
-agbc <- crop(agb, test_bb)
-levelplot(agbc)
-smc <- crop(sm_proj, test_bb)
-levelplot(smc)
-
-
-tm_shape(sm_proj) + 
-  tm_raster()+
-  tm_shape(agbc) +
-    tm_raster(breaks=seq(0, 300, 10), palette=palette(hcl.colors(8, "viridis"))) 
-
-# Look
-# Crop window
-new_bb <- bb
-xdif <- diff(c(bb[1], bb[2])) / 4
-new_bb[1] <- mean(c(bb[1], bb[2])) - xdiff
-new_bb[2] <- mean(c(bb[1], bb[2])) + xdif
-ydif <- diff(c(bb[3], bb[4])) / 4
-new_bb[3] <- mean(c(bb[3], bb[4])) - ydif
-new_bb[4] <- mean(c(bb[3], bb[4])) + ydif
-crop(a_date2, new_bb)
-tm_shape(crop(sm, new_bb)) + tm_raster(alpha=0.5) + tm_facets(as.layers = TRUE) +
-  tm_shape(crop(a_date2, new_bb)) + tm_raster(alpha=0.5)
-
-# Load AGB ----
-agb <- raster(agb_fp)
 
 
 

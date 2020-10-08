@@ -26,9 +26,10 @@ writeRaster(lc, "data/LULC/Hisp_2017_resALOS.tif")
 lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
 
 # Mask LULC to land as determined by ALOS 2018
-lc <- read_stars("data/LULC/Hisp_2017_resALOS.tif")
-msk_L <- read_stars('results/masks/hisp18_maskLand.tif')
+lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
+msk_L <- raster('results/masks/hisp18_maskLand.tif')
 lc <- lc*msk_L
+lc %>% writeRaster("data/LULC/Hisp_2017_resALOS_mskLand.tif")
 lc %>% saveRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
 
 # Report pixel counts and percentages for each class

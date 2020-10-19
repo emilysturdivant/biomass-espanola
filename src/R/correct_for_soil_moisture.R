@@ -10,11 +10,13 @@
 # ---------------------------------------------------------------------------------------------
 
 # Load libraries
-library(ncdf4) # package for netcdf manipulation
+# library(ncdf4) # package for netcdf manipulation
 library(raster) # package for raster manipulation
 library(rgdal) # package for geospatial analysis
 library(ggplot2) # package for plotting
 library(lubridate)
+library(geobgu)
+library(units)
 library(tidyverse)
 library(tools)
 library(stars)
@@ -25,6 +27,7 @@ tmap_mode('view')
 library(rasterVis)
 # library(smapr)
 library(patchwork)
+
 
 # Process Surface/Rootzone Soil Moisture Analysis Update (SPL4SMAU) using smapr -----------------
 # https://nsidc.org/data/SPL4SMAU/versions/4
@@ -222,6 +225,7 @@ scatter_AGB_vs_SM <- function(df){
 }
 # Filenames ----
 agb_fp <- 'results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25.tif'
+
 date_fp <- 'results/tifs_by_R/hisp18_date.tif'
 date_resamp_fp <- 'results/tifs_by_R/hisp18_date_SMAPres.tif'
 # sm_fp <- file.path('data/SoilMoisture/SMAP', 'SPL4SMAU', 'SPL4SMAU_weekly_means.grd')
@@ -368,8 +372,8 @@ cor_est <- pe$estimate %>% round(2) %>% as.numeric
     ggtitle(str_c('SMAP resolution (AGB bilinear resample): p = ', cor_est)))
 
 # Filter to 20 t/ha bins
-int <- 30
-df_sub <- df_smres %>% filter(AGB > int & AGB <= int + 50)
+int <- 0
+df_sub <- df_smres %>% filter(AGB > int & AGB <= int + 20)
 (pe <- cor.test(x = df_sub$AGB, y = df_sub$SM, method = 'pearson') )
 cor_est <- pe$estimate %>% round(2) %>% as.numeric
 # Scatterplot
@@ -427,20 +431,26 @@ if(!file.exists(sm_mosaic_resamp_fp)) {
   resamp_to_template(sm_mosaic_fp, agb_fp, sm_mosaic_resamp_fp)
 }
 
-# Load new raster
-agb <- raster(agb_fp)
-sm_res <- raster(sm_mosaic_resamp_fp)
-
-agb_agg <- aggregate(agb, 4)
-sm_agg <- aggregate(sm_res, 4)
-
-# Convert rasters to data.frame
-df_agbagg_res <- bind_cols(AGB=as.vector(agb_agg), 
-                SM=as.vector(sm_agg)) %>% 
-  filter(!is.na(AGB), !is.na(SM))
-
-# Save
-df_agbagg_res %>% saveRDS('results/R_out/df_smap_v_agb_agbresx4.rds')
+df_agbagg_res_fp <- 'results/R_out/df_smap_v_agb_agbresx4.rds'
+if(!file.exists(df_agbagg_res_fp)){
+  # Load new raster
+  agb <- raster(agb_fp)
+  sm_res <- raster(sm_mosaic_resamp_fp)
+  
+  agb_agg <- aggregate(agb, 4)
+  sm_agg <- aggregate(sm_res, 4)
+  
+  # Convert rasters to data.frame
+  df_agbagg_res <- bind_cols(AGB=as.vector(agb_agg), 
+                             SM=as.vector(sm_agg)) %>% 
+    filter(!is.na(AGB), !is.na(SM))
+  
+  # Save
+  df_agbagg_res %>% saveRDS('results/R_out/df_smap_v_agb_agbresx4.rds')
+  
+} else {
+  df_agbagg_res <- readRDS('results/R_out/df_smap_v_agb_agbresx4.rds')
+}
 
 # Get Pearson's correlation coefficient
 (pe <- cor.test(x = df_agbagg_res$AGB, y = df_agbagg_res$SM, method = 'pearson'))
@@ -450,6 +460,19 @@ cor_est <- round(pe$estimate, 2)
     ggtitle(str_c('4x AGB resolution: p = ', cor_est)))
 
 p_smres / p_agbx4res
+
+# Filter to 20 t/ha bins
+int <- 0
+df_sub <- df_agbagg_res %>% filter(AGB > int & AGB <= int + 20)
+(pe <- cor.test(x = df_sub$AGB, y = df_sub$SM, method = 'pearson') )
+cor_est <- pe$estimate %>% round(2) %>% as.numeric
+# Scatterplot
+(p <- ggplot(df_sub, aes(x=AGB, y=SM)) + 
+    geom_point(alpha=0.1, fill="royalblue", color="blue") +
+    theme_minimal() + 
+    # Regression line with 95% CI band
+    geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black'))
+
 
 # Bin AGB to 20 t/ha intervals and get SM means
 agb_breaks <- seq(0, 340, 20)
@@ -493,7 +516,64 @@ df_out <- df_agbagg_res %>%
 p_box_agb | p_box_sm
 
 
+# Compare to backscatter and AGB at field plots ================================
+fn_suff <- '_qLee'
+g0_fp <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
+sm_mosaic_fp <- file.path('data/SoilMoisture/SMAP', 'SPL4SMAU', 'SPL4SMAU_daily_mosaic_jaxa18_dates.tif')
 
+g0 <- read_stars(g0_fp)
+sm <- read_stars(sm_mosaic_fp)
+
+prefix <- 'plots_SMg0agb'
+# Add plot backscatter mean to polygons
+plots_agb <- readRDS('results/R_out/plots_agb.rds')
+plots_agb %>% mutate(
+  g0_mean = geobgu::raster_extract(g0, plots_agb, fun = mean, na.rm = TRUE),
+  sm_mean = geobgu::raster_extract(sm, plots_agb, fun = mean, na.rm = TRUE)
+) %>% 
+  saveRDS(str_c('results/R_out/', prefix, fn_suff,'.rds'))
+g0_AGB <- readRDS(str_c('results/R_out/', prefix, fn_suff,'.rds'))
+g0_AGB %>% 
+  st_write(str_c("results/plots_values/", prefix, fn_suff, ".shp"), append=FALSE)
+
+# Scatterplot - AGB against backscatter ----------------------------------------
+g0_AGB <- g0_AGB %>% 
+  mutate(area = set_units(area, NULL), 
+         AGB_ha = set_units(AGB_ha, NULL))
+(p <- ggplot(g0_AGB, aes(y=g0_mean, x=AGB_ha, color=sm_mean)) + 
+    geom_point() +
+    labs(x = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
+         y = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) + 
+    geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) + 
+    geom_rug() + 
+    theme_minimal())
+(p <- ggplot(g0_AGB, aes(color=g0_mean, x=AGB_ha, y=sm_mean)) + 
+    geom_point() +
+    labs(x = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
+         y = expression(paste("Soil moisture"))) + 
+    geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) + 
+    geom_rug() + 
+    theme_minimal())
+(p <- ggplot(g0_AGB, aes(y=g0_mean, color=AGB_ha, x=sm_mean)) + 
+    geom_point() +
+    labs(x = expression(paste("Soil moisture")), 
+         y = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) + 
+    geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) + 
+    geom_rug() + 
+    theme_minimal())
+ggsave(str_c("figures/qc_plots/scatter_g0_sm_agb",fn_suff,".png"), width=15, height=13, units='cm')
+
+# Multiple regression ----
+ols <- lm(AGB ~ g0_mean + sm_mean, data=g0_AGB)
+ols %>% saveRDS(str_c("results/R_out/ols_AGB_g0_sm",fn_suff,".rds"))
+summary(ols)
+coefficients(ols)
+confint(ols, level=0.95)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page 
+plot(ols)
+ols1 <- lm(AGB ~ g0_mean, data=g0_AGB)
+
+anova(ols1, ols)
 
 
 

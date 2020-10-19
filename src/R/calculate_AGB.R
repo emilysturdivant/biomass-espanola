@@ -60,6 +60,8 @@ plot_polys <- plots %>% full_join(plots_no, by=c('Name' ='plot_shp')) %>%
 plot_polys %>% 
   st_write(plots_shp, append=FALSE)
 
+plot_polys <- st_read(plots_shp)
+
 # Look at data ---- ####################################################################
 summary(mstems$dbh_cm, na.rm=TRUE)
 sd(mstems$dbh_cm, na.rm=TRUE)

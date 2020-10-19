@@ -1,6 +1,17 @@
+# ---------------------------------------------------------------------------------------------
+# Script to:
+#     * 
+# Proceeds:
+#     * 
+# Requires:
+#     * ALOS mask
+#     * LULC map
+# ---------------------------------------------------------------------------------------------
+
+
 #library(silvr)
 library(readr)
-library(raster)
+# library(raster)
 library(tidyverse)
 library(ggridges)
 library(rgdal)
@@ -8,7 +19,7 @@ library(tmap)
 library(rgdal)
 library(here)
 
-# Merge and resample LULC for Hispaniola ----
+# Merge and resample LULC for Hispaniola =======================================
 dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
 fps <- c("data/LULC/Haiti2017_Clip.tif", 
         "data/LULC/DR_2017_clip.tif")

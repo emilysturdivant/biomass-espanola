@@ -12,7 +12,6 @@
 # Load libraries
 library(caret)
 library(raster)
-library(tidyverse)
 library(stars)
 library(geobgu)
 library(broom)
@@ -20,6 +19,7 @@ library(gdalUtils)
 library(tmap)
 require(graphics)
 library(patchwork)
+library(tidyverse)
 
 fn_suff <- '_qLee'
 fn_suff <- '_agg50m'
@@ -37,7 +37,7 @@ g0 <- read_stars(g0_fp)
 plots_agb <- readRDS('results/R_out/plots_agb.rds')
 max(plots_agb$AGB_ha)
 plots_agb %>% mutate(
-    g0l_mean = raster_extract(g0, plots_agb, fun = mean, na.rm = TRUE)
+    g0l_mean = geobgu::raster_extract(g0, plots_agb, fun = mean, na.rm = TRUE)
   ) %>% 
   saveRDS(str_c('results/R_out/plots_g0agb',fn_suff,'.rds'))
 g0_AGB <- readRDS(str_c('results/R_out/plots_g0agb',fn_suff,'.rds'))

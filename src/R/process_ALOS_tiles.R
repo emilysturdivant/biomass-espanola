@@ -1,6 +1,8 @@
 # *************************************************************************************************
 # Script to:
-#     * Process ALOS mosaic tiles - load mosaic supplemental rasters, merge tiles, make masks
+#     * Process ALOS mosaic tiles 
+#       - load mosaic supplemental rasters, merge tiles, 
+#       - make masks
 # Preceeds:
 #     * calculate_AGB.R - calculates AGB by plot from field data
 # Requires:
@@ -75,10 +77,18 @@ dn_linci <- merge.alos.tiles('data/ALOS', '_18_linci_F02DAR$',
 dn_mask <- merge.alos.tiles('data/ALOS', '_18_mask_F02DAR$', 
                             isl_poly, 'data/R_out/hisp18_mask.tif')
 plot(dn_mask)
-dn_mask[dn_mask<75] <- NA
-dn_mask[!is.na(dn_mask)] <- 1
-writeRaster(dn_mask, 'results/masks/hisp18_maskLand.tif')
+mask_land <- dn_mask
+mask_land[mask_land<75] <- NA
+mask_land[!is.na(mask_land)] <- 1
+writeRaster(mask_land, 'results/masks/hisp18_maskLand.tif')
 mask_land <- raster('results/masks/hisp18_maskLand.tif')
+
+# Mask to Haiti extent
+msk_land <- terra::rast('results/masks/hisp18_maskLand.tif')
+hti_poly <- terra::vect("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+msk_land <- msk_land %>% 
+  crop(hti_poly) %>% 
+  mask(hti_poly, filename='results/masks/hti18_maskLand.tif', overwrite=T)
 
 # Load previously created mosaics
 dn_linci <- raster('results/tifs_by_R/hisp18_localincidence.tif')

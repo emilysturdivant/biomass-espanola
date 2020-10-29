@@ -26,7 +26,7 @@ agb_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
 msk_lnd_fp <- 'results/masks/hti18_maskLand.tif'
 agb_from_lc_fp <- 'results/tifs_by_R/LCpatches_agb18_v3l1_Ap3WUw25u20_hti.tif'
 
-# Testing terra ================================================================
+# Load AGB ================================================================
 agb_ras <- terra::rast(agb_fp)
 
 # Merge and resample Haiti and DR land cover to AGB res ------------------------
@@ -42,27 +42,31 @@ lc2 <- terra::cover(rs$`data/LULC/Haiti2017_Clip.tif`,
                     rs$`data/LULC/DR_2017_clip.tif`, 
                     filename=lc_fp_out, overwrite=T)
 
-# Get means for each land cover class (zonal statistics) ------------------------
+# Create AGB surface from mean AGB for each LC class (6 values) ================
+# Load and crop LC
 lc <- terra::rast(lc_fp_out) %>% 
   terra::crop(agb_ras) 
 
+# Mask LC to land pixels
 lc <- lc * terra::rast(msk_lnd_fp)
 
+# Compute mean AGB for each LC (zonal statistics) 
 zonal_stats <- terra::zonal(agb_ras, lc, 'mean', na.rm=T)
 
-# Reclass LC to AGB values ----
+# Reclass LC to AGB values -> AGB by LC surface
 agb_by_lc <- terra::classify(lc, zonal_stats)
 plot(agb_by_lc)
 
-# Use AGB by LC to fill gaps ----
+# Fill gaps in AGB with AGB by LC ----------------------------------------------
 agb_filled_fp <- 'results/tifs_by_R/agb18_v3_l1_Ap3WUw25u20_hti_filled_6zones.tif'
 agb_filled <- terra::cover(agb_ras, agb_by_lc, filename=agb_filled_fp)
 
 plot(agb_filled)
 plot(agb_ras)
 
-# Get mean AGB for each land cover patch (extract) -----------------------------
+# Get mean AGB for each land cover patch (extract) =============================
 # Polygonize LULC raster ----
+# output filenames
 lc_multipols_fp <- "data/LULC/Haiti2017_Clip_multipolys"
 lc_pols_fp <- "data/LULC/Haiti2017_Clip_polys.geojson"
 

@@ -14,7 +14,7 @@
 
 # Load libraries
 # library(stars)
-library(geobgu) # not available for R 4.0
+library(geobgu) 
 library(broom)
 library(gdalUtils)
 library(tmap)
@@ -421,6 +421,52 @@ get_mask_counts <- function(fn_suff, p3_agb_val, agb_in_fn){
     pivot_longer(cols=everything())
 }
 
+crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, return_bb=F) {
+  # Get intersection of the bounding boxes of the two rasters
+  bb <- st_intersection(terra::ext(r1) %>% as.vector %>% st_bbox %>% st_as_sfc, 
+                        terra::ext(r2) %>% as.vector %>% st_bbox %>% st_as_sfc) %>% 
+    st_bbox %>% as.vector 
+  
+  # Convert to terra extent object
+  bbex <- terra::ext(bb[c(1, 3, 2, 4)])
+  
+  if(return_bb){
+    if(!return_r1 & !return_r2){
+      return(bbex)
+    } else if(return_r1 & !return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      return(list(r1=r1, bb=bbex))
+    } else if(!return_r1 & return_r2) {
+      # Crop each raster
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r2=r2, bb=bbex))
+    } else if(return_r1 & return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r1=r1, r2=r2, bb=bbex))
+    }
+  } else {
+    if(!return_r1 & !return_r2){
+      return()
+    } else if(return_r1 & !return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      return(r1)
+    } else if(!return_r1 & return_r2) {
+      # Crop each raster
+      r2 <- r2 %>% terra::crop(bbex)
+      return(r2)
+    } else if(return_r1 & return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r1=r1, r2=r2))
+    }
+  }
+}
+
 
 # Get mask counts --------------------------------------------------------------------
 # Unfiltered AGB (v1) 
@@ -444,37 +490,40 @@ agb_in_fn <- 'agb18_v3_l0_qLee.tif'
 
 cts_df_v3 <- get_mask_counts(fn_suff, p3_agb_val, agb_in_fn)
 
-
-
 # SAGA filter (v3) after filling gaps by LC
 fn_suff <- '_qLee_filledLCpatches' # filename suffix (from regression_AGB-g0.R)
 p3_agb_val = 316.76
 agb_in_fn <- 'agb18_v3_l0_qLee.tif'
-agb_in_fn <- 'agb18_v3_l1_Ap3WUw25u20_hti_filled_LCpatches.tif'
+agb_in_fn <- 'agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif'
 
 (cts_df_v3l3 <- get_mask_counts_terra(fn_suff, p3_agb_val, agb_in_fn))
 cts_df_v3l3$V1 %>% write_clip
 
-# Get missing pixel counts for AGB with filled gaps
-msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)- HAITI
-  terra::rast("results/masks/hti18_maskLand.tif") 
-mskinv_T <-  # 1== LC17 tree cover
-  terra::rast("results/masks/mask_inv_TreeCover.tif")
-wb_fp <- 'results/masks/vector/osm_water_buff25m.shp'
-mskinv_T_wb <- mskinv_T %>% mask(vect(wb_fp))
-
+# Get counts for v3l3 outside of function ----
+# Filenames
 dir <- 'results/tifs_by_R'
-agb_in_fn <- 'agb18_v3_l1_Ap3WUw25u20_hti_filled_LCpatches.tif'
-agb.ras <- file.path(dir, agb_in_fn) %>% rast
+agb_in_fn <- 'agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif'
+agb.ras_fp <- file.path(dir, agb_in_fn) 
+msk_land_fp <- "results/masks/hti18_maskLand.tif"
+wb_fp <- 'results/masks/vector/osm_water_buff25m.shp'
+mskinv_T_fp <- "results/masks/mask_inv_TreeCover.tif"
 
-bb <- st_intersection(ext(agb.ras) %>% as.vector %>% st_bbox %>% st_as_sfc, 
-                      ext(msk_land) %>% as.vector %>% st_bbox %>% st_as_sfc) %>% 
-  st_bbox %>% as.vector 
-bbex <- ext(bb[c(1, 3, 2, 4)])
+# Crop to intersecting extents of AGB and land 
+out <- crop_to_intersecting_extents(
+  terra::rast(agb.ras_fp), 
+  terra::rast(msk_land_fp), 
+  return_r1=T, return_r2=T, return_bb=T)
 
-agb.ras <- agb.ras %>% terra::crop(bbex) %>% mask(msk_land)
-msk_land <- msk_land %>% terra::crop(bbex)
-mskinv_T <- mskinv_T %>% terra::crop(bbex)
+# Get rasters
+bbex <- out$bb
+msk_land <- out$r2
+agb.ras <- out$r1 %>% 
+  terra::mask(msk_land)
+mskinv_T <- terra::rast(mskinv_T_fp) %>% # 1== LC17 tree cover
+  terra::crop(bbex)
+mskinv_T_wb <- mskinv_T %>% 
+  terra::mask(terra::vect(wb_fp))
+
 plot(agb.ras)
 plot(msk_land)
 
@@ -491,8 +540,8 @@ total_TC <- tc_df %>% nrow
 
 # Tree cover class
 (ct_TC_u20 <- tc_df %>% filter(agb < 20) %>% nrow)
-ct_TC_u132 <- tc_df %>% filter(agb > 132) %>% nrow
-ct_TC_u132 / total_TC
+ct_TC_o132 <- tc_df %>% filter(agb > 132) %>% nrow
+ct_TC_o132 / total_TC
 ct_TC_o300 <- tc_df %>% filter(agb > 300) %>% nrow
 ct_TC_o300 / total_TC
 ct_TC_o200 <- tc_df %>% filter(agb > 200) %>% nrow
@@ -518,6 +567,9 @@ ct_o310 / total
 ct_u20 <- df %>% filter(agb < 20) %>% nrow
 ct_u20 / total
 
+ct_o20 <- df %>% filter(!is.na(agb), agb > 20) %>% nrow
+ct_o20 / total
+
 # Get pct of TC class that intersects water buffer
 
 ct_TC_pixels_wb <- global(!is.na(mskinv_T_wb), 'sum')
@@ -531,6 +583,18 @@ ggplot(df, aes(x=agb)) +
 ggplot(df, aes(x=zone, y=agb)) +
   geom_bar(stat="identity")
 
+# Get count for ALOS mask ----
+msk_A <- terra::rast("results/masks/mask_ALOS18.tif") %>% 
+  terra::crop(bbex) %>% 
+  terra::mask(msk_land)
+
+# Convert to DF
+df <- tibble(land = as.vector(msk_land), 
+             zone = as.vector(msk_A)) %>% 
+  filter(!is.na(land))
+
+total <- nrow(df)
+total_TC <- df %>% filter(zone == 1) %>% nrow
 
 
 

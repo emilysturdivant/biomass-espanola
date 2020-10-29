@@ -55,8 +55,12 @@ merge.alos.tiles <- function(path, pattern, clip_poly, filename=FALSE){
 isl_poly <- readOGR(dsn="data/contextual_data/Hispaniola", layer='Hisp_adm0')
 isl_poly <- readOGR(dsn=here("data", "Hispaniola"), layer='Hisp_adm0')
 isl_poly <- readOGR(dsn="results/masks/vector", layer='hisp18_maskLand_clean')
-sum(area(isl_poly))/1000000
+sum(area(isl_poly))/1000000 
+
+# Load polygon
 isl_poly <- sf::st_read("results/masks/vector/hisp18_maskLand_clean.shp")
+
+# get polygon area
 sum(units::set_units(st_area(isl_poly), ha))
 
 hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0.shp") %>% 
@@ -140,40 +144,33 @@ msk_A %>% as("Raster") %>% writeRaster("results/masks/mask_ALOS18.tif")
 
 # Crop backscatter to Hispaniola extent and replace 0 with NA ---- ############################
 # Crop backscatter to the common Hispaniola extent
+g0_fp <- "results/g0nu_HV/g0nu_2018_HV.tif"
 gdal_translate("results/g0nu_HV/g0nu_2018_HV_uncropped.tif", 
-               "results/g0nu_HV/g0nu_2018_HV.tif", 
+               g0_fp, 
                projwin=st_bbox(msk_AWU)[c(1, 4, 3, 2)])
 # Load backscatter and set 0 to NA
 g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV_crop.tif")
 g0[g0==0] <- NA
-g0 %>% write_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+g0 %>% write_stars(g0_fp)
 
 # Aggregate to 50m, as recommended by Saatchi 2015 and performed by Michelakis et al. 2015
-g0.nofilt <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
+g0.nofilt <- raster(g0_fp)
 sum(is.na(g0.nofilt))
 g0.agg <- aggregate(g0.nofilt, fact=2, fun=mean, na.rm=TRUE,
                     filename="results/g0nu_HV/g0nu_2018_agg50m.tif",
                     overwrite=TRUE)
 
-# Make DF - INCOMPLETE ----
-# Load rasters
-lc <- readRDS("results/R_out/LC17_masked_to_ALOS_land_stars.rds")
-g0 <- raster("results/g0nu_HV/g0nu_2018_HV.tif")
-agb <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
-alos <- read_stars('results/tifs_by_R/hisp18_mask.tif')
+# Perform SAGA Lee filter ------------------------------------------------------
+g0.nofilt <- terra::rast(g0_fp)
 
+install.packages('RSAGA')
+library(RSAGA)
 
+work_env <- rsaga.env(workspace = getwd())
+rsaga.get.modules('grid_filter')
+rsaga.get.usage('grid_filter', 3)
 
-cell_numbers = g0
-cell_numbers[[1]][] = 1:length(cell_numbers[[1]])
-df <- 
-  tibble(cell=as.vector(cell_numbers[[1]]),
-         g0=as.vector(g0[[1]]) %>% round(4), 
-         agb=as.vector(agb.ras[[1]]) %>% round(1),
-         slope=as.vector(slp[[1]]) %>% round(1), 
-         aspect=as.vector(asp[[1]]) %>% round(1)) %>% 
-  filter(!is.na(g0)) 
-df %>% saveRDS("results/R_out/df_srtm_g0agb.rds")
+rsaga.import.gdal(g0_fp)
 
 # Crop WorldClim rasters -------------------------------------------------------------------
 bb <- st_bbox(g0) #te=c(xmin,ymin,xmax,ymax)

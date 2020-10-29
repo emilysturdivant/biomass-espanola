@@ -1,6 +1,7 @@
 # *************************************************************************************************
 # Script to:
-#     * Calibrate regression model between AGB and backscatter; Convert backscatter to AGB map
+#     * Calibrate regression model between AGB and backscatter; 
+#     * Convert backscatter to AGB map
 # Proceeds:
 #     * calculate_AGB.R - calculates AGB by plot from field data
 #     * process_ALOS_tiles.R
@@ -21,9 +22,16 @@ require(graphics)
 library(patchwork)
 library(tidyverse)
 
-fn_suff <- '_qLee'
-fn_suff <- '_agg50m'
+fn_suff <- ''
+vers_name <- 'v1'
 g0_fp <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
+
+fn_suff <- '_agg50m'
+vers_name <- 'v2'
+g0_fp <- "results/g0nu_HV/g0nu_2018_haiti_agg50m.tif"
+
+fn_suff <- '_qLee'
+vers_name <- 'v3'
 g0_fp <- "results/g0nu_HV/g0nu_2018_haiti_qLee1.tif"
 
 # Get mean backscatter for each plot --------------------------------------------------------------
@@ -218,4 +226,4 @@ ols <- readRDS(str_c("results/R_out/ols_AGBv1_g0v1",fn_suff,".rds"))
 
 # Apply linear regression model to create AGB map
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_v3_l0",fn_suff,".tif"))
+agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_", vers_name, "_l0",fn_suff,".tif"))

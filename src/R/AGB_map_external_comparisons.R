@@ -21,15 +21,20 @@ library(units)
 library(tools)
 library(broom)
 library(geobgu)
-library(gridExtra)
+# library(gridExtra)
+library(patchwork)
+library(clipr)
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_value=NA, overwrite=F){
-  # Resample raster to template raster with crop from GDAL for speed. 
+  
   fun <- function(in_fp, out_fp, template, na_value=NA){
+    # Resample raster to template raster with crop from GDAL for speed. 
+    
     if(class(template)=='character'){
       template <- read_stars(template)
     }
+    
     # Crop using GDAL
     print('Cropping...')
     fp_crop <- tempfile(pattern = str_glue(file_path_sans_ext(basename(in_fp)),'_crop'), 
@@ -43,21 +48,31 @@ crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_va
     # Load and resample
     print('Resampling...')
     r <- read_stars(fp_crop)
+    
     if(!is.na(na_value)){
       r[r == na_value] <- NA
     }
+    
     r <- r %>% st_warp(template, method=warp_method, use_gdal=TRUE)
     r %>% as("Raster") %>%
       writeRaster(out_fp, options=c("dstnodata=-99999"), overwrite=T)
     return(r) # output raster is stars format
   }
-  if(!file.exists(esa_res_fp) | overwrite){
+  
+  # Only run if file doesn't already exist
+  if(!file.exists(out_fp) | overwrite){
+    
     r <- fun(in_fp, out_fp, template, na_value)
-  }else{
+    
+  } else {
+    
+    # If the file exists, load it
     print("File already exists. Loading.")
-    r <- read_stars(esa_res_fp)
+    r <- read_stars(out_fp)
+    
   }
 }
+
 crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp){
   # Function to crop and mask raster to polygon
   tmp_fp <- tempfile(pattern = sub(pattern = "(.*)\\..*$", replacement = "\\1", basename(in_fp)), 
@@ -74,71 +89,297 @@ crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp){
     mask(msk_poly, inverse=FALSE) 
   msk_land %>% writeRaster(out_fp, overwrite=T)
 }
-plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=10000){
+
+plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=10000, 
+                              ext_name, prefix, save_fig=TRUE){
+  
+  # Get statistics
   mu <- mean(df$value, na.rm=T)
   sd1 <- sd(df$value, na.rm=T)
   mn <- min(df$value, na.rm=T)
   mx <- max(df$value, na.rm=T)
+  # cuts <- data.frame(ref = c('mean', 'SD', 'SD'), 
+  #                    value = c(mu, mu-sd1, mu+sd1),
+  #                    stringsAsFactors = F)
+  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
+  cuts_pts <- data.frame(x = c(mn, mx), 
+                         y = c(0, 0))
+  
   if (length(df[[1]]) > 1000000) {
     print("Sampling...")
     df <- df %>% sample_n(sample_size)
   }
+  
+  # Plot
   p <- ggplot(df, aes(x=value)) + 
     geom_histogram(aes(y=..density..), fill="#69b3a2", color="#e9ecef", alpha=0.7, binwidth = bwidth)+
     geom_density(alpha=.2) + 
-    scale_x_continuous(name = expression(paste("Difference (t/ha): our AGB - Pan-tropical dataset")),
-                       breaks = seq(min, max, 50)
-                       # ,
-                       # limits=c(min, max)
+    scale_x_continuous(name = str_c("Difference (t/ha): our AGB (", prefix, ", Haiti) - ", ext_name),
+                       breaks = seq(min, max, 100), 
+                       limits = c(min, max)
     ) +
     coord_cartesian(xlim=c(min, max)) +
-    geom_vline(aes(xintercept=mu), color="black", linetype="solid", size=.5) +
-    geom_vline(aes(xintercept=mu - sd1),
-               color="black", linetype="dashed", size=.5)+
-    geom_vline(aes(xintercept=mu + sd1),
-               color="black", linetype="dashed", size=.5)+
-    geom_vline(aes(xintercept=mn),
-               color="black", linetype="solid", size=.5)+
-    geom_vline(aes(xintercept=mx),
-               color="black", linetype="solid", size=.5)+
+    geom_point(aes(x=mn, y=0))+
+    geom_point(aes(x=mx, y=0))+
+    geom_vline(mapping = aes(xintercept = value,
+                             colour = ref),
+               data = cuts,
+               color="black", linetype="solid", size=.5,
+               show.legend = FALSE) +
+    # geom_vline(aes(xintercept=mu - sd1),
+    #            color="black", linetype="dashed", size=.5)+
+    # geom_vline(aes(xintercept=mu + sd1),
+    #            color="black", linetype="dashed", size=.5)+
+    geom_text(mapping = aes(x = value,
+                            y = Inf,
+                            label = ref,
+                            hjust = -.1,
+                            vjust = 1),
+              data = cuts) +
     theme_minimal()
-  return(p)
+  
+  # Save figure
+  if(save_fig){
+    
+    hist_diff_fp <- file.path('figures/ext_comparisons', str_c('hist_diff_', ext_name, '_v_', prefix, '.png'))
+    ggsave(hist_diff_fp, plot=p, width=8, height=4)
+    return(p)
+    
+  } else {
+    
+    return(p)
+    
+  }
 }
+
 summarize_raster_differences <- function(int_r, ext_r){
+  # Make DF
   df <- bind_cols(external=as.vector(ext_r[[1]]), 
                   internal=as.vector(int_r[[1]])) %>% 
     filter(!is.na(external), !is.na(internal)) %>% 
     mutate(value=internal-external)
-  s <- summary(df$value) %>% as.vector()
-  cs <- c(df$value %>% IQR(), df$value %>% sd()) %>% as.vector()
+  
+  # Get summary stats
   pe <- cor.test(x=df$external, y=df$internal, method = 'pearson') 
-  mad <- mean(abs(df$value))
-  s_tbl <- c(as.vector(pe$estimate), s, cs, dim(df)[1], mad) %>% as_tibble()
-  hist(df$value, xlim=c(-200, 200), breaks = 50)
+  s <- summary(df$value) %>% 
+    tibble(names=names(.), value=.) %>% 
+    mutate(value = as.numeric(value))
+  cs <- tibble(
+    names=c('IQR', 'SD', 'MAD', 'cor', 'N'), 
+    value=c(IQR(df$value), 
+            sd(df$value), 
+            mean(abs(df$value)),
+            pe$estimate, 
+            dim(df)[1]))
+  s_tbl <- bind_rows(s, cs)
+  
+  # Return
   return(list(diffs=df, summary=s_tbl))
 }
-scatter_AGB_differences_from_DF <- function(df){
+
+scatter_AGB_differences_from_DF <- function(df, ext_name, prefix, save_fig=TRUE){
+  
+  # Sample
   if (length(df[[1]]) > 100000) {
     print("Sampling...")
     df <- df %>% sample_n(100000)
   }
+  
+  # Plot
   p <- ggplot(df, aes(x=external, y=internal)) + 
-    geom_point(alpha=0.05, fill="royalblue", color="blue") +
+    geom_point(alpha=0.1, size=0.1, fill="royalblue", color="royalblue") +
     labs(y = expression(paste("Internal AGB estimate")), 
          x = expression(paste("External AGB estimate"))) +
+    coord_fixed(ratio = 1, xlim=c(0, 320), ylim=c(0, 320)) +
     theme_minimal() + 
-    geom_smooth(method="lm", se=TRUE, fullrange=TRUE, level=0.95, col='black')
-  return(p)
+    geom_smooth(method="lm", #formula=y~0+x, 
+                se=TRUE, fullrange=TRUE, level=0.95, col='black', size=.25)
+  
+  # Save/Return
+  if(save_fig){
+    
+    scatter_diff_fp <- file.path('figures/ext_comparisons', str_c('scatter_diff_', ext_name, '_v_', prefix, '.png'))
+    ggsave(scatter_diff_fp, plot=p, width=6, height=6)
+    # Return
+    return(p)
+    
+  } else {
+    
+    return(p)
+  }
+
 }
 
-# External map filepaths -------------------------------------------------------------------------------
+
+
+plot_differences_map <- function(diff_ras, ext_name, prefix, save_fig=TRUE){
+  
+  # Convert raster to dataframe
+  diff_df <- as.data.frame(diff_ras, xy=TRUE) %>% 
+    drop_na() %>% 
+    rename(diff = all_of(names(diff_ras)))
+  
+  # Load land polygon
+  hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+  
+  # Plot
+  p <- ggplot(diff_df) +
+    # Land poly
+    geom_sf(data=hti_poly, lwd=0, fill='darkgray') +
+    # Difference surface
+    geom_tile(aes(x=x, y=y, fill=diff)) +
+    scale_fill_gradientn(colors=c('#ca0020', '#f4a582', '#f7f7f7', '#92c5de', '#0571b0'), 
+                         breaks = c(-60, -30, 0, 30, 60),
+                         labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
+                         name = 'Difference in AGB (t/ha)',
+                         # na.value='lightgray', 
+                         limits = c(-60, 60), 
+                         oob = scales::squish,
+                         guide = guide_colorbar(barheight = 2)) + 
+    coord_sf() +
+    theme_minimal() + 
+    theme(axis.title = element_blank(), 
+          axis.text = element_text(color='gray'),
+          legend.position = c(.16, .85))
+  
+  # Save figure
+  if(save_fig){
+    
+    map_diff_fp <- file.path('figures/ext_comparisons', str_c('map_diff_', ext_name, '_v_', prefix, '.png'))
+    ggsave(map_diff_fp, plot=p, width=8, height=6)
+    return(p)
+    
+  } else {
+    
+    return(p)
+    
+  }
+}
+
+crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, return_bb=F) {
+  # Get intersection of the bounding boxes of the two rasters
+  bb <- st_intersection(terra::ext(r1) %>% as.vector %>% st_bbox %>% st_as_sfc, 
+                        terra::ext(r2) %>% as.vector %>% st_bbox %>% st_as_sfc) %>% 
+    st_bbox %>% as.vector 
+  
+  # Convert to terra extent object
+  bbex <- terra::ext(bb[c(1, 3, 2, 4)])
+  
+  if(return_bb){
+    if(!return_r1 & !return_r2){
+      return(bbex)
+    } else if(return_r1 & !return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      return(list(r1=r1, bb=bbex))
+    } else if(!return_r1 & return_r2) {
+      # Crop each raster
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r2=r2, bb=bbex))
+    } else if(return_r1 & return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r1=r1, r2=r2, bb=bbex))
+    }
+  } else {
+    if(!return_r1 & !return_r2){
+      return()
+    } else if(return_r1 & !return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      return(r1)
+    } else if(!return_r1 & return_r2) {
+      # Crop each raster
+      r2 <- r2 %>% terra::crop(bbex)
+      return(r2)
+    } else if(return_r1 & return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r1=r1, r2=r2))
+    }
+  }
+}
+
+perform_comparison <- function(agb_fp, ext_fp, ext_name){
+  # Compare our AGB to External AGB
+  
+  # Get filenames
+  prefix <- agb_fp %>% basename %>% str_split_fixed('_', 4) %>% .[,1:3] %>% str_c(collapse = '')
+  
+  agb_res_fp <- file.path('results/tifs_by_R', str_c(prefix, '_resamp_to', ext_name, '_bl_hti.tif'))
+  diff_fp <- file.path('results/ext_comparisons', str_c('diff_', ext_name, '_v_', prefix, '.tif'))
+  
+  # Resample AGB to External
+  if(!file.exists(agb_res_fp)){
+    
+    # Crop to intersection of the two extents
+    out <- crop_to_intersecting_extents(terra::rast(agb_fp), terra::rast(ext_fp))
+    agb.ras <- out[[1]]
+    agb_glob <- out[[2]]
+    
+    agb_res <- agb.ras %>% terra::resample(agb_glob, method="bilinear")
+    
+    # Crop again
+    agb_res <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r2=F)
+    
+    agb_res %>% terra::writeRaster(filename=agb_res_fp, 
+                                   overwrite=TRUE, 
+                                   wopt=list(gdal='COMPRESS=LZW'))
+    
+  } 
+  
+  # Difference map
+  if(file.exists(diff_fp)){
+    
+    diff_ras <- terra::rast(diff_fp)
+    
+  } else {
+    
+    # Crop to intersection of the two extents
+    agb_res <- terra::rast(agb_res_fp)
+    agb_glob <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
+    
+    diff_ras <- agb_res - agb_glob
+    diff_ras %>% terra::writeRaster(filename=diff_fp, 
+                                     overwrite=TRUE, 
+                                     wopt=list(gdal='COMPRESS=LZW'))
+  }
+  
+  # Get summary stats of differences and Pearson correlation
+  # Crop to intersection of the two extents
+  agb_res <- terra::rast(agb_res_fp)
+  agb_glob <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
+  
+  df <- summarize_raster_differences(agb_res, agb_glob)
+  diffs <- df$diffs
+  
+  # Plots
+  p_hist <- plot_hist_density(diffs, -300, 300, bwidth=10, sample_size=500000,
+                              ext_name, prefix, save_fig=T)
+  p_scatt <- scatter_AGB_differences_from_DF(diffs, ext_name, prefix, save_fig=T)
+  
+  N <- df$summary %>% filter(names=='N') %>% select(value) %>% deframe
+  if (N < 3000000) {
+    p_map <- plot_differences_map(diff_ras, ext_name, prefix, save_fig=T)
+  } else {
+      p_map <- NULL
+    }
+  
+  # Return
+  return(list(p_hist=p_hist, p_scatt=p_scatt, p_map=p_map, summary=df$summary))
+}
+
+# External map filepaths -------------------------------------------------------
 glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
 esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif"
 avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
 bacc_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif"
 agb_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
+agb_fp <- 'results/tifs_by_R/agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif'
 
-# Standardize external maps -------------------------------------------------------------------------------
+# Standardize external maps ----------------------------------------------------
 # Load AGB map
 agb.ras <- read_stars(agb_fp)
 
@@ -165,9 +406,8 @@ gdalwarp(srcfile=in_fp, dstfile=crop_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres
 r <- read_stars(crop_fp)
 r[r == 0] <- NA
 r %>% as("Raster") %>%
-  writeRaster("data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif", 
+  writeRaster(glob_fp, 
               options=c("dstnodata=-99999"), overwrite=T)
-glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
 
 # Do the same for error (per-pixel uncertainty expressed as standard error in m3/ha)
 in_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_err.tif"
@@ -181,6 +421,8 @@ r %>% as("Raster") %>%
               options=c("dstnodata=-99999"), overwrite=T)
 
 # ESA ------
+# http://data.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/2017/v1.0/geotiff
+# ftp://anon-ftp.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/2017/v1.0/geotiff/
 # Crop ESA to our Hispaniola extent and convert 0s to NA
 in_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif"
 esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_crop.tif"
@@ -210,49 +452,28 @@ bmloss_fp <- "data/ext_AGB_maps/Baccini/Forest_Biomass_Loss/AGLB_Deforested_Trop
 r <- raster(in_fp)
 gdalwarp(srcfile=in_fp, dstfile=bmloss_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
 
-##################################################################################################
-# Load AGB map -------------------------------------------------------------------------------
-agb.ras <- read_stars(agb_fp)
-names(agb.ras) <- 'Our AGB 2018'
+################################################################################
+# Run comparison and get graphics ------------------------------------------------------------------
+# GlobBiomass
+glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB')
+glob_out$summary %>% View()
 
-# GlobBiomass ----------------------------------------------------------------------------------------
-# Resample our AGB to GlobBiomass (same as ESA) 
-agb_glob <- raster(glob_fp)
-agb.ras <- raster(agb_fp)
-agb_res <- agb.ras %>% raster::resample(agb_glob, method="bilinear")
-agb_res %>% as("Raster") %>%
-  writeRaster('results/tifs_by_R/resamp_toGlobB_agb18v3l1a_bl.tif', 
-              options=c("dstnodata=-99999"), overwrite=T)
+glob_out$summary %>% write_clip()
 
-# Get summary stats of differences and Pearson correlation
-df <- summarize_raster_differences(agb_res, agb_glob)
+# ESA 
+esa_out <- perform_comparison(agb_fp, esa_fp, 'ESA')
+esa_out$summary %>% write_clip()
 
-# Plot scatterplot
-diffs <- df$diffs
-(p <- scatter_AGB_differences_from_DF(diffs))
+# Avitabile 
+avit_out <- perform_comparison(agb_fp, avit_fp, 'Avitabile')
+avit_out$summary %>% write_clip()
 
-# Difference map: L1 mask
-agb_res <- read_stars('results/tifs_by_R/resamp_toGlobB_agb18v3l1a_bl.tif')
-agb_glob <- read_stars(glob_fp)
-diff_glob <- agb_res - agb_glob
-diff_glob %>% as("Raster") %>% 
-  writeRaster('results/ext_comparisons/diff_GlobBiomass_v_agb18v3l1a.tif', overwrite=TRUE)
+# Baccini 
+bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini')
+bacc_out$summary %>% write_clip()
 
-# ESA ----------------------------------------------------------------------------------------
-# Resample our AGB to ESA 
-agb_esa <- raster(esa_fp)
-agb_res <- agb.ras %>% as("Raster") %>% raster::resample(agb_esa, method="bilinear")
-agb_res %>% as("Raster") %>%
-  writeRaster('results/tifs_by_R/resamp_toESA_agb18v3l1a_blrasterresample.tif', 
-              options=c("dstnodata=-99999"), overwrite=T)
-
-# Get summary stats of differences and Pearson correlation
-df <- summarize_raster_differences(agb_res, agb_esa)
-
-# Plot scatterplot
-diffs <- df$diffs
-(p <- scatter_AGB_differences_from_DF(diffs))
-
+################################################################################
+# ESA --------------------------------------------------------------------------
 # Difference map: L1 mask
 agb_res <- read_stars('results/tifs_by_R/resamp_toESA_agb18v3l1a_blrasterresample.tif')
 agb_esa <- read_stars(esa_fp)

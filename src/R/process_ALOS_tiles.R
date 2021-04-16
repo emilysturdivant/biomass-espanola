@@ -160,17 +160,17 @@ g0.agg <- aggregate(g0.nofilt, fact=2, fun=mean, na.rm=TRUE,
                     filename="results/g0nu_HV/g0nu_2018_agg50m.tif",
                     overwrite=TRUE)
 
-# Perform SAGA Lee filter ------------------------------------------------------
-g0.nofilt <- terra::rast(g0_fp)
-
-install.packages('RSAGA')
-library(RSAGA)
-
-work_env <- rsaga.env(workspace = getwd())
-rsaga.get.modules('grid_filter')
-rsaga.get.usage('grid_filter', 3)
-
-rsaga.import.gdal(g0_fp)
+# # Perform SAGA Lee filter ------------------------------------------------------
+# g0.nofilt <- terra::rast(g0_fp)
+# 
+# install.packages('RSAGA')
+# library(RSAGA)
+# 
+# work_env <- rsaga.env(workspace = getwd())
+# rsaga.get.modules('grid_filter')
+# rsaga.get.usage('grid_filter', 3)
+# 
+# rsaga.import.gdal(g0_fp)
 
 # Crop WorldClim rasters -------------------------------------------------------------------
 bb <- st_bbox(g0) #te=c(xmin,ymin,xmax,ymax)
@@ -431,6 +431,7 @@ tm_shape(g0lee[test_bb]) + tm_raster(breaks=seq(0, 0.3, 0.01), palette=palette(h
 
 # Crop backscatter to Haiti extent ----###########################################
 hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0_fix.shp")
+units::set_units(st_area(hti_poly), ha)
 r <- raster("results/g0nu_HV/g0nu_2018_HV_haitiR.tif") %>% 
   mask(hti_poly, inverse=FALSE) 
 r %>% writeRaster("results/g0nu_HV/g0nu_2018_HV_hticlip.tif", overwrite=T)

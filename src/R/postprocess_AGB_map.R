@@ -94,7 +94,6 @@ get_counts_raster <- function(valuesraster, msk_zone, msk_0, threshold=132){
   cts_df <- filter_by_thresh_and_tally(df1, total, threshold)
 }
 
-
 get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_in_fn, dir='results/tifs_by_R'){
   
   # Filenames
@@ -149,7 +148,7 @@ get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_in_fn, dir='results/t
     msk_u20 <- agb.ras %>% 
       terra::classify(rbind(c(-9999,20,NA), c(20,9999,1)),
                       filename=msk_u20_fp, overwrite=T, 
-                      wopt=list(datatype='INT1U', gdal='NBITS=1', NAflag=0))
+                      wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
   }
   
   msk_AWUwb_u20_fp <- str_c("results/R_out/mask_AWUwb_u20",fn_suff,"_hti.tif")
@@ -158,7 +157,7 @@ get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_in_fn, dir='results/t
   } else {
     msk_AWUwb_u20 <- msk_AWUwb %>% 
       terra::mask(msk_u20, filename=msk_AWUwb_u20_fp, overwrite=T, 
-                  wopt=list(datatype='INT1U', gdal='NBITS=1', NAflag=0))
+                  wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
   }
   
   # g0 >0.3 mask (AGB>316.76)
@@ -170,7 +169,7 @@ get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_in_fn, dir='results/t
       terra::classify(rbind(c(p3_agb_val, 9999, NA), 
                             c(-9999, p3_agb_val, 1)),
                       filename=msk_p3_fp, overwrite=T, 
-                      wopt=list(datatype='INT1U', gdal='NBITS=1', NAflag=0))
+                      wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
   }
   
   msk_Ap3WUwb_u20_fp <- str_c("results/R_out/mask_msk_Ap3WUwb_u20",fn_suff,"_hti.tif")
@@ -179,7 +178,7 @@ get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_in_fn, dir='results/t
   } else {
     msk_Ap3WUwb_u20 <- msk_AWUwb_u20 %>% 
       terra::mask(msk_p3, filename=msk_Ap3WUwb_u20_fp, overwrite=T, 
-                  wopt=list(datatype='INT1U', gdal='NBITS=1', NAflag=0))
+                  wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
   }
   
   # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
@@ -527,12 +526,24 @@ mskinv_T_wb <- mskinv_T %>%
 plot(agb.ras)
 plot(msk_land)
 
+# Get mean and count
+mn <- global(agb.ras, 'mean', na.rm=T)
+sum_agb <- global(agb.ras, 'sum', na.rm=T)
+ct_valid_pixels <- global(!is.na(agb.ras), 'sum')
+est_area_ha <- (25*25*0.0001) * ct_valid_pixels
+est_total_AGB <- mn * est_area_ha
+ct_land_pixels <- global(!is.na(msk_land), 'sum')
+est_area_ha_land <- (25*25*0.0001) * ct_land_pixels
+
 # Convert to DF
 df <- tibble(land = as.vector(msk_land), 
-             agb = as.vector(agb.ras) %>% round(4), 
+             agb = as.vector(agb.ras) %>% round(2), 
              zone = as.vector(mskinv_T),
              water_in_tc = as.vector(mskinv_T_wb)) %>% 
   filter(!is.na(land))
+
+
+
 total <- nrow(df)
 
 tc_df <- df %>% filter(zone == 1)
@@ -603,42 +614,109 @@ total_TC <- df %>% filter(zone == 1) %>% nrow
 
 
 # Older code -------------------------------------------------------------------
-# Barplot
-(bp <- ggplot(df, aes(x="", y=value, fill=group))+
-    geom_bar(width = 1, stat = "identity")+ 
-    scale_fill_manual(values=c("#E69F00", "#999999", "#999000")) +
-    theme_minimal())
-(pie <- bp + coord_polar("y", start=0))
-
-
-# Apply masks to AGB --------------------------------------------------------------------------------------
-agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+# Apply masks to AGB -----------------------------------------------------------
+agb.ras <- terra::rast("results/tifs_by_R/agb18_v1_l0.tif")
 msk_Ap3_WU_wb_u20 <- 
   readRDS('results/R_out/mask_ALOS_pt3_WaterUrban_water25_AGBu20_stars.rds')
 
-agb_mskd <- agb.ras * msk_Ap3_WU_wb
+agb_mskd <- agb.ras %>% terra::mask(msk_Ap3_WU_wb)
 agb_mskd %>% as("Raster") %>% 
   writeRaster('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25.tif')
 
-agb_mskd <- agb.ras * msk_Ap3_WU_wb_u20
+agb_mskd <- agb.ras %>% terra::mask(msk_Ap3_WU_wb_u20)
 agb_mskd %>% as("Raster") %>% 
   writeRaster('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
 
-agb_mskd2 <- agb_mskd * msk_o310
+agb_mskd2 <- agb_mskd %>% terra::mask(msk_o310)
 agb_mskd2 %>% as("Raster") %>% 
   writeRaster('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20o310.tif')
 agb_mskd2 <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20o310.tif')
 
+
+
+
+# ~ change up masking -----
+# SAGA filter (v3) 
+fn_suff <- '_qLee' # filename suffix (from regression_AGB-g0.R)
+p3_agb_val = 316.76
+agb_in_fn <- 'agb18_v3_l0_qLee.tif'
+dir='results/tifs_by_R'
+
+# Filenames
+agb_in_fp <- # This file is only Haiti
+  file.path(dir, agb_in_fn) 
+agb_hti_fp <- file.path(dir, str_c("agb18_v3_l0_hti",fn_suff,".tif"))
+agb_out_fp <- file.path(dir, str_c("agb18_v3_l1_mask_AWUw25_u20_hti",fn_suff,".tif"))
+
+# Load default mask (ALOS, water, and urban)
+msk_land <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)- HAITI
+  terra::rast("results/masks/hti18_maskLand.tif") 
+msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buffer
+  terra::rast("results/masks/mask_ALOS_WaterUrban_water25.tif")
+mskinv_T <-  # 1== LC17 tree cover
+  terra::rast("results/masks/mask_inv_TreeCover.tif")
+
+# Get cropped AGB and extent for cropping
+agb.ras <- terra::rast(agb_hti_fp)
+
+# set extent and crop
+msk_land <- msk_land %>% terra::crop(agb.ras)
+msk_AWUwb <- msk_AWUwb %>% terra::crop(agb.ras)
+mskinv_T <- mskinv_T %>% terra::crop(agb.ras)
+
+# Get masks
+# AGB <20 mask
+msk_u20_fp <- str_c("results/R_out/mask_AGB_under20",fn_suff,"_hti.tif")
+if(file.exists(msk_u20_fp)){
+  msk_u20 <- terra::rast(msk_u20_fp)
+} else {
+  msk_u20 <- agb.ras %>% 
+    terra::classify(rbind(c(-9999,20,NA), c(20,9999,1)),
+                    filename=msk_u20_fp, overwrite=T, 
+                    wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
+}
+
+msk_AWUwb_u20_fp <- str_c("results/R_out/mask_AWUwb_u20",fn_suff,"_hti.tif")
+if(file.exists(msk_AWUwb_u20_fp)){
+  msk_AWUwb_u20 <- terra::rast(msk_AWUwb_u20_fp)
+} else {
+  msk_AWUwb_u20 <- msk_AWUwb %>% 
+    terra::mask(msk_u20, filename=msk_AWUwb_u20_fp, overwrite=T, 
+                wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
+}
+
+# Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+if(file.exists(agb_out_fp)){
+  # read
+  agb.r <- terra::rast(agb_out_fp)
+} else {
+  agb.r <- agb.ras %>% 
+    terra::mask(msk_AWUwb_u20, filename=agb_out_fp, overwrite=T, 
+                wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
+}
+
+
 # Apply value cap to AGB ----#######################################################
-agb_sat <- agb_mskd
-agb_sat <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif')
-saturation_pt <- 132
+saturation_pt <- 310
+dir_out <- 'results/tifs_by_R'
+agb_fp <- file.path(dir_out, 'agb18_v3_l1_mask_AWUw25_u20_hti_qLee.tif')
+# agb_fp <- file.path(dir_out, 'agb18_v3_l0_hti_qLee.tif')
+agb_cap_out <- file.path(dir_out, str_c('agb18_v3_l2_mAWUw25u20_cap', 
+                        saturation_pt, '.tif'))
+
+# Load
+agb_sat <- terra::rast(agb_fp)
 
 # Apply saturation point to AGB and save
 agb_sat[agb_sat > saturation_pt] <- saturation_pt
-agb_sat %>% saveRDS('results/R_out/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.rds')
-agb_sat %>% as("Raster") %>% 
-  writeRaster('results/tifs_by_R/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
+agb_sat %>% 
+  terra::writeRaster(agb_cap_out, overwrite=T, 
+                     wopt=list(datatype='FLT4U', gdal='COMPRESS=LZW'))
+
+# Load
+agb_sat <- raster(agb_cap_out)
+ct_valid_agb = sum(!is.na(agb_sat[1]))
+
 
 # PLOT using tmap (interactive) ----############################################
 # Load contextual data for mapping
@@ -675,49 +753,6 @@ lyr_waterB <- tm_shape(water_polysb) + tm_borders()
 # Map
 (map_g0w <- lyr_g0 + lyr_water + lyr_waterB)
 
-# Look at AGB distributions ---- ###################################################
-agb.br <- brick(raster("results/agb/agb_2018_v6_mask2share.tif"),
-                raster("results/agb/agb_2018_v6CI_2share.tif"))
-names(agb.br) <- c('AGB', 'CI')
-saveRDS(agb.br, file = "results/R_out/AGB_95ci.rds")
 
-get_brick_stats <- function(lc.br){
-  # Get selection of percentiles for each LC
-  agb.qs <- data.frame(row.names=c('0%', '1%','2%','10%', '25%', '50%', '75%', '90%','98%', '99%','100%'))
-  for (i in seq(1,nlayers(lc.br))){
-    lc <- names(lc.br[[i]])
-    agb.qs[[lc]] <- quantile(lc.br[[i]], probs=c(0, 0.01, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9,0.98, 0.99, 1))
-  }
-  # Get means, SDs, and Skews
-  stats <- list(mean=cellStats(lc.br, stat='mean', na.rm=TRUE),
-                sd=cellStats(lc.br, stat='sd', na.rm=TRUE),
-                skew=cellStats(lc.br, stat='skew', na.rm=TRUE)) %>%
-    bind_cols()%>%
-    t()
-  colnames(stats) <- names(lc.br)
-  agb.stats <- rbind(agb.qs, stats)
-}
-agb.stats <- get_brick_stats(agb.br)
 
-# Graphing ---- ###################################################################
-# Sample the distribution of values in the raster
-agb.samp <- agb %>% 
-  sampleRandom(100000, na.rm=TRUE) %>% 
-  as.data.frame() %>% 
-  rename(AGB='.')
 
-# Plot density
-p <- ggplot(agb.samp, aes(x=AGB)) + 
-  geom_histogram(aes(y=..density..), fill="#69b3a2", color="#e9ecef", alpha=0.7, binwidth = 2.5)+
-  geom_density(alpha=.2) + 
-  scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
-                     breaks = seq(0, 150, 25),
-                     limits=c(-5, 150)) +
-  geom_vline(aes(xintercept=mean(AGB)), color="black", linetype="dashed", size=.5)+
-  geom_vline(aes(xintercept=median(AGB)),
-             color="black", linetype="dashed", size=.5)+
-  theme_minimal()
-p
-
-mean(agb.samp$AGB)
-median(agb.samp$AGB)

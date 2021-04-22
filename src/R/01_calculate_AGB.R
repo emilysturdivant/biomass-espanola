@@ -1,15 +1,16 @@
-# ---------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Script to:
 #     * Calculate plot AGB from field inventory data
 # Proceeds:
 #     * python scripts to preprocess field data
 # Preceeds:
+#     * process_ALOS_tiles.R - merges tiles and makes masks
 #     * regression_AGB-g0.R - creates AGB map
 # Requires:
 #     * plot outline polygons 
 #     * field data table with plot ID, tree name, DBH, H
 #     * lookup table to match tree names with wood densities
-# ---------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 # Load libraries
 library(readr)
@@ -17,8 +18,10 @@ library(BIOMASS)
 library(tidyverse)
 library(sf)
 
+results_dir <- 'data/results'
+
 # Filenames
-plots_shp <- "results/plots_values/all_plots.shp"
+plots_shp <- file.path(results_dir, "plots_values/all_plots.shp")
 
 # Load CSVs
 mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
@@ -35,22 +38,31 @@ plots_no$plot_shp <- plots_no$plot_shp %>%
   str_replace('Campeche', 'Camapeche')
 
 # Load and standardize polygons
-standardize.names <- function(fp) try({
-  pol <- fp %>% 
-    # Read shapefile
-    sf::st_read(quiet=TRUE) %>% 
-    # Remove Z dimension from those that have it
-    st_zm() %>% 
-    # Transform to lat long
-    st_transform(4326)
-  pol$area <- st_area(pol) %>% units::set_units(value = ha) 
-  pol$Name <- fp %>% basename()
-  if (str_detect(pol$Name, 'No_?biomass')) {pol$biomass_tf <- 0
-    } else {pol$biomass_tf <- 1}
-  pol <- pol[c('Name', 'area', 'biomass_tf')]
-}, silent=FALSE)
+standardize.names <- function(fp) {
+  try(
+    {
+      pol <- fp %>% 
+        # Read shapefile
+        sf::st_read(quiet=TRUE) %>% 
+        # Remove Z dimension from those that have it
+        st_zm() %>% 
+        # Transform to lat long
+        st_transform(4326)
+      
+      pol$area <- st_area(pol) %>% units::set_units(value = ha) 
+      pol$Name <- basename(fp)
+      
+      pol$biomass_tf <- (if (str_detect(pol$Name, 'No_?biomass')) 0 else 1)
+      
+      pol <- pol[c('Name', 'area', 'biomass_tf')]
+    }, 
+    
+    silent=FALSE
+  )
+}
+
 # Load and merge plot polygons into one DF
-fps <- list.files(path="data/plots_shps", pattern="\\.shp$", full.names=TRUE)
+fps <- list.files(path="data/raw/survey_plot_shps", pattern="\\.shp$", full.names=TRUE)
 plots <- fps %>% lapply(standardize.names)
 plots <- do.call(rbind, plots)
 
@@ -89,6 +101,52 @@ mstems %>%
   ggtitle("Histogram of tree heights (N = 2,843, bin width = 1 m)")+
   theme_minimal())
 
+# Boxplots per plot ----
+(p <-ggplot(mstems, aes(y=dbh_cm, x=plot_no, group=plot_no)) + 
+   geom_boxplot() +
+   labs(y = expression(paste("DBH (cm)")), 
+        x = "")+
+   ggtitle("Tree diameter at breast height (DBH; N = 6,256)")+
+   theme_minimal())
+ggsave('figures/qc_plots/boxes_byplot_dbh.png', width=6, height=2.5)
+(p <-ggplot(mstems, aes(y=ht_m, x=plot_no, group=plot_no)) + 
+    geom_boxplot() +
+    labs(y = expression(paste("Height (m)")), 
+         x = "")+
+    ggtitle("Tree heights (N = 2,843)")+
+    theme_minimal())
+ggsave('figures/qc_plots/boxes_byplot_ht.png', width=6, height=2.5)
+
+(p <-ggplot(mstems, aes(x=dbh_cm, y=plot_no, group=plot_no)) + 
+    geom_boxplot() +
+    labs(x = expression(paste("DBH (cm)")), 
+         y = "")+
+    ggtitle("Tree diameter \n(DBH; N = 6,256)")+
+    theme_minimal()+
+    theme(axis.text.y=element_blank()))
+ggsave('figures/qc_plots/boxes_byplot_dbhX.png', width=2.5, height=6)
+(p <-ggplot(mstems, aes(x=ht_m, y=plot_no, group=plot_no)) + 
+    geom_boxplot() +
+    labs(x = expression(paste("Height (m)")), 
+         y = "")+
+    ggtitle("Tree heights (N = 2,843)")+
+    theme_minimal()+
+    theme(axis.text.y=element_blank()))
+ggsave('figures/qc_plots/boxes_byplot_htX.png', width=2.5, height=6)
+
+mstems_temp <- mstems %>% group_by(plot_no) %>% 
+  summarize(mean_ht = median(ht_m, na.rm=T)) %>% 
+  arrange(desc(mean_ht)) %>% 
+  left_join(mstems) %>% 
+  mutate(plot_no = as.factor(plot_no))
+(p <-ggplot(mstems_temp, aes(y=ht_m, x=plot_no, group=plot_no)) + 
+    geom_boxplot() +
+    labs(y = expression(paste("Height (m)")), 
+         x = "")+
+    ggtitle("Tree heights (N = 2,843)")+
+    theme_minimal()+
+    theme(axis.text.x=element_blank()))
+
 # Compute AGB ---- ##################################################################
 # HEIGHTS, input: mstems$dbh_cm, mstems$ht_m, output: mstems$H, mstems$Hrse
 interp_heights <- function(.data){
@@ -118,8 +176,8 @@ mstems$agb <- computeAGB(
 )
 
 # Save
-saveRDS(mstems, 'results/R_out/mstems_agb.rds')
-mstems <- readRDS('results/R_out/mstems_agb.rds')
+saveRDS(mstems, file.path(results_dir, 'R_out/mstems_agb.rds'))
+mstems <- readRDS(file.path(results_dir, 'R_out/mstems_agb.rds'))
 
 # Compute AGB per plot and convert to AGB per hectare ---- #########################################
 # compute AGB(Mg) per plot
@@ -137,7 +195,7 @@ plots_agb <- merge(plot_polys, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
 plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area
 plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
 
-saveRDS(plots_agb, 'results/R_out/plots_agb.rds')
+saveRDS(plots_agb, file.path(results_dir, 'R_out/plots_agb.rds'))
 
 # Look at data ---- ####################################################################
 summary(mstems$meanWD)

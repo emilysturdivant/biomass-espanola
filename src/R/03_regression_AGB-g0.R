@@ -22,17 +22,19 @@ require(graphics)
 library(patchwork)
 library(tidyverse)
 
+results_dir <- 'data/results'
+
 fn_suff <- ''
 vers_name <- 'v1'
-g0_fp <- "results/g0nu_HV/g0nu_2018_HV_haitiR.tif"
+g0_fp <- file.path(results_dir, "g0nu_HV/g0nu_2018_HV_haitiR.tif")
 
 fn_suff <- '_agg50m'
 vers_name <- 'v2'
-g0_fp <- "results/g0nu_HV/g0nu_2018_haiti_agg50m.tif"
+g0_fp <- file.path(results_dir, "g0nu_HV/g0nu_2018_haiti_agg50m.tif")
 
 fn_suff <- '_qLee'
 vers_name <- 'v3'
-g0_fp <- "results/g0nu_HV/g0nu_2018_haiti_qLee1.tif"
+g0_fp <- file.path(results_dir, "g0nu_HV/g0nu_2018_haiti_qLee1.tif")
 
 # Get mean backscatter for each plot --------------------------------------------------------------
 # Load raster and polygon data
@@ -42,15 +44,15 @@ g0_fp <- "results/g0nu_HV/g0nu_2018_haiti_qLee1.tif"
 g0 <- read_stars(g0_fp)
 
 # Add plot backscatter mean to polygons
-plots_agb <- readRDS('results/R_out/plots_agb.rds')
+plots_agb <- readRDS(file.path(results_dir, 'R_out/plots_agb.rds'))
 max(plots_agb$AGB_ha)
 plots_agb %>% mutate(
     g0l_mean = geobgu::raster_extract(g0, plots_agb, fun = mean, na.rm = TRUE)
   ) %>% 
-  saveRDS(str_c('results/R_out/plots_g0agb',fn_suff,'.rds'))
-g0_AGB <- readRDS(str_c('results/R_out/plots_g0agb',fn_suff,'.rds'))
+  saveRDS(file.path(results_dir, str_c('R_out/plots_g0agb',fn_suff,'.rds')))
+g0_AGB <- readRDS(file.path(results_dir, str_c('R_out/plots_g0agb',fn_suff,'.rds')))
 g0_AGB %>% 
-  st_write(str_c("results/plots_values/plots_g0agb",fn_suff,".shp"), append=FALSE)
+  st_write(file.path(results_dir, str_c("plots_values/plots_g0agb",fn_suff,".shp")), append=FALSE)
 
 # Extract just AGB and backscatter as dataframe
 g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>% 
@@ -58,9 +60,9 @@ g0.agb <- g0_AGB[c('AGB_ha', 'g0l_mean')] %>%
   as.data.frame() %>% 
   rename(AGB = AGB_ha, backscatter = g0l_mean) 
 g0.agb %>% 
-  saveRDS(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".rds"))
-g0.agb  <- readRDS(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".rds"))
-g0.agb %>% write_csv(str_c("results/R_out/plots_g0agb_dfslim",fn_suff,".csv"))
+  saveRDS(file.path(results_dir, str_c("R_out/plots_g0agb_dfslim",fn_suff,".rds")))
+g0.agb  <- readRDS(file.path(results_dir, str_c("R_out/plots_g0agb_dfslim",fn_suff,".rds")))
+g0.agb %>% write_csv(file.path(results_dir, str_c("R_out/plots_g0agb_dfslim",fn_suff,".csv")))
 g0.agb$AGB <- as.vector(g0.agb$AGB)
 
 # Look at values
@@ -89,9 +91,15 @@ ggsave(str_c("figures/qc_plots/scatter_g0agb",fn_suff,".png"), width=15, height=
 # Basic OLS regression
 # g0.agb$backscatter <- as.vector(g0.agb$backscatter)
 ols <- lm(as.vector(AGB) ~ as.vector(backscatter), data=g0.agb, x=TRUE, y=TRUE)
-ols %>% saveRDS(str_c("results/R_out/ols_AGBv1_g0v1",fn_suff,".rds"))
+ols %>% saveRDS(file.path(results_dir, str_c("R_out/ols_AGBv1_g0v1",fn_suff,".rds")))
 
 # Report results -------------------------------------------------------------------------------------
+#' Report OLS results
+#' 
+#' @param ols Object of class "lm"
+#' @return Data frame with regression statistics for \code{ols}
+#' @examples
+#' vals <- report_ols_results(ols)
 report_ols_results <- function(ols){
   # Regression Coefficients
   coefs <- tidy(ols) %>% cbind(confint(ols)) %>% 
@@ -155,10 +163,10 @@ vals <- report_ols_results(ols)
 opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
 plot(ols, las = 1)
 
-# Repeated k-fold cross validation ---------------------------------------------------------------------
+# Repeated k-fold cross validation ---------------------------------------------
 fxn.bias <- function(data, lev = NULL, model = NULL) {
   resids <- data$pred - data$obs
-  # resids <- residuals(lm(pred ~ obs, data)) # This produces very different results than the alternative above
+  # resids <- residuals(lm(pred ~ obs, data)) # produces very different results than the alternative above
   rss <- sum(resids^2)
   n <- length(resids)
   df <- n-2
@@ -198,8 +206,8 @@ model.10000x5 <- train(AGB ~ backscatter, data = g0.agb, method = "lm",
                        trControl = trainControl(method = "repeatedcv", 
                                                 number = 5, repeats = 10000,
                                                 summaryFunction = fxn.bias))
-model.10000x5 %>% saveRDS(str_c("results/R_out/CVmodel_g0nu_10000x5",fn_suff,".rds"))
-model.10000x5 <- readRDS(str_c("results/R_out/CVmodel_g0nu_10000x5",fn_suff,".rds"))
+model.10000x5 %>% saveRDS(file.path(results_dir, str_c("R_out/CVmodel_g0nu_10000x5",fn_suff,".rds")))
+model.10000x5 <- readRDS(file.path(results_dir, str_c("R_out/CVmodel_g0nu_10000x5",fn_suff,".rds")))
 
 cv_r <- model.10000x5$results
 cv_r <- as_tibble(cbind(metric = names(cv_r), t(cv_r))) %>% 
@@ -222,8 +230,36 @@ mets <- rbind(train_vals, cv_vals)
 # Create AGB raster --------------------------------------------------------------------------------
 # Load data 
 g0 <- raster(g0_fp); names(g0) <- 'backscatter'
-ols <- readRDS(str_c("results/R_out/ols_AGBv1_g0v1",fn_suff,".rds"))
+ols <- readRDS(file.path(results_dir, str_c("R_out/ols_AGBv1_g0v1",fn_suff,".rds")))
 
 # Apply linear regression model to create AGB map
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-agb.ras %>% writeRaster(str_c("results/tifs_by_R/agb18_", vers_name, "_l0",fn_suff,".tif"))
+agb.ras %>% writeRaster(file.path(results_dir, str_c("tifs_by_R/agb18_", vers_name, "_l0",fn_suff,".tif")))
+
+
+
+
+
+# ~ OLD - Create 95% CI raster ---------------------------------------------------
+# Function to create raster of confidence intervals
+predict.ci.raster <- function(g0, model){
+  names(g0) <- 'backscatter'
+  df <- as.data.frame(g0)
+  chunks <- split(df, (seq(nrow(df))-1) %/% 1000000) 
+  agblist <- list()
+  for (i in 1:length(chunks)){
+    chunk <- chunks[[i]]
+    agb1 <- stats::predict(model, newdata=chunk, 
+                           interval="confidence", level = 0.95) %>%
+      as.data.frame()
+    agblist[[i]] <- agb1
+  }
+  agb <- bind_rows(agblist)
+  agb.ci.v <- as.vector((agb$upr - agb$lwr)/2)
+  ci.ras <- setValues(g0, values=agb.ci.v)
+}
+
+ras.agb.ci <- predict.ci.raster(g0, ols)
+ras.agb.ci[agb.ras > 310] <- NA
+ras.agb.ci[agb.ras < 0] <- NA
+writeRaster(ras.agb.ci, file.path(results_dir, "agb/agb_CI_sub310.tif"), overwrite=TRUE)

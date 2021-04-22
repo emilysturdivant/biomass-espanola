@@ -19,8 +19,10 @@ library(stars)
 library(tmap)
 library(gdalUtils)
 
+results_dir <- 'data/results'
+
 # Load SRTM DEM and reproject and resample to match AGB ------------------------------------
-agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+agb.ras <- read_stars(file.path(results_dir, "tifs_by_R/agb18_v1_l0.tif"))
 
 fp_crop <- "data/SRTM/dem_1arc_hisp.tif"
 gdalwarp(srcfile="data/SRTM/dem_1arc_utm18n.tif", 
@@ -72,30 +74,30 @@ names(dem_slope) = "slope"
 
 dem_slope[[1]] = units::set_units(dem_slope[[1]], "degree")
 dem_slope %>% as("Raster") %>% 
-  writeRaster("results/tifs_by_R/dem_slope_focal2.tif")
+  writeRaster(file.path(results_dir, "tifs_by_R/dem_slope_focal2.tif"))
 dem %>% as("Raster") %>% 
   terrain(opt='slope', unit='degrees', neighbors=8, 
-          filename="results/tifs_by_R/dem_slope_terrain8.tif")
-slp2 <- read_stars("results/tifs_by_R/dem_slope_terrain8.tif")
-slp1 <- read_stars("results/tifs_by_R/dem_slope_focal2.tif")
+          filename=file.path(results_dir, "tifs_by_R/dem_slope_terrain8.tif"))
+slp2 <- read_stars(file.path(results_dir, "tifs_by_R/dem_slope_terrain8.tif"))
+slp1 <- read_stars(file.path(results_dir, "tifs_by_R/dem_slope_focal2.tif"))
 
 # Reproject and resample slope and aspect to match AGB ------------------------------------
-agb.ras <- read_stars("results/tifs_by_R/agb18_v1_l0.tif")
+agb.ras <- read_stars(file.path(results_dir, "tifs_by_R/agb18_v1_l0.tif"))
 
 # slope
 slp1 <- read_stars("data/SRTM/slope_1arc_utm18n.tif")
 slp <- slp1 %>% st_warp(agb.ras, method="bilinear", use_gdal=TRUE)
-slp %>% saveRDS('results/R_out/slope_1arc_resamptoAGBbl.rds')
+slp %>% saveRDS(file.path(results_dir, 'R_out/slope_1arc_resamptoAGBbl.rds'))
 
 # aspect
 asp1 <- read_stars("data/SRTM/aspect_1arc_utm18n.tif")
 asp <- asp1 %>% st_warp(agb.ras, method="bilinear", use_gdal=TRUE)
-asp %>% saveRDS('results/R_out/aspect_1arc_resamptoAGBbl.rds')
+asp %>% saveRDS(file.path(results_dir, 'R_out/aspect_1arc_resamptoAGBbl.rds'))
 
 # Load rasters as stars
-slp <- readRDS('results/R_out/slope_1arc_resamptoAGBbl.rds')
-asp <- readRDS('results/R_out/aspect_1arc_resamptoAGBbl.rds')
-g0 <- read_stars("results/g0nu_HV/g0nu_2018_HV.tif")
+slp <- readRDS(file.path(results_dir, 'R_out/slope_1arc_resamptoAGBbl.rds'))
+asp <- readRDS(file.path(results_dir, 'R_out/aspect_1arc_resamptoAGBbl.rds'))
+g0 <- read_stars(file.path(results_dir, "g0nu_HV/g0nu_2018_HV.tif"))
 
 # Create DF of slope, aspect, and g0 -------------------------------------------------------
 cell_numbers = g0
@@ -107,31 +109,31 @@ df <-
          slope=as.vector(slp[[1]]) %>% round(1), 
          aspect=as.vector(asp[[1]]) %>% round(1)) %>% 
   filter(!is.na(g0)) 
-df %>% saveRDS("results/R_out/df_srtm_g0agb.rds")
-df  <- readRDS("results/R_out/df_srtm_g0agb.rds")
+df %>% saveRDS(file.path(results_dir, "R_out/df_srtm_g0agb.rds"))
+df  <- readRDS(file.path(results_dir, "R_out/df_srtm_g0agb.rds"))
 
 cor(df$agb, df$aspect, use="complete.obs")
 cor(df$agb, df$slope)
 
 # Compare slope to g0 ----------------------------------------------------------------------
 df_o1 <- df %>% filter(g0>=1)
-df_o1 %>% saveRDS("results/R_out/df_srtm_agb_g0_over1.rds")
+df_o1 %>% saveRDS(file.path(results_dir, "R_out/df_srtm_agb_g0_over1.rds"))
 df_u1 <- df %>% filter(g0<1)
-df_u1 %>% saveRDS("results/R_out/df_srtm_agb_g0_under1.rds")
+df_u1 %>% saveRDS(file.path(results_dir, "R_out/df_srtm_agb_g0_under1.rds"))
 df_op4 <- df %>% filter(g0>0.4)
-df_op4 %>% saveRDS("results/R_out/df_slope_v_g0_overpt4.rds")
+df_op4 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_overpt4.rds"))
 df_op3 <- df %>% filter(g0>0.3)
-df_op3 %>% saveRDS("results/R_out/df_slope_v_g0_overpt3.rds")
+df_op3 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_overpt3.rds"))
 df_p3_1 <- df_u1 %>% filter(g0>0.3)
-df_p3_1 %>% saveRDS("results/R_out/df_slope_v_g0_pt3to1.rds")
+df_p3_1 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_pt3to1.rds"))
 df_p2_3 <- df %>% filter(g0>0.2 & g0<=0.3)
-df_p2_3 %>% saveRDS("results/R_out/df_slope_v_g0_pt2topt3.rds")
+df_p2_3 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_pt2topt3.rds"))
 df_up2 <- df %>% filter(g0<=0.2)
-df_up2 %>% saveRDS("results/R_out/df_slope_v_g0_underpt2.rds")
+df_up2 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_underpt2.rds"))
 df_p1_2 <- df %>% filter(g0>0.1 & g0<=0.2)
-df_p1_2 %>% saveRDS("results/R_out/df_slope_v_g0_pt1topt2.rds")
+df_p1_2 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_pt1topt2.rds"))
 df_up1 <- df %>% filter(g0<=0.1)
-df_up1 %>% saveRDS("results/R_out/df_slope_v_g0_underpt1.rds")
+df_up1 %>% saveRDS(file.path(results_dir, "R_out/df_slope_v_g0_underpt1.rds"))
 
 cor(df_o1$g0, df_o1$slope)
 cor(df_op4$g0, df_op4$slope, use="complete.obs")
@@ -154,13 +156,13 @@ cor(df_up1$g0, df_up1$aspect, use="complete.obs")
 
 # Look at correlations by slope ranges ----
 df_sl_o30 <- df %>% filter(slope>=30)
-df_sl_o30 %>% saveRDS("results/R_out/df_srtm_agbg0_sl_over30.rds")
+df_sl_o30 %>% saveRDS(file.path(results_dir, "R_out/df_srtm_agbg0_sl_over30.rds"))
 cor(df_sl_o30$g0, df_sl_o30$slope)
 length(df_sl_o30[[1]])
 cor(df_sl_o30$g0, df_sl_o30$aspect, use="complete.obs")
 
 df_sl_20_30 <- df %>% filter(slope<30 & slope>=20)
-df_sl_20_30 %>% saveRDS("results/R_out/df_srtm_agbg0_sl_over30.rds")
+df_sl_20_30 %>% saveRDS(file.path(results_dir, "R_out/df_srtm_agbg0_sl_over30.rds"))
 cor(df_sl_20_30$g0, df_sl_20_30$slope)
 length(df_sl_20_30[[1]])
 cor(df_sl_20_30$g0, df_sl_20_30$aspect, use="complete.obs")

@@ -46,7 +46,7 @@ comm_name_fld = 'all_names'
 creole_lookup = field_species[[comm_name_fld, 'binomial', 'genus', 'family']]
 
 #%% Parse Global Wood Density and do cross-check
-gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
+gwd_fname = os.path.join(home, 'data', 'raw', 'GlobalWoodDensityDatabase.xlsx')
 gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
     names=['gwd_num', 'family', 'binomial', 'wd',
         'region', 'gwd_ref_no'],
@@ -443,7 +443,7 @@ AGB = exp(-2.023977 - 0.89563505 * E + 0.92023559 * log(WD) + 2.79495823 * log(D
 
 
 #%% Parse Global Wood Density - copied to above and possibly modified
-gwd_fname = os.path.join(home, 'data', 'GlobalWoodDensityDatabase.xlsx')
+gwd_fname = os.path.join(home, 'data', 'raw', 'GlobalWoodDensityDatabase.xlsx')
 gwd_df = pd.read_excel(gwd_fname, sheet_name='Data', header=0,
     names=['gwd_num', 'family', 'binomial', 'wd',
         'region', 'gwd_ref_no'],

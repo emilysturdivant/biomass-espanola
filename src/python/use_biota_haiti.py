@@ -90,7 +90,7 @@ def getAGB_forRegion(data_dir, y1, slope, intercept, output_dir=None, coord_list
     print('ALL DONE.')
 
 #%% Initialize file paths
-data_dir = r'/Users/emilysturdivant/PROJECTS/biomass-espanola/data/ALOS'
+data_dir = r'/Users/emilysturdivant/PROJECTS/biomass-espanola/data/raw/ALOS'
 output_dir = r'/Users/emilysturdivant/PROJECTS/biomass-espanola/results/g0nu_HV'
 
 #%% Create list of tile coordinates

@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------------------------
 # Script to:
-#     * 
+#     * (old) Look at AGB distribution by land cover 
 # Proceeds:
-#     * 
+#     * regression_AGB-g0.R
 # Requires:
 #     * ALOS mask
 #     * LULC map
@@ -19,10 +19,12 @@ library(tmap)
 library(rgdal)
 library(here)
 
+results_dir <- 'data/results'
+
 # Merge and resample LULC for Hispaniola =======================================
-dn_mask <- raster('results/tifs_by_R/hisp18_mask.tif')
-fps <- c("data/LULC/Haiti2017_Clip.tif", 
-        "data/LULC/DR_2017_clip.tif")
+dn_mask <- raster(file.path(results_dir, 'tifs_by_R/hisp18_mask.tif'))
+fps <- c("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif", 
+        "data/raw/landcover/Lemoiner/DR_2017_clip.tif")
 rs <- lapply(fps, 
              function(fp) {
                r <- raster(fp)
@@ -33,15 +35,15 @@ rs <- lapply(fps,
 rs
 # Merge the tiles
 lc <- do.call(merge, rs)
-writeRaster(lc, "data/LULC/Hisp_2017_resALOS.tif")
-lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
+writeRaster(lc, "data/tidied/LULC/Hisp_2017_resALOS.tif")
+lc <- raster("data/tidied/LULC/Hisp_2017_resALOS.tif")
 
 # Mask LULC to land as determined by ALOS 2018
-lc <- raster("data/LULC/Hisp_2017_resALOS.tif")
-msk_L <- raster('results/masks/hisp18_maskLand.tif')
+lc <- raster("data/tidied/LULC/Hisp_2017_resALOS.tif")
+msk_L <- raster(file.path(results_dir, 'masks/hisp18_maskLand.tif'))
 lc <- lc*msk_L
-lc %>% writeRaster("data/LULC/Hisp_2017_resALOS_mskLand.tif")
-lc %>% saveRDS("results/R_out/LC17_masked_to_ALOS_land_raster.rds")
+lc %>% writeRaster("data/tidied/LULC/Hisp_2017_resALOS_mskLand.tif")
+lc %>% saveRDS(file.path(results_dir, "R_out/LC17_masked_to_ALOS_land_raster.rds"))
 
 # Report pixel counts and percentages for each class
 rvals <- lc[[1]]
@@ -54,10 +56,10 @@ df <-
                    sum(rvals==5, na.rm=TRUE),
                    sum(rvals==6, na.rm=TRUE))) %>% 
   mutate(pct= count / sum(count))
-df %>% saveRDS('results/R_out/lc_ALOS_pixel_counts_tbl.rds')
+df %>% saveRDS(file.path(results_dir, 'R_out/lc_ALOS_pixel_counts_tbl.rds'))
 
 # Make water and urban mask
-msk_L <- raster('results/masks/hisp18_maskLand.tif') # 1 for land, NA for everything else
+msk_L <- raster(file.path(results_dir, 'masks/hisp18_maskLand.tif')) # 1 for land, NA for everything else
 # msk_L <- crop(msk_L, extent(-73, -72, 19, 20))
 # lc <- crop(lc, extent(-73, -72, 19, 20))
 # Overlay
@@ -79,54 +81,9 @@ df <- data.frame(
   )
 df$value[2] / df$value[1]
 
-
-# Look at AGB map ----
-# Load data - Desktop
-# Load data - Mac
-g0_AGB <- read_csv("results/plots_values/plots_g0nu_AGB.csv")
-# just get the two columns we care about
-g0.agb <- as.data.frame(cbind(g0_AGB$AGB_ha, g0_AGB$'2018mean')) %>% 
-  rename(AGB = V1, backscatter =V2)
-# Linear model
-ols <- lm(g0.agb$AGB ~ g0.agb$backscatter, x=TRUE, y=TRUE)
-
-# Extract backscatter values to polygons ---- ####################################
-g0 <- raster("results/g0nu_HV/g0nu_2018_haiti_qLee1.tif")
-
-polys <- readOGR(dsn="data/RAW_inventories", layer='AllPlots')
-ex <- extract(g0, polys)
-polys$g0l_mean <- unlist(lapply(ex, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
-count <- unlist(lapply(ex, function(x) length(x)))
-polys$g0l_count <- count
-View(cbind(polys$X2018mean, polys$g0l_mean))
-View(cbind(polys$X2018count, polys$g0l_count))
-
-# Create 95% CI raster ---- #######################################################
-# Function to create raster of confidence intervals
-predict.ci.raster <- function(g0, model){
-  names(g0) <- 'backscatter'
-  df <- as.data.frame(g0)
-  chunks <- split(df, (seq(nrow(df))-1) %/% 1000000) 
-  agblist <- list()
-  for (i in 1:length(chunks)){
-    chunk <- chunks[[i]]
-    agb1 <- stats::predict(model, newdata=chunk, 
-                           interval="confidence", level = 0.95) %>%
-      as.data.frame()
-    agblist[[i]] <- agb1
-  }
-  agb <- bind_rows(agblist)
-  agb.ci.v <- as.vector((agb$upr - agb$lwr)/2)
-  ci.ras <- setValues(g0, values=agb.ci.v)
-}
-ras.agb.ci <- predict.ci.raster(g0, ols)
-ras.agb.ci[agb.ras > 310] <- NA
-ras.agb.ci[agb.ras < 0] <- NA
-writeRaster(ras.agb.ci, "results/agb/agb_CI_sub310.tif", overwrite=TRUE)
-
 # Get AGB percentiles ----
-agb <- raster("results/agb/AGB_2018_v5q_haiti.tif")
-agb <- raster("results/agb/agb_2018_v6r.tif")
+agb <- raster(file.path(results_dir, "agb/AGB_2018_v5q_haiti.tif"))
+agb <- raster(file.path(results_dir, "agb/agb_2018_v6r.tif"))
 
 #agb[agb < =0] <- NA
 qs.agb <- quantile(agb, probs=c(0, 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1))
@@ -184,12 +141,11 @@ p
 mean(agb.samp$AGB)
 median(agb.samp$AGB)
 
-#----
-# Get zonal statistics in R. Produces different values than those from Q. 
-lc <- raster("data/LULC/Haiti2017_Clip.tif")
+# Get zonal statistics in R. Produces different values than those from Q. ----
+lc <- raster("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif")
 # Resample LC raster to AGB resolution
 lc.c <- resample(lc, agb.ras)
-writeRaster(lc.c, filename="data/LULC/Haiti2017_Clip_AGBres.tif")
+writeRaster(lc.c, filename="data/tidied/LULC/Haiti2017_Clip_AGBres.tif")
 # Get means and SDs for LC class
 lc.means <- zonal(agb.ras, lc.c)
 lc.sds <- zonal(agb.ras, lc.c, fun='sd')
@@ -213,26 +169,26 @@ get_brick_stats <- function(lc.br){
   colnames(stats) <- names(lc.br)
   agb.stats <- rbind(agb.qs, stats)
 }
-lc.br <- brick(raster("results/agb/agb_2018_v6_mask2share.tif"), 
-               raster("results/agb/agb_2018_v6CI_2share.tif"),
-               raster("data/LULC/Haiti2017_water_agb18v6.tif"), 
-               raster("data/LULC/Haiti2017_urban_agb18v6.tif"), 
-               raster("data/LULC/agb_lc3.tif"),
-               raster("data/LULC/agb_lc4.tif"),
-               raster("data/LULC/agb_lc5.tif"), 
-               raster("data/LULC/agb_lc6.tif"),
-               raster("data/LULC/agb_lc_over3.tif"))
+lc.br <- brick(raster(file.path(results_dir, "agb/agb_2018_v6_mask2share.tif")), 
+               raster(file.path(results_dir, "agb/agb_2018_v6CI_2share.tif")),
+               raster("data/tidied/LULC/Haiti2017_water_agb18v6.tif"), 
+               raster("data/tidied/LULC/Haiti2017_urban_agb18v6.tif"), 
+               raster("data/tidied/LULC/agb_lc3.tif"),
+               raster("data/tidied/LULC/agb_lc4.tif"),
+               raster("data/tidied/LULC/agb_lc5.tif"), 
+               raster("data/tidied/LULC/agb_lc6.tif"),
+               raster("data/tidied/LULC/agb_lc_over3.tif"))
 names(lc.br) <- c('Haiti', 'CI', 'Water', 'Urban', 'Bareland', 'Tree cover', 'Grassland', 'Shrubs', 'Veg')
-saveRDS(lc.br, file = "results/R_out/brick_AGBv6_withLC.rds")
-lc.br <- readRDS(file = "results/R_out/brick_AGBv6_withLC.rds")
+saveRDS(lc.br, file = file.path(results_dir, "R_out/brick_AGBv6_withLC.rds"))
+lc.br <- readRDS(file = file.path(results_dir, "R_out/brick_AGBv6_withLC.rds"))
 lc.br
 
 agb.stats <- get_brick_stats(lc.br)
 # saveRDS(agb.qs, file = "data/R_out/agb_quantiles_v6.rds")
 # agb.qs <- readRDS(file = "data/R_out/agb_quantiles_v6.rds")
 # View(agb.qs)
-saveRDS(agb.stats, file = "results/R_out/agb_stats_v6.rds")
-agb.stats <- readRDS(file = "results/R_out/agb_stats_v6.rds")
+saveRDS(agb.stats, file = file.path(results_dir, "R_out/agb_stats_v6.rds"))
+agb.stats <- readRDS(file = file.path(results_dir, "R_out/agb_stats_v6.rds"))
 
 # Sample AGB by LC rasters for plotting ----
 sample_rasters <- function(stack, sampSize=100){
@@ -252,8 +208,8 @@ lc.samp <- sample_rasters(lc.br, 1000000)
 lc.sampNA <- lc.samp %>% na.omit()
 lc.sampNA$Category <- ordered(lc.sampNA$Category,
                               levels = names(lc.br))
-saveRDS(lc.sampNA, file = "results/R_out/lc_samp1mil_2share.rds")
-lc.sampNA <- readRDS("results/R_out/lc_samp_1mil_v6.rds")
+saveRDS(lc.sampNA, file = file.path(results_dir, "R_out/lc_samp1mil_2share.rds"))
+lc.sampNA <- readRDS(file.path(results_dir, "R_out/lc_samp_1mil_v6.rds"))
 
 lc.samp.sub100 <- lc.sampNA[which(lc.sampNA$AGB <= 100),]
 lc.samp.sub200 <- lc.sampNA[which(lc.sampNA$AGB <= 200),]
@@ -394,7 +350,7 @@ ggplot(lulc.qs, aes(x=Land.cover,
 
 
 # Backscatter values ----
-g0 <- raster("results/g0nu_HV/g0nu_2018_nofilt_HV.tif")
+g0 <- raster(file.path(results_dir, "g0nu_HV/g0nu_2018_nofilt_HV.tif"))
 NAvalue(g0) <- 0
 qs.g0 <- quantile(g0, probs=c(0, 0.1,0.5,0.9,0.99, 0.999, 1))
 qs.g0[['100%']]

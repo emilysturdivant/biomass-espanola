@@ -17,40 +17,46 @@ library(tidyverse)
 library(tmap)
 tmap_mode('view')
 
+results_dir <- 'data/results'
 
-lc_fps <- c("data/LULC/Haiti2017_Clip.tif", 
-            "data/LULC/DR_2017_clip.tif")
+lc_fps <- c("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif", 
+            "data/raw/landcover/Lemoiner/DR_2017_clip.tif")
 lc_fp_out <- "data/LULC/Hisp_2017_resALOS_terra.tif"
 lc_out <- "data/LULC/Hisp_2017_resALOS_mskLand.tif"
-agb_masked_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
-msk_lnd_fp <- 'results/masks/hti18_maskLand.tif'
-agb_from_lc_fp <- 'results/tifs_by_R/LCpatches_agb18_v3l1_Ap3WUw25u20_hti.tif'
-agb_filled_fp <- 'results/tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_LCpatches.tif'
+agb_masked_fp <- file.path(results_dir, 'tifs_by_R', 
+                           'agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif')
+msk_lnd_fp <- file.path(results_dir, 'masks', 
+                        'hti18_maskLand.tif')
+agb_from_lc_fp <- file.path(results_dir, 'tifs_by_R', 
+                            'LCpatches_agb18_v3l1_Ap3WUw25u20_hti.tif')
+agb_filled_fp <- file.path(results_dir, 'tifs_by_R', 
+                           'agb18_v3_l3_Ap3WUw25u20_hti_filled_LCpatches.tif')
 
-agb_capped_fp <- 'results/tifs_by_R/agb18_v3_l2_nomask_cap310.tif'
+agb_capped_fp <- file.path(results_dir, 'tifs_by_R', 
+                           'agb18_v3_l2_nomask_cap310.tif')
 
 lc_pols_agb_fp <- str_glue("data/LULC/Haiti2017_Clip_polys_meanAGB.geojson")
 lc_pols_agb_fp <- str_glue("data/LULC/Haiti2017_polys_AGBzonal.gpkg")
 
 lc_stat <-  'median'
-agb_filled_fp <- str_glue('results/tifs_by_R/agb18_v3_l3_nomask_cap310_hti_LC{lc_stat}.tif')
-agb_from_lc_fp <- str_glue('results/tifs_by_R/LCpatches_agb18_v3l2_nomask_cap310_{lc_stat}.tif')
-agb_from_lc_sd_fp <- str_glue('results/tifs_by_R/LCpatches_agb18_v3l2_nomask_cap310_hti_{lc_stat}_sd.tif')
-agb_filled_sd_fp <- str_glue('results/tifs_by_R/agb18_v3_l3_nomask_cap310_hti_LC{lc_stat}_sd.tif')
+agb_filled_fp <- file.path(results_dir, 'tifs_by_R', str_glue('agb18_v3_l3_nomask_cap310_hti_LC{lc_stat}.tif'))
+agb_from_lc_fp <- file.path(results_dir, 'tifs_by_R', str_glue('LCpatches_agb18_v3l2_nomask_cap310_{lc_stat}.tif'))
+agb_from_lc_sd_fp <- file.path(results_dir, 'tifs_by_R', str_glue('LCpatches_agb18_v3l2_nomask_cap310_hti_{lc_stat}_sd.tif'))
+agb_filled_sd_fp <- file.path(results_dir, 'tifs_by_R', str_glue('agb18_v3_l3_nomask_cap310_hti_LC{lc_stat}_sd.tif'))
 
 mask_code <- 'mAWUw25u20'
 cap_code <- 'cap310'
-agb_masked_fp <- file.path('results/tifs_by_R', 
+agb_masked_fp <- file.path(results_dir, 'tifs_by_R', 
                            str_glue('agb18_v3_l2_{mask_code}_{cap_code}.tif'))
 # lc_pols_agb_fp <- file.path('data/LULC', 
 #                             str_glue("Haiti2017_Clip_polys_{lc_stat}AGB_v3l2_{mask_code}_{cap_code}.gpkg"))
-agb_filled_fp <- file.path('results/tifs_by_R', 
+agb_filled_fp <- file.path(results_dir, 'tifs_by_R', 
                            str_glue('agb18_v3_l3_{mask_code}_{cap_code}_hti_LC{lc_stat}.tif'))
-agb_from_lc_fp <- file.path('results/tifs_by_R', 
+agb_from_lc_fp <- file.path(results_dir, 'tifs_by_R', 
                             str_glue('LCpatches_agb18_v3l2_{mask_code}_{cap_code}_{lc_stat}.tif'))
-agb_from_lc_sd_fp <- file.path('results/tifs_by_R', 
+agb_from_lc_sd_fp <- file.path(results_dir, 'tifs_by_R', 
                                str_glue('LCpatches_agb18_v3l2_{mask_code}_{cap_code}_hti_{lc_stat}_sd.tif'))
-agb_filled_sd_fp <- file.path('results/tifs_by_R', 
+agb_filled_sd_fp <- file.path(results_dir, 'tifs_by_R', 
                               str_glue('agb18_v3_l3_{mask_code}_{cap_code}_hti_LC{lc_stat}_sd.tif'))
 
 
@@ -122,9 +128,9 @@ tm_shape(lc_sf_all) + tm_fill(col='mean') +
   tm_shape(agb_raster) + tm_raster()
 
 # Fill missing AGB with patch means --------------------------------------------
-# agb_from_lc_sd_fp <- 'results/tifs_by_R/LCpatches_agb18_v3l1_Ap3WUw25u20_hti_sd.tif'
-# agb_filled_fp <- 'results/tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_LCpatches.tif'
-# agb_filled_sd_fp <- 'results/tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_LCpatches_sd.tif'
+# agb_from_lc_sd_fp <- file.path(results_dir, 'tifs_by_R/LCpatches_agb18_v3l1_Ap3WUw25u20_hti_sd.tif')
+# agb_filled_fp <- file.path(results_dir, 'tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_LCpatches.tif')
+# agb_filled_sd_fp <- file.path(results_dir, 'tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_LCpatches_sd.tif')
 
 # SF to SpatVector
 lc_all_vect <- terra::vect(lc_pols_agb_fp)
@@ -187,7 +193,7 @@ if(!file.exists(lc_fp_out)){
 }
 
 # ~ AGB mean by LC (6 values) ----------------------------------------------------
-agb_filled_fp <- 'results/tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_6zones.tif'
+agb_filled_fp <- file.path(results_dir, 'tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_6zones.tif')
 
 # Create AGB surface from mean AGB for each LC class (6 values) 
 # Load and crop LC

@@ -2,6 +2,7 @@
 # Script to:
 #     * Compare output AGB map to other biomass estimates
 # Proceeds:
+#     * post_fill_AGB_gaps.R - performs post-processing such as masking
 #     * postprocess_AGB_map.R - performs post-processing such as masking
 #     * regression_AGB-g0.R - creates AGB map
 #     * calculate_AGB.R - calculates AGB by plot from field data
@@ -320,8 +321,8 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name){
   # Get filenames
   prefix <- agb_fp %>% basename %>% str_split_fixed('_', 4) %>% .[,1:3] %>% str_c(collapse = '')
   
-  agb_res_fp <- file.path('results/tifs_by_R', str_c(prefix, '_resamp_to', ext_name, '_bl_hti.tif'))
-  diff_fp <- file.path('results/ext_comparisons', str_c('diff_', ext_name, '_v_', prefix, '.tif'))
+  agb_res_fp <- file.path(results_dir, 'tifs_by_R', str_c(prefix, '_resamp_to', ext_name, '_bl_hti.tif'))
+  diff_fp <- file.path(results_dir, 'ext_comparisons', str_c('diff_', ext_name, '_v_', prefix, '.tif'))
   
   # Resample AGB to External
   if(!file.exists(agb_res_fp)){
@@ -384,12 +385,14 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name){
 }
 
 # External map filepaths -------------------------------------------------------
+results_dir <- 'data/results'
+
 glob_fp <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA.tif"
 esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif"
 avit_fp <- "data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_crop.tif"
 bacc_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif"
-agb_fp <- 'results/tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif'
-agb_fp <- 'results/tifs_by_R/agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif'
+agb_fp <- file.path(results_dir, 'tifs_by_R/agb18_v3_l1_mask_Ap3WUw25_u20_hti_qLee.tif')
+agb_fp <- file.path(results_dir, 'tifs_by_R/agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif')
 
 # Run comparison and get graphics ------------------------------------------------------------------
 # GlobBiomass
@@ -413,7 +416,7 @@ bacc_out$summary %>% write_clip()
 ################################################################################
 # ESA --------------------------------------------------------------------------
 # Difference map: L1 mask
-diff_esa <- read_stars('results/ext_comparisons/diff_ESA_v_agb18v3l1a.tif')
+diff_esa <- read_stars(file.path(results_dir, 'ext_comparisons/diff_ESA_v_agb18v3l1a.tif'))
 
 # View
 tmap_mode("view")
@@ -446,28 +449,28 @@ hist(df_bl$value, xlim=c(-200, 200), breaks = 50)
 
 # Resample ESA
 agb_esa <- crop_and_resample(in_fp="data/ext_AGB_maps/ESA_CCI_Biomass/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif", 
-                             out_fp='results/tifs_by_R/ext_ESAagb17_resampledBLna.tif', 
+                             out_fp=file.path(results_dir, 'tifs_by_R/ext_ESAagb17_resampledBLna.tif'), 
                              template=agb.ras, na_value=0, overwrite=F)
 
 # Difference map: L1 mask
-agb.ras <- read_stars('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25.tif')
+agb.ras <- read_stars(file.path(results_dir, 'tifs_by_R/agb18_v1_l1_mask_Ap3WUw25.tif'))
 diff_esa <- agb.ras - agb_esa
-diff_esa %>% saveRDS('results/R_out/diffmap_ESA_stars.rds')
+diff_esa %>% saveRDS(file.path(results_dir, 'R_out/diffmap_ESA_stars.rds'))
 diff_esa %>% as("Raster") %>% 
-  writeRaster('results/ext_comparisons/diff_ESAagb17_mask_Ap3WUw25.tif', overwrite=TRUE)
-diff_esa <- readRDS('results/R_out/diffmap_ESA_stars.rds')
+  writeRaster(file.path(results_dir, 'ext_comparisons/diff_ESAagb17_mask_Ap3WUw25.tif'), overwrite=TRUE)
+diff_esa <- readRDS(file.path(results_dir, 'R_out/diffmap_ESA_stars.rds'))
 
 # Difference map: L2 capped values
-agb.ras <- read_stars('results/tifs_by_R/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.tif')
+agb.ras <- read_stars(file.path(results_dir, 'tifs_by_R/agb18_v1_l2_mask_Ap3WUw25_u20_cap132.tif'))
 diff_esa <- agb.ras - agb_esa
-diff_esa %>% saveRDS('results/R_out/diffmap_ESA_u20cap132_stars.rds')
+diff_esa %>% saveRDS(file.path(results_dir, 'R_out/diffmap_ESA_u20cap132_stars.rds'))
 diff_esa %>% as("Raster") %>% 
-  writeRaster('results/ext_comparisons/diff_ESAagb17_mask-Ap3WUw25u20-cap132.tif', overwrite=TRUE)
-diff_esa <- readRDS('results/R_out/diffmap_ESA_u20cap132_stars.rds')
+  writeRaster(file.path(results_dir, 'ext_comparisons/diff_ESAagb17_mask-Ap3WUw25u20-cap132.tif'), overwrite=TRUE)
+diff_esa <- readRDS(file.path(results_dir, 'R_out/diffmap_ESA_u20cap132_stars.rds'))
 
 # ESA resampled, AGB > 20----------------------------------------------------------------------------------------
-diff_esa <- readRDS('results/R_out/diffmap_ESA_stars.rds')
-msk_u20 <- readRDS("results/R_out/mask_AGB_under20_stars.rds")
+diff_esa <- readRDS(file.path(results_dir, 'R_out/diffmap_ESA_stars.rds'))
+msk_u20 <- readRDS(file.path(results_dir, "R_out/mask_AGB_under20_stars.rds"))
 diff_esa_masked <- diff_esa * msk_u20
 # # Extract values as DF and summarize
 # meow_msk_df_esam <- msk_u20[[1]] %>% 
@@ -504,32 +507,32 @@ ggsave('figures/ext_comparisons/hist_diff_Avitabile_AGB_mask.png', width=150, he
 # Avitabile  -----------------------------------------------------------------------------------------------
 # resampled to ALOS ----------------------------------------------------------------------------------------
 agb_avit <- crop_and_resample(in_fp="data/ext_AGB_maps/Avitabile_AGB_Map/Avitabile_AGB_Map.tif", 
-                              out_fp="results/tifs_by_R/ext_Avitabile_AGB_warpBL.tif", 
+                              out_fp=file.path(results_dir, "tifs_by_R/ext_Avitabile_AGB_warpBL.tif"), 
                               template=agb.ras, na_value=NA, overwrite=F)
 
 # Make difference map
 diff_avit <- agb.ras - agb_avit
-diff_avit %>% saveRDS('results/R_out/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.rds')
+diff_avit %>% saveRDS(file.path(results_dir, 'R_out/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.rds'))
 diff_avit %>% as("Raster") %>% 
-  writeRaster('results/ext_comparisons/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.tif')
-diff_avit <- readRDS('results/R_out/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.rds')
+  writeRaster(file.path(results_dir, 'ext_comparisons/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.tif'))
+diff_avit <- readRDS(file.path(results_dir, 'R_out/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.rds'))
 
 # Avitabile resampled, AGB > 20----------------------------------------------------------------------------------------
-diff_avit <- readRDS('results/R_out/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.rds')
-msk_u20 <- readRDS("results/R_out/mask_AGB_under20_stars.rds")
+diff_avit <- readRDS(file.path(results_dir, 'R_out/diffmap_Avitabile_AGBv1_mask_Ap3WUw25.rds'))
+msk_u20 <- readRDS(file.path(results_dir, "R_out/mask_AGB_under20_stars.rds"))
 diff_avit_masked <- diff_avit * msk_u20
 
 # Avitabile, AGB resampled ------------------------------------------------------------------------
 # Load and resample biomass map
 agb_avit <- read_stars(fp_crop)
 names(agb_avit) <- 'Avitabile 2000–2013'
-agb_rasA <- read_stars("results/tifs_by_R/ext_AGBresamp_AvitabileBL_stars.tif")
+agb_rasA <- read_stars(file.path(results_dir, "tifs_by_R/ext_AGBresamp_AvitabileBL_stars.tif"))
 
 # Make difference map
 diff_avit2 <- agb_rasA - agb_avit
 diff_avit2 %>% as("Raster") %>% 
-  writeRaster('results/ext_comparisons/diffmap_Avitabile_resAGBv1_mask_Ap3WUw25.tif')
-diff_avit2 <- read_stars('results/ext_comparisons/diffmap_Avitabile_resAGBv1_mask_Ap3WUw25.tif')
+  writeRaster(file.path(results_dir, 'ext_comparisons/diffmap_Avitabile_resAGBv1_mask_Ap3WUw25.tif'))
+diff_avit2 <- read_stars(file.path(results_dir, 'ext_comparisons/diffmap_Avitabile_resAGBv1_mask_Ap3WUw25.tif'))
 
 # Baccini ----------------------------------------------------------------------------------------
 in_fp <- "data/ext_AGB_maps/Baccini/20N_080W_t_aboveground_biomass_ha_2000.tif"
@@ -538,13 +541,13 @@ r <- raster(in_fp)
 gdalwarp(srcfile=in_fp, dstfile=bacc_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
 
 agb_bacc <- crop_and_resample(in_fp="data/ext_AGB_maps/20N_080W_t_aboveground_biomass_ha_2000.tif", 
-                              out_fp="results/tifs_by_R/ext_Baccini2000_AGB_warpBL.tif", 
+                              out_fp=file.path(results_dir, "tifs_by_R/ext_Baccini2000_AGB_warpBL.tif"), 
                               template=agb.ras, na_value=NA, overwrite=F)
 
 # Make difference map
 diff_bacc <- agb.ras - agb_bacc
 diff_bacc %>% as("Raster") %>% 
-  writeRaster('results/ext_comparisons/diffmap_Baccini2000_AGBv1mask1.tif')
+  writeRaster(file.path(results_dir, 'ext_comparisons/diffmap_Baccini2000_AGBv1mask1.tif'))
 
 # Look at maps ---------------------------------------------------------------------------------
 library(pryr)
@@ -599,20 +602,20 @@ lyr_avit_diff <- diff_avit[test_bb] %>%
 # Crop and mask maps -----------------------------------------------------------
 hti_poly_fp <- "data/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 # Land mask: Crop and mask to Haiti
-crop_and_mask_to_poly_terra('results/masks/hisp18_maskLand.tif', 
+crop_and_mask_to_poly_terra(file.path(results_dir, 'masks/hisp18_maskLand.tif'), 
                          hti_poly_fp, 
-                         'results/masks/hti18_maskLand_clip2border.tif')
+                         file.path(results_dir, 'masks/hti18_maskLand_clip2border.tif'))
 
 # AGB: Crop and mask to DR
 dr_poly <- st_read("data/contextual_data/DOM_adm/DOM_adm0.shp")
-crop_and_mask_to_poly_terra('results/tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif', 
+crop_and_mask_to_poly_terra(file.path(results_dir, 'tifs_by_R/agb18_v1_l1_mask_Ap3WUw25_u20.tif'), 
                          "data/contextual_data/DOM_adm/DOM_adm0.shp", 
-                         'results/tifs_by_R/agb18_dr_v1_l1_mask_Ap3WUw25_u20.tif')
+                         file.path(results_dir, 'tifs_by_R/agb18_dr_v1_l1_mask_Ap3WUw25_u20.tif'))
 
 # Land mask: Crop and mask to DR
-crop_and_mask_to_poly_terra('results/masks/hisp18_maskLand.tif', 
+crop_and_mask_to_poly_terra(file.path(results_dir, 'masks/hisp18_maskLand.tif'), 
                          "data/contextual_data/DOM_adm/DOM_adm0.shp", 
-                         'results/masks/dr18_maskLand_clip2border.tif')
+                         file.path(results_dir, 'masks/dr18_maskLand_clip2border.tif'))
 
 # GlobBiomass: Crop and mask to Haiti 
 glob_fp_masked <- "data/ext_AGB_maps/GlobBiomass/N40W100_agb_cropNA_hti.tif"
@@ -625,7 +628,7 @@ hti_poly <- st_read(hti_poly_fp)
 land_area <- sum(st_area(hti_poly))
 (units(land_area) <- with(ud_units, ha))
 
-msk_land <- terra::rast("results/masks/hti18_maskLand_clip2border.tif") 
+msk_land <- terra::rast(file.path(results_dir, "masks/hti18_maskLand_clip2border.tif") )
 ct_land_hti <- terra::global(!is.na(msk_land), 'sum') %>% deframe
 
 # Get forest area -----------------------------------------------------------
@@ -645,11 +648,11 @@ land_area_dr <- sum(st_area(dr_poly))
 units(land_area_dr) <- with(ud_units, ha)
 
 msk_land_dr <- # 1== ALOS 2018 land (i.e. Normal, Layover, and Shadowing)
-  read_stars("results/masks/dr18_maskLand_clip2border.tif") 
+  read_stars(file.path(results_dir, "masks/dr18_maskLand_clip2border.tif") )
 ct_land_dr = sum(!is.na(msk_land_dr[[1]]))
 
 # Get number of 'forest' pixels and calculate percent of land and approximate area
-agb_sat <- read_stars('results/tifs_by_R/agb18_dr_v1_l1_mask_Ap3WUw25_u20.tif')
+agb_sat <- read_stars(file.path(results_dir, 'tifs_by_R/agb18_dr_v1_l1_mask_Ap3WUw25_u20.tif'))
 ct_valid_agb = sum(!is.na(agb_sat[[1]]))
 # Calculations
 land_area_dr
@@ -660,7 +663,7 @@ est_area <- ct_valid_agb / ct_land_dr * land_area_dr
 
 
 # Get RMSE of external maps against our field data -----------------------------
-# agb_fp <- file.path('results/tifs_by_R', str_c('agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif'))
+# agb_fp <- file.path(results_dir, 'tifs_by_R', str_c('agb18_v3_l3_hti_qLee_masked_filledLCpatches.tif'))
 # esa_fp <- "data/ext_AGB_maps/ESA_CCI_Biomass/ESA_agb17_cropNA.tif"
 agb.ras <- terra::rast(agb_fp)
 glob <- terra::rast(glob_fp)
@@ -669,7 +672,7 @@ avit <- terra::rast(avit_fp)
 bacc <- terra::rast(bacc_fp)
 
 # Add plot backscatter mean to polygons
-plots_agb <- readRDS('results/R_out/plots_agb.rds')
+plots_agb <- readRDS(file.path(results_dir, 'R_out/plots_agb.rds'))
 
 extract_stats_terra <- function(x, y, lyr_name, touches=F, method='simple'){
   # Convert to SpatVector and extract AGB values
@@ -698,7 +701,7 @@ plots2 <- plots2 %>%
   mutate(across(everything(), ~ replace_na(.x, 0)))
 
 # Add plot backscatter mean to polygons
-# plots_agb <- readRDS('results/R_out/plots_agb.rds')
+# plots_agb <- readRDS(file.path(results_dir, 'R_out/plots_agb.rds'))
 # g0_AGB <- plots_agb %>% 
 #   mutate(
 #     agb_est = raster_extract(agb.ras, plots_agb, fun = mean, na.rm = TRUE),

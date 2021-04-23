@@ -91,16 +91,16 @@ crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp){
   msk_land %>% writeRaster(out_fp, overwrite=T)
 }
 
-crop_and_mask_to_poly_terra <- function(in_fp, msk_poly, out_fp){
+crop_and_mask_to_poly_terra <- function(in_fp, msk_poly, out_fp, out_dtype='FLT4S'){
   # Function to crop and mask raster to polygon
-  msk_poly <- terra::vect(hti_poly_fp)
+  msk_poly <- if(is.character(msk_poly)) terra::vect(msk_poly)
   
   # Crop
   terra::rast(in_fp) %>% 
     terra::crop(msk_poly) %>% 
-    terra::mask(msk_poly, inverse=F) %>% 
-    as('Raster') %>% 
-    writeRaster(out_fp, overwrite=T)
+    terra::mask(msk_poly, inverse=FALSE, 
+                filename = out_fp, overwrite=T, 
+                wopt = list(datatype=out_dtype, gdal='COMPRESS=LZW'))
   
   return(out_fp)
 }

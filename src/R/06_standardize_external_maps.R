@@ -234,7 +234,8 @@ agb.ras <- read_stars(agb_fp)
 in_fp <- "~/Downloads/dataset-satellite-land-cover-9bc57a16-b204-4a4a-a478-6c4a3d5510cc.zip/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.nc"
 crop_fp <- file.path(raw_maps_dir, "Landcover/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.tif")
 r <- raster(in_fp)
-gdalwarp(srcfile=in_fp, dstfile=crop_fp, te=st_bbox(agb.ras), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+gdalwarp(srcfile=in_fp, dstfile=crop_fp, te=st_bbox(agb.ras), 
+         tr=c(xres(r), yres(r)), tap=T, overwrite=T)
 r <- read_stars(crop_fp)
 r[r == 0] <- NA
 r %>% as("Raster") %>%

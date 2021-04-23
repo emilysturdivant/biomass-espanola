@@ -234,7 +234,8 @@ ols <- readRDS(file.path(results_dir, str_c("R_out/ols_AGBv1_g0v1",fn_suff,".rds
 
 # Apply linear regression model to create AGB map
 agb.ras <- raster::predict(g0, ols, na.rm=TRUE)
-agb.ras %>% writeRaster(file.path(results_dir, str_c("tifs_by_R/agb18_", vers_name, "_l0",fn_suff,".tif")))
+agb.ras %>% writeRaster(file.path(results_dir, "tifs_by_R", 
+                                  str_c("agb18_", vers_name, "_l0",fn_suff,".tif")))
 
 
 

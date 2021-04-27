@@ -15,11 +15,11 @@ library("caret")
 library("terra")
 library("sf")
 # library(geobgu)
-# library(broom)
+library("broom")
 # library(gdalUtils)
 # library(tmap)
 # require(graphics)
-# library(patchwork)
+library("patchwork")
 library("tidyverse")
 
 # Set variables
@@ -30,15 +30,8 @@ suffix <- g0_variant <- 'agg50'
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
-masks_dir <- file.path(palsar_dir, 'masks')
-landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-hti_poly_fp <- file.path(tidy_dir, "contextual_data/HTI_adm/HTI_adm0_fix.shp")
 modeling_dir <- 'data/modeling'
-
-hisp_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
-                     xmax = -68.32267, ymin = 17.47022))
-hti_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
-                    xmax = -71.61815, ymin = 18.02180))
+field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # Functions ----
 #' Report OLS results
@@ -50,13 +43,14 @@ hti_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044,
 report_ols_results <- function(ols, df){
   
   # Regression Coefficients
-  coefs <- tidy(ols) %>% cbind(confint(ols)) %>% 
+  coefs <- broom::tidy(ols) %>% 
+    cbind(confint(ols)) %>% 
     mutate(term = str_replace(term, '\\(Intercept\\)', 'int')) %>% 
     mutate(term = str_replace(term, 'backscatter', 'g0')) %>% 
     mutate(term = str_replace(term, 'as\\.vector\\(', '')) %>% 
     mutate(term = str_replace(term, '\\)', '')) %>% 
     pivot_wider(names_from=term, values_from=estimate:'97.5 %') %>% 
-    cbind(glance(ols))
+    cbind(broom::glance(ols))
   
   # Accuracy metrics
   mse <- mean((residuals(ols))^2)
@@ -72,7 +66,8 @@ report_ols_results <- function(ols, df){
   ) %>% as.data.frame()
   
   # ANOVA
-  ANOVA <- anova(ols) %>% tidy() %>% 
+  ANOVA <- anova(ols) %>% 
+    broom::tidy() %>% 
     mutate(term = str_replace(term, 'backscatter', 'g0anova')) %>% 
     mutate(term = str_replace(term, 'as\\.vector\\(', '')) %>% 
     mutate(term = str_replace(term, '\\)', '')) %>% 
@@ -81,11 +76,11 @@ report_ols_results <- function(ols, df){
   
   # Correlation coefficients
   sp <- cor.test(x=df$backscatter, y=df$AGB, method = 'spearman') %>% 
-    tidy() %>% 
+    broom::tidy() %>% 
     select(-c(alternative, method)) %>% 
     mutate(term='rhoSpear')
   pe <- cor.test(x=df$backscatter, y=df$AGB, method = 'pearson') %>% 
-    tidy() %>% 
+    broom::tidy() %>% 
     select(-c(alternative, method)) %>% 
     mutate(term='Pearson')
   
@@ -109,6 +104,8 @@ report_ols_results <- function(ols, df){
     ANOVA,
     cors
   ) %>% t() %>% as.data.frame()
+  
+  top %>% as_tibble(rownames='name')
 }
 
 #' Values to summarize in cross-validation 
@@ -139,18 +136,22 @@ fxn.bias <- function(data, lev = NULL, model = NULL) {
     RSE = sqrt(rss / df))
 }
 
+# Set output filepaths ----
 # List palsar mosaic files
 fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE)
 
-g0_fp <- fps[[1]]
+(g0_fp <- fps[[6]])
 
 # Get variant code
 (g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
-if(suffix == '') {
+if(is.na(suffix)) {
+  suffix <- ''
   g0_variant <- 'simple'
-} 
+} else {
+  suffix <- str_c('_', suffix)
+}
 
 # g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
 
@@ -166,6 +167,7 @@ ex_csv <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.csv'))
 # Linear regression
 ols_fp <- file.path(mod_dir, str_c("ols", suffix, ".rds"))
 ols_vals_fp <- file.path(mod_dir, str_c('ols_results', suffix, '.csv'))
+full_results_csv <- file.path(mod_dir, str_c('model_results', suffix, '.csv'))
 
 # AGB map
 agb_fp <- file.path(mod_dir, str_c("agb_l0", suffix, ".tif"))
@@ -175,7 +177,6 @@ agb_fp <- file.path(mod_dir, str_c("agb_l0", suffix, ".tif"))
 g0 <- rast(g0_fp)             # pre-processed in 02_process_ALOS_tiles.R 
 
 # Add plot backscatter mean to polygons
-field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 plots_agb <- readRDS(field_agb_fp)
 
 # Extract mean backscatter for each site polygon
@@ -202,25 +203,10 @@ g0_agb <- read_csv(ex_csv) %>%
 ols <- lm(as.vector(AGB) ~ as.vector(backscatter), data=g0_agb, x=TRUE, y=TRUE)
 ols %>% saveRDS(ols_fp)
 
-# ~Look~ at values ----
-# Scatterplot - AGB against backscatter
-# (p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
-#   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
-#        x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) + 
-#   geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) + 
-#   # geom_rug() + 
-#   theme_minimal())
-# 
-# ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}.png')),
-#        width=14, height=12.5, units='cm')
-# ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),
-#        width=14, height=12.5, units='cm')
-
-
 # OLS results ---------------------------------------------------------------
 # Convert training results to table
-vals <- report_ols_results(ols, g0_agb)
-vals %>% as_tibble(rownames = 'name') %>% write_csv(ols_vals_fp)
+train_vals <- report_ols_results(ols, g0_agb)
+train_vals %>% write_csv(ols_vals_fp)
 
 # Plot error plots
 ols_error_png <- file.path(mod_dir, str_c('ols_plots', suffix, '.png'))
@@ -230,17 +216,17 @@ plot(ols, las = 1)
 dev.off()
 
 # Repeated k-fold cross validation ---------------------------------------------
-repeats <- 1000
-cv_num <- 5
+repeats <- 1000 # number of complete sets of folds to compute
+cv_num <- 5 # number of folds
 cv_fp <- file.path(mod_dir, str_c("crossval_", repeats, "x", cv_num, suffix, ".rds"))
 if(!file.exists(cv_fp)) {
   
   # Run cross-validation
   set.seed(45)
   cv_mod <- caret::train(AGB ~ backscatter, data = g0_agb, method = "lm",
-                          trControl = caret::trainControl(method = "repeatedcv", 
-                                                   number = 10, repeats = 10000,
-                                                   summaryFunction = fxn.bias))
+                         trControl = caret::trainControl(method = "repeatedcv", 
+                                                         number = cv_num, repeats = repeats,
+                                                         summaryFunction = fxn.bias))
   
   # Save model
   cv_mod %>% saveRDS(cv_fp)
@@ -252,23 +238,67 @@ cv_mod <- readRDS(cv_fp)
 # Format TEST values
 cv_vals <- cv_mod$results[-1] %>% 
   tibble() %>% 
-  pivot_longer(cols=everything()) %>% 
-  mutate(type = 'test')
+  pivot_longer(cols=everything())
 
 # Format TRAIN values
-train_vals <- read_csv(ols_vals_fp) %>% 
-  mutate(type = 'train')
-
-train_vals <- vals[1] %>%
-  as_tibble(rownames='name') %>%
-  mutate(type = 'train')
+train_vals <- read_csv(ols_vals_fp)
 
 # Join tables
-mets <- rbind(train_vals, cv_vals)
+mets <- rbind(mutate(train_vals, type = 'train'), 
+              mutate(cv_vals, type = 'test'))
 
 # Save
-full_results_csv <- file.path(mod_dir, str_c('model_results', suffix, '.csv'))
 mets %>% write_csv(full_results_csv)
+
+# ~Look~ at values ----
+# Scatterplot - AGB against backscatter
+p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
+  labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
+       x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) +
+  geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) +
+  # annotate(geom = 'text', label = l1, x = -Inf, y = +Inf, hjust = 0, vjust = 1) +
+  theme_minimal()
+
+# Inset table with regression summary
+d1 <- train_vals %>% 
+  pivot_wider() %>% 
+  transmute(
+    Intercept = signif(estimate_int, 3),
+    Slope = signif(estimate_g0, 3), 
+    # Adj_R2 = signif(adj.r.squared, 3), 
+    # RMSE = signif(rmse, 3),
+    P = {if(p.value < 0.001) '< 0.001' else if(p.value < 0.05) '< 0.05' else '>= 0.05'},
+    Equation = str_glue("AGB = {Intercept} + {Slope}x")) %>% 
+  dplyr::select(Equation, P)
+d1 <- d1 %>% pivot_longer(everything())
+
+d2 <- mets %>% 
+  filter(type == 'test') %>% 
+  pivot_wider() %>% 
+  transmute(
+    Adj_R2 = str_c(format(adj.r.squared, digits = 2), " ± ", 
+                           format(adj.r.squaredSD, digits = 3)),
+    RMSE = str_c(format(RMSE, digits = 3), " ± ", format(RMSESD, digits = 2)),
+    MAE = str_c(format(MAE, digits = 3), " ± ", format(MAESD, digits = 2)),
+    Bias = str_c(format(Bias, digits = 3), " ± ", format(BiasSD, digits = 2))) 
+d2 <- d2 %>% pivot_longer(everything())
+
+d3 <- bind_rows(d1, d2)
+tab <- gridExtra::tableGrob(d3, rows = NULL, cols = NULL,
+                            theme = gridExtra::ttheme_minimal())
+
+# Overlay plot with regression table
+p + inset_element(tab, 
+                  left = 0, bottom = 0.65,
+                  right = 0.5, top = 1, 
+                  on_top = TRUE) +
+  theme(plot.background = NULL)
+
+# Save
+ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}.png')),
+       width=14, height=12.5, units='cm')
+ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),
+       width=14, height=12.5, units='cm')
 
 # Create AGB raster --------------------------------------------------------------------------------
 # Load data 
@@ -277,7 +307,10 @@ ols <- readRDS(ols_fp)
 
 # Apply linear regression model to create AGB map
 agb.ras <- terra::predict(g0, ols, na.rm=TRUE)
-agb.ras %>% writeRaster(agb_fp)
+minmax(agb.ras)
+agb.ras %>% writeRaster(agb_fp, 
+                        overwrite = TRUE,
+                        wopt = list(datatype='INT2S', gdal='COMPRESS=LZW'))
 
 
 

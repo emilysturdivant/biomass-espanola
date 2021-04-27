@@ -1,0 +1,173 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r PALSAR mask}
+library(tidyverse)
+library(patchwork)
+library(gridExtra)
+library(sf)
+
+tidy_dir <- 'data/tidy'
+suffix <- ''
+year <- '2019'
+
+# ~Look~ at proportion of values in each mask category----
+report_fp <- file.path('data', 'reports', str_glue('palsar{year}_mask_pcts.csv'))
+if(!file.exists(report_fp)) {
+  
+  # Load PALSAR mask
+  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  dn_mask <- terra::rast(msk_fp)
+  
+  # Get values
+  rvals <- values(dn_mask)
+  
+  # Count pixels in each category and convert to percentage
+  df <- tibble(group = c("Normal", "Layover", "Shadowing"), 
+               count = c(sum(rvals == 255, na.rm=TRUE), 
+                         sum(rvals == 100, na.rm=TRUE),
+                         sum(rvals == 150, na.rm=TRUE)))
+  
+  # Convert counts to percentage of all land pixels
+  landct <- sum(df$count)
+  df <- df %>%
+    add_row(group = 'Land', count = landct) %>% 
+    mutate(pct = count / landct)
+  
+  # Save as CSV
+  df %>% write_csv(report_fp)
+}
+
+# Read DF
+df <- read_csv(report_fp)
+
+# Pie chart
+bp <- ggplot(filter(df, group %in% c('Normal', 'Shadowing', 'Layover')),
+              aes(x="", y=pct, fill=group, name = 'Mask')) +
+    geom_bar(width = 1, stat = "identity") +
+    theme_minimal() + 
+  labs(fill="Mask",x=NULL,y=NULL,title="",caption="") +
+  theme(axis.line = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        panel.grid = element_blank()) +
+  coord_polar("y", start=0)
+
+# Table
+d2 <- df %>% 
+  mutate(percent = str_c(round(pct*100, digits = 1), '%')) %>% 
+  arrange(desc(pct)) %>% 
+  select(group, percent) %>% 
+  filter(group != 'Land')
+
+tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Mask', 'Percent of land'))
+
+# Display side-by-side
+wrap_plots(tab, bp)
+```
+
+```{r plot backscatter, eval = FALSE}
+modeling_dir <- 'data/modeling'
+g0_variant <- 'simple'
+if(g0_variant == 'simple') {
+  suffix <- ''
+} else suffix <- g0_variant
+
+# Load data
+ex_csv <- file.path(modeling_dir, g0_variant, str_glue('plots_agb_g0{suffix}.csv'))
+g0_agb <- read_csv(ex_csv) %>% 
+  dplyr::select(AGB = AGB_ha, backscatter = g0_mean) %>% 
+  mutate(AGB = as.numeric(AGB))
+
+# Look at values
+backscatter <- as_tibble(
+  c(
+    all_mean = mean(g0_agb$backscatter),
+    all_sd = sd(g0_agb$backscatter),
+    bio_mean = mean(g0_agb[9:36, ]$backscatter),
+    bio_sd = sd(g0_agb[9:36, ]$backscatter),
+    min = min(g0_agb$backscatter),
+    max = max(g0_agb$backscatter)
+  ), 
+  rownames = 'name'
+  ) %>% 
+  mutate(value = round(value, 1)) %>% 
+  column_to_rownames('name')
+
+# View table
+tab <- gridExtra::tableGrob(backscatter)
+gridExtra::grid.arrange(tab)
+
+# Scatterplot - AGB against backscatter ----
+(p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
+  labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
+       x = expression(paste("Radar backscatter, ", 
+                            sigma['HV']^0," (m"^2, "/m"^2, ")"))) + 
+  geom_smooth(method='lm', 
+              se=TRUE, 
+              fullrange=TRUE, 
+              level=0.95, 
+              col='black', 
+              size=0.2) + 
+  coord_fixed(ratio = 23) +
+  theme_minimal())
+
+# Save plot to figures dir and modeling data dir
+ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}.png')),
+       width=14, height=12.5, units='cm')
+ggsave(file.path(modeling_dir, g0_variant, str_glue('scatter_agb_g0{suffix}.png')),
+       width=14, height=12.5, units='cm')
+```
+
+```{r}
+full_results_csv <- file.path(modeling_dir, g0_variant, 
+                              str_c('model_results', suffix, '.csv'))
+mets <- read_csv(full_results_csv)
+
+
+
+repeats <- 1000
+cv_num <- 5
+cv_fp <- file.path(modeling_dir, g0_variant, 
+                   str_c("crossval_", repeats, "x", cv_num, suffix, ".rds"))
+
+# Load model
+cv_mod <- readRDS(cv_fp)
+
+# Format results
+cv_r <- as_tibble(cv_mod$results) %>% 
+  pivot_longer(cols = everything()) %>% 
+  mutate(value = round(value, 2))
+
+# Move SD values into separate column
+cv_r <- bind_cols(
+  filter(cv_r, !str_detect(name, 'SD$'), !str_detect(name, 'intercept')), 
+  filter(cv_r, str_detect(name, 'SD$')) %>% dplyr::select(SD = value)
+  )
+
+# Save table
+cv_r %>% write_csv(file.path(modeling_dir, g0_variant, 
+                             str_c('crossval_results', suffix, '.csv')))
+
+# View table
+ttheme_default()
+mytheme <- gridExtra::ttheme_default(
+             # core = list(padding=unit(c(1, 1), "mm")),
+             just = 'left'
+           )
+
+tab <- gridExtra::tableGrob(cv_r, rows = NULL, theme = mytheme)
+
+gridExtra::grid.arrange(tab)
+
+
+library(gridExtra)
+
+```
+

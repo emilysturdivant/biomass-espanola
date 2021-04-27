@@ -12,26 +12,20 @@
 # *************************************************************************************************
 
 # Load libraries
-#library(silvr)
-# library(readr)
-library(tidyverse)
-# library(ggridges)
-# library(rgdal)
-library(tmap)
-# library(here)
-library(gdalUtils)
-library(terra)
-library(sf)
-# library(stars)
+library('tidyverse')
+library('tmap')
+library('gdalUtils')
+library('terra')
+library('sf')
+library('whitebox')
 
-
-results_dir <- 'data/results'
-# masks_dir <- 'data/tidied/alos18_masks'
+# Initialize ----
+tidy_dir <- 'data/tidy'
 suffix <- ''
 year <- '2019'
 raw_dir <- file.path('data/raw/ALOS', year)
-tidy_dir <- file.path('data/tidied', str_c('palsar', substr(year, 3, 4)))
-masks_dir <- file.path(tidy_dir, 'masks')
+palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
+masks_dir <- file.path(palsar_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 hti_poly_fp <- "data/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
@@ -45,7 +39,7 @@ hti_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044,
 
 perform_merge = FALSE
 
-merge_tiles <- function(code, suffix, tidy_dir, hti_bb, raw_dir) {
+merge_tiles <- function(code, suffix, palsar_dir, hti_bb, raw_dir) {
   # Set datatype
   dtype <- if(code == 'mask' | code == 'linci') 'Byte' else 'UInt16'
   nbits <- if(code == 'mask' | code == 'linci') '8' else '16'
@@ -63,9 +57,9 @@ merge_tiles <- function(code, suffix, tidy_dir, hti_bb, raw_dir) {
   return(out_fp)
 }
 
-mask_raster <- function(code, suffix, tidy_dir, landmask_fp) { 
+mask_raster <- function(code, suffix, palsar_dir, landmask_fp) { 
   # Set output filename
-  out_fp <- file.path(tidy_dir, str_glue('{code}{suffix}.tif'))
+  out_fp <- file.path(palsar_dir, str_glue('{code}{suffix}.tif'))
   
   # Mask
   dtype <- if(code == 'mask' | code == 'linci') 'INT1U' else 'INT2U'
@@ -87,7 +81,7 @@ if(perform_merge) {
   
   # Create mosaic of mask file
   code <- 'mask'
-  out_fp <- file.path(tidy_dir, str_glue('{code}.tif'))
+  out_fp <- file.path(palsar_dir, str_glue('{code}.tif'))
   msk_fp <- merge_tiles(code, out_fp, hti_bb, raw_dir)
   
   # Get Haiti land mask, combine PALSAR mosaic and Haiti boundary
@@ -110,82 +104,14 @@ if(perform_merge) {
   code_list <- c('sl_HV', 'sl_HH', 'linci', 'date')
   
   # Mosaic tiles with merge_tiles
-  code_list %>% purrr::walk(merge_tiles, suffix, tidy_dir, hti_bb, raw_dir)
+  code_list %>% purrr::walk(merge_tiles, suffix, palsar_dir, hti_bb, raw_dir)
   
   # Mask mosaics with the land mask created above
-  code_list %>% purrr::walk(mask_raster, suffix, tidy_dir, landmask_fp)
-}
-
-# ~Look~ at proportion of values in each mask category----
-report_fp <- file.path('data', 'reports', str_glue('palsar{year}_mask_pcts.csv'))
-if(!file.exists(report_fp)) {
-  
-  # Load PALSAR mask
-  msk_fp <- file.path(tidy_dir, str_glue('mask{suffix}.tif'))
-  dn_mask <- terra::rast(msk_fp)
-  
-  # Get values
-  rvals <- values(dn_mask)
-  
-  # Count pixels in each category and convert to percentage
-  df <- tibble(group = c("Normal", "Layover", "Shadowing"), 
-               count = c(sum(rvals == 255, na.rm=TRUE), 
-                         sum(rvals == 100, na.rm=TRUE),
-                         sum(rvals == 150, na.rm=TRUE)))
-  
-  # Convert counts to percentage of all land pixels
-  landct <- sum(df$count)
-  df <- df %>%
-    add_row(group = 'Land', count = landct) %>% 
-    mutate(pct = count / landct)
-  
-  # Barplot
-  (bp <- ggplot(filter(df, group %in% c('Normal', 'Shadowing', 'Layover')), 
-                aes(x="", y=pct, fill=group))+
-      geom_bar(width = 1, stat = "identity")+ 
-      theme_minimal() + coord_polar("y", start=0))
-  
-  # Save as CSV
-  df %>% write_csv(report_fp)
-}
-
-# Replicate ALOS Normal mask ----
-msk_norm_fp <- file.path(masks_dir, "mask_ALOS_normal.rds")
-if(!file.exists(msk_norm_fp)) {
-  msk_fp <- file.path(tidy_dir, str_glue('mask{suffix}.tif'))
-  msk_A <- terra::rast(msk_fp)
-  msk_A[msk_A < 254] <- NA
-  msk_A[!is.na(msk_A)] <- 1
-  msk_A %>% saveRDS(msk_norm_fp)
-}
-
-# Create inverse mask for > 7000 ----
-g0_fp <- file.path(tidy_dir, "sl_HV.tif")
-
-msk_norm_fp <- file.path(masks_dir, "mask_ALOS_gt7000.rds")
-if(!file.exists(msk_norm_fp)) {
-  g0 <- terra::rast(g0_fp)
-  g0[g0 < 7000] <- NA
-  g0[!is.na(g0)] <- 1
-  g0 %>% saveRDS(msk_norm_fp)
-}
-
-# Aggregate to 50m ----
-# recommended by Saatchi 2015 and performed by Michelakis et al. 2015
-out_fp <- str_c(tools::file_path_sans_ext(g0_fp), '_agg50.tif')
-if(!file.exists(out_fp)) {
-  g0 <- rast(g0_fp)
-  g0.agg <- aggregate(g0, fact = 2, fun = mean, na.rm = TRUE,
-                      filename = out_fp,
-                      overwrite = TRUE,
-                      wopt = list(datatype='INT2U', gdal='COMPRESS=LZW'))
+  code_list %>% purrr::walk(mask_raster, suffix, palsar_dir, landmask_fp)
 }
 
 # De-speckle with Lee filter ----------------------------------------------------
-# whitebox
-# if (!require(devtools)) install.packages('devtools')
-# devtools::install_github("giswqs/whiteboxR")
-library('whitebox')
+g0_fp <- file.path(palsar_dir, "sl_HV.tif")
 
 # Lee sigma filter
 filtsize <- 11
@@ -262,7 +188,71 @@ wbt_lee_sigma_filter(cap_fp,
 g0_filt <- terra::rast(out_fp3)
 max(g0_filt)
 
+# Aggregate to 50m ----
+# recommended by Saatchi 2015 and performed by Michelakis et al. 2015
+out_fp <- str_c(tools::file_path_sans_ext(g0_fp), '_agg50.tif')
+if(!file.exists(out_fp)) {
+  g0 <- rast(g0_fp)
+  g0.agg <- aggregate(g0, fact = 2, fun = mean, na.rm = TRUE,
+                      filename = out_fp,
+                      overwrite = TRUE,
+                      wopt = list(datatype='INT2U', gdal='COMPRESS=LZW'))
+}
 
+
+# ~Look~ at proportion of values in each mask category----
+report_fp <- file.path('data', 'reports', str_glue('palsar{year}_mask_pcts.csv'))
+if(!file.exists(report_fp)) {
+  
+  # Load PALSAR mask
+  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  dn_mask <- terra::rast(msk_fp)
+  
+  # Get values
+  rvals <- values(dn_mask)
+  
+  # Count pixels in each category and convert to percentage
+  df <- tibble(group = c("Normal", "Layover", "Shadowing"), 
+               count = c(sum(rvals == 255, na.rm=TRUE), 
+                         sum(rvals == 100, na.rm=TRUE),
+                         sum(rvals == 150, na.rm=TRUE)))
+  
+  # Convert counts to percentage of all land pixels
+  landct <- sum(df$count)
+  df <- df %>%
+    add_row(group = 'Land', count = landct) %>% 
+    mutate(pct = count / landct)
+  
+  # Barplot
+  # (bp <- ggplot(filter(df, group %in% c('Normal', 'Shadowing', 'Layover')), 
+  #               aes(x="", y=pct, fill=group))+
+  #     geom_bar(width = 1, stat = "identity")+ 
+  #     theme_minimal() + coord_polar("y", start=0))
+  
+  # Save as CSV
+  df %>% write_csv(report_fp)
+} 
+
+# Replicate ALOS Normal mask ----
+msk_norm_fp <- file.path(masks_dir, "mask_ALOS_normal.rds")
+if(!file.exists(msk_norm_fp)) {
+  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  msk_A <- terra::rast(msk_fp)
+  msk_A[msk_A < 254] <- NA
+  msk_A[!is.na(msk_A)] <- 1
+  msk_A %>% saveRDS(msk_norm_fp)
+}
+
+# Create inverse mask for > 7000 ----
+g0_fp <- file.path(palsar_dir, "sl_HV.tif")
+
+msk_norm_fp <- file.path(masks_dir, "mask_ALOS_gt7000.rds")
+if(!file.exists(msk_norm_fp)) {
+  g0 <- terra::rast(g0_fp)
+  g0[g0 < 7000] <- NA
+  g0[!is.na(g0)] <- 1
+  g0 %>% saveRDS(msk_norm_fp)
+}
 
 
 # 

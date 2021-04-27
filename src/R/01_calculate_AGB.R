@@ -19,9 +19,10 @@ library(tidyverse)
 library(sf)
 
 results_dir <- 'data/results'
+tidy_dir <- 'data/tidied'
 
 # Filenames
-plots_shp <- file.path(results_dir, "plots_values/all_plots.shp")
+plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
 
 # Load CSVs
 mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
@@ -195,7 +196,7 @@ plots_agb <- merge(plot_polys, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
 plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area
 plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
 
-saveRDS(plots_agb, file.path(results_dir, 'R_out/plots_agb.rds'))
+saveRDS(plots_agb, file.path(tidy_dir, 'survey_plots', 'plots_agb.rds'))
 
 # Look at data ---- ####################################################################
 summary(mstems$meanWD)

@@ -22,8 +22,8 @@ library(patchwork)
 library(tidyverse)
 
 year <- '2019'
-g0_variant <- 'simple'
 code <- 'sl_HV'
+suffix <- ''
 
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
@@ -38,13 +38,20 @@ hisp_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044,
 hti_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
                     xmax = -71.61815, ymin = 18.02180))
 
-# results_dir <- 'data/results'
-if(g0_variant == 'simple') {
-  suffix <- ''
-} else suffix <- g0_variant
+# List palsar mosaic files
+fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
+                  str_glue('{code}.*\\.tif$'), 
+                  full.names = TRUE)
 
-list.files(palsar_dir, str_glue('{code}.*\\.tif$'))
-g0_fp <- file.path(palsar_dir, str_glue("sl_HV{suffix}.tif"))
+g0_fp <- fps[[1]]
+
+# Get variant code
+(g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
+if(suffix == '') {
+  g0_variant <- 'simple'
+} 
+
+# g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
 
 ex_shp <- file.path(modeling_dir, g0_variant, str_glue('plots_agb_g0{suffix}.gpkg'))
 ex_csv <- file.path(modeling_dir, g0_variant, str_glue('plots_agb_g0{suffix}.csv'))

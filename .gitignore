@@ -6,3 +6,4 @@ misc_docs
 results/
 figures/
 *.tif
+packrat/lib*/

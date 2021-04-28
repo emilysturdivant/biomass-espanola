@@ -1,22 +1,28 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: "Compare mosaic variants"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
-
-```{r PALSAR mask}
-library(tidyverse)
-library(patchwork)
-library(gridExtra)
-library(sf)
+```{r initialize, echo=FALSE, message=FALSE, warning=FALSE}
+library("patchwork")
+library("gridExtra")
+library("sf")
+library("tidyverse")
 
 tidy_dir <- 'data/tidy'
+code <- 'sl_HV'
 suffix <- ''
 year <- '2019'
+palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
+modeling_dir <- 'data/modeling'
+```
 
+## Percent of land pertaining to PALSAR masks
+
+```{r PALSAR mask, eval =  TRUE, echo=FALSE, message=FALSE, fig.width=7, fig.height=3}
 # ~Look~ at proportion of values in each mask category----
 report_fp <- file.path('data', 'reports', str_glue('palsar{year}_mask_pcts.csv'))
 if(!file.exists(report_fp)) {
@@ -26,7 +32,7 @@ if(!file.exists(report_fp)) {
   dn_mask <- terra::rast(msk_fp)
   
   # Get values
-  rvals <- values(dn_mask)
+  rvals <- terra::values(dn_mask)
   
   # Count pixels in each category and convert to percentage
   df <- tibble(group = c("Normal", "Layover", "Shadowing"), 
@@ -37,8 +43,8 @@ if(!file.exists(report_fp)) {
   # Convert counts to percentage of all land pixels
   landct <- sum(df$count)
   df <- df %>%
-    add_row(group = 'Land', count = landct) %>% 
-    mutate(pct = count / landct)
+    dplyr::add_row(group = 'Land', count = landct) %>% 
+    dplyr::mutate(pct = count / landct)
   
   # Save as CSV
   df %>% write_csv(report_fp)
@@ -72,102 +78,177 @@ tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Mask', 'Percent of land')
 wrap_plots(tab, bp)
 ```
 
-```{r plot backscatter, eval = FALSE}
-modeling_dir <- 'data/modeling'
-g0_variant <- 'simple'
-if(g0_variant == 'simple') {
-  suffix <- ''
-} else suffix <- g0_variant
+## Compare regressions with different filters
+### Scatterplots
 
-# Load data
-ex_csv <- file.path(modeling_dir, g0_variant, str_glue('plots_agb_g0{suffix}.csv'))
-g0_agb <- read_csv(ex_csv) %>% 
-  dplyr::select(AGB = AGB_ha, backscatter = g0_mean) %>% 
-  mutate(AGB = as.numeric(AGB))
+```{r facetted scatterplots, eval=TRUE, echo=FALSE, fig.height=6, fig.width=8, message=FALSE}
+load_plot_vals <- function(fp) {
+  # Get variant code
+  items <- str_split(dirname(fp), '/')
+  g0_variant <- suffix <- last(items[[1]])
+  
+  # Load data
+  g0_agb <- read_csv(fp) %>% 
+    dplyr::select(AGB = AGB_ha, backscatter = g0_mean) %>% 
+    mutate(AGB = as.numeric(AGB),
+           g0_variant = g0_variant) 
+}
 
-# Look at values
-backscatter <- as_tibble(
-  c(
-    all_mean = mean(g0_agb$backscatter),
-    all_sd = sd(g0_agb$backscatter),
-    bio_mean = mean(g0_agb[9:36, ]$backscatter),
-    bio_sd = sd(g0_agb[9:36, ]$backscatter),
-    min = min(g0_agb$backscatter),
-    max = max(g0_agb$backscatter)
-  ), 
-  rownames = 'name'
-  ) %>% 
-  mutate(value = round(value, 1)) %>% 
-  column_to_rownames('name')
+fps <- list.files(modeling_dir,
+                  pattern = "^plots_agb_g0.*\\.csv",
+                  recursive = TRUE, 
+                  full.names = TRUE)
 
-# View table
-tab <- gridExtra::tableGrob(backscatter)
-gridExtra::grid.arrange(tab)
+var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
+vals <- fps %>% 
+  map_dfr(load_plot_vals) %>% 
+  mutate(g0_variant = factor(g0_variant, levels = var_order))
 
-# Scatterplot - AGB against backscatter ----
-(p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
-  labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")), 
-       x = expression(paste("Radar backscatter, ", 
-                            sigma['HV']^0," (m"^2, "/m"^2, ")"))) + 
+# Scatterplot - AGB against backscatter
+p <- ggplot(vals, aes(x=backscatter, y=AGB)) +
+    geom_point(size=0.5) +
+  labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
+       x = expression(paste("Radar backscatter, ",sigma['HV']^0))) + # ," (m"^2, "/m"^2, ")"
   geom_smooth(method='lm', 
               se=TRUE, 
               fullrange=TRUE, 
               level=0.95, 
               col='black', 
-              size=0.2) + 
-  coord_fixed(ratio = 23) +
-  theme_minimal())
+              size=0.2) +
+  facet_wrap(facets=vars(g0_variant)) +
+  coord_fixed(ratio = 21) +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(hjust=0))
 
-# Save plot to figures dir and modeling data dir
-ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}.png')),
-       width=14, height=12.5, units='cm')
-ggsave(file.path(modeling_dir, g0_variant, str_glue('scatter_agb_g0{suffix}.png')),
-       width=14, height=12.5, units='cm')
+# Save
+ggsave(file.path('figures', year, 'modeling', str_glue('compare_scatter_agb_g0.png')),
+       width=19, height=12, units='cm')
+
+p
 ```
 
-```{r}
-full_results_csv <- file.path(modeling_dir, g0_variant, 
-                              str_c('model_results', suffix, '.csv'))
-mets <- read_csv(full_results_csv)
+### Test statistics
+We want to see high correlation (adjusted R2) and low Bias, RMSE, and MAE. 
 
+```{r model summaries table, eval=TRUE, echo=FALSE, message=FALSE, fig.height=3, fig.width=5}
+summarize_results <- function(full_results_csv, digits = 3) {
+  
+  # Get variant code
+  (items <- str_split(dirname(full_results_csv), '/') )
+  g0_variant <- suffix <- last(items[[1]])
+  suffix <- if(suffix == 'simple') '' else str_c('_', suffix)
+  
+  # Inset table with regression summary
+  full_results <- read_csv(full_results_csv)
+  
+  # Values from model training
+  d1 <- full_results %>% 
+    filter(type == 'train') %>%
+    pivot_wider() %>% 
+    dplyr::select(Intercept = estimate_int, 
+                  Slope = estimate_g0, 
+                  P = p.value)
+  
+  # Values from model testing (repeated k-fold cross-validation)
+  d2 <- full_results %>% 
+    filter(type == 'test') %>%
+    pivot_wider() %>% 
+    dplyr::select(Adj_R2 = adj.r.squared, 
+                  Adj_R2_sd = adj.r.squaredSD, 
+                  RMSE, 
+                  RMSE_SD = RMSESD, 
+                  MAE,
+                  MAE_SD = MAESD, 
+                  Bias, 
+                  Bias_SD = BiasSD)
+  
+  # Combine into one table
+  report_tbl <- bind_cols(d1, d2) %>% 
+    mutate(across(everything(), ~ signif(.x, digits)), 
+           Filter = g0_variant)
+}
 
+fps <- list.files(modeling_dir,
+                  pattern = "^model_results.*\\.csv",
+                  recursive = TRUE, 
+                  full.names = TRUE)
 
-repeats <- 1000
-cv_num <- 5
-cv_fp <- file.path(modeling_dir, g0_variant, 
-                   str_c("crossval_", repeats, "x", cv_num, suffix, ".rds"))
+results_sum <- fps %>% map_dfr(summarize_results, digits = 3)
+results_summary <- results_sum %>% 
+  arrange(factor(Filter, 
+                 levels = c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10',
+                            'med5', 'cap7k_med5'))
+          ) %>% 
+  dplyr::select(-P) %>% 
+  column_to_rownames('Filter') %>% 
+  dplyr::select(-ends_with('_sd')) 
 
-# Load model
-cv_mod <- readRDS(cv_fp)
-
-# Format results
-cv_r <- as_tibble(cv_mod$results) %>% 
-  pivot_longer(cols = everything()) %>% 
-  mutate(value = round(value, 2))
-
-# Move SD values into separate column
-cv_r <- bind_cols(
-  filter(cv_r, !str_detect(name, 'SD$'), !str_detect(name, 'intercept')), 
-  filter(cv_r, str_detect(name, 'SD$')) %>% dplyr::select(SD = value)
-  )
-
-# Save table
-cv_r %>% write_csv(file.path(modeling_dir, g0_variant, 
-                             str_c('crossval_results', suffix, '.csv')))
-
-# View table
-ttheme_default()
-mytheme <- gridExtra::ttheme_default(
-             # core = list(padding=unit(c(1, 1), "mm")),
-             just = 'left'
-           )
-
-tab <- gridExtra::tableGrob(cv_r, rows = NULL, theme = mytheme)
-
-gridExtra::grid.arrange(tab)
-
-
-library(gridExtra)
-
+tab <- gridExtra::tableGrob(results_summary, 
+                            theme = ttheme_default(base_size = 11)) 
+# patchwork::wrap_elements(tab)
 ```
+```{r model summaries graphs, echo=FALSE, message=FALSE, fig.height=3.5, fig.width=4}
+# Reformat results table for plotting
+# Order to display variants
+var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
 
+# Prep
+rs1 <- results_sum %>% 
+  mutate(g0_variant = factor(Filter, levels = var_order)) %>% 
+    dplyr::select(starts_with('adj_r2'), 
+                  starts_with('rmse'), 
+                  starts_with('mae'), 
+                  starts_with('bias'),
+                  g0_variant)
+
+# Format values
+rs2a <- rs1 %>% 
+  dplyr::select(-ends_with('sd')) %>% 
+  pivot_longer(c(-g0_variant, -ends_with('sd'))) 
+
+# Format value SDs
+rs2b <- rs1 %>% 
+  dplyr::select(c(g0_variant, ends_with('sd'))) %>% 
+  pivot_longer(-g0_variant, values_to = 'sd') %>% 
+  mutate(name = str_remove_all(name, regex('_sd', ignore_case = TRUE)))
+
+# Join values and SDs
+res_sum <- left_join(rs2a, rs2b)
+
+# Plot
+pt_plot <- ggplot(res_sum, aes(x=g0_variant, y=value)) +
+  geom_line(aes(group = name), show.legend = FALSE) +
+  geom_point(aes(group = name), show.legend = FALSE) +
+  geom_errorbar(aes(ymin=value-sd, ymax=value+sd), width=.2, show.legend = FALSE) +
+  scale_y_continuous(n.breaks =  3, sec.axis = dup_axis(breaks=scales::extended_breaks(n = 3))) +
+  facet_wrap(facets=vars(name), ncol=1, scales = 'free_y', strip.position = 'left') +
+  theme(axis.title = element_blank(), 
+        axis.text.x = element_text(angle = 45, hjust=1),
+        axis.text.y.left = element_blank(),
+        axis.ticks.y.left = element_blank(),
+        strip.text.y.left = element_text(angle = 0),
+        strip.background = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.margin = unit(c(1,1,1,1), c('mm','mm','mm','mm')),
+        plot.title.position = 'plot') +
+  ggtitle('Model testing results')
+# pt_plot
+```
+```{r display summaries, echo=FALSE, fig.height=5, fig.width=10, message=FALSE}
+layout <- c(
+  area(t = 1, l = 1, b = 5, r = 2),
+  area(t = 1, l = 2.5, b = 5, r = 10)
+)
+
+# Combine plot and table
+wrap_plots(list(pt_plot, tab), ncol=2) +
+  plot_layout(design = layout)
+```
+```{r save plots, echo=FALSE, fig.height=6, fig.width=12, message=FALSE, include=FALSE}
+# Combine plot and table
+wrap_plots(list(p, pt_plot), nrow=1) + plot_layout(widths = c(4,1))
+
+# Save
+ggsave(file.path('figures', year, 'modeling', str_glue('compare_scatter_and_graphs.png')),
+       width=10.5, height=6, units='in')
+```

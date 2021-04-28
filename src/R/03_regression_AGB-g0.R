@@ -244,11 +244,11 @@ cv_vals <- cv_mod$results[-1] %>%
 train_vals <- read_csv(ols_vals_fp)
 
 # Join tables
-mets <- rbind(mutate(train_vals, type = 'train'), 
+full_results <- rbind(mutate(train_vals, type = 'train'), 
               mutate(cv_vals, type = 'test'))
 
 # Save
-mets %>% write_csv(full_results_csv)
+full_results %>% write_csv(full_results_csv)
 
 # ~Look~ at values ----
 # Scatterplot - AGB against backscatter
@@ -260,19 +260,57 @@ p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
   theme_minimal()
 
 # Inset table with regression summary
-d1 <- train_vals %>% 
+full_results <- read_csv(full_results_csv)
+
+d1 <- full_results %>% 
+  filter(type == 'train') %>%
+  pivot_wider() %>% 
+  dplyr::select(Intercept = estimate_int, 
+                Slope = estimate_g0, 
+                P = p.value)
+d2 <- full_results %>% 
+  filter(type == 'test') %>%
+  pivot_wider() %>% 
+  dplyr::select(Adj_R2 = adj.r.squared, 
+                Adj_R2_sd = adj.r.squaredSD, 
+                RMSE, 
+                RMSE_SD = RMSESD, 
+                MAE,
+                MAE_SD = MAESD, 
+                Bias, 
+                Bias_SD = BiasSD)
+
+report_tbl <- bind_cols(d1, d2) %>% 
+  mutate(across(everything(), ~ signif(.x, 2)), 
+         Filter = g0_variant)
+
+d1 <- report_tbl %>% 
+  transmute(
+    P = {if(P < 0.001) '< 0.001' else if(P < 0.05) '< 0.05' else '>= 0.05'},
+    Equation = str_glue("AGB = {Intercept} + {Slope}x"))
+
+d2 <- report_tbl %>% 
+  transmute(
+    Adj_R2 = str_c(Adj_R2, " ± ", Adj_R2_sd),
+    RMSE = str_c(RMSE, " ± ", RMSE_SD),
+    MAE = str_c(MAE, " ± ", MAE_SD),
+    Bias = str_c(Bias, " ± ", Bias_SD))
+
+d3 <- bind_cols(d1, d2) %>%
+  pivot_longer(everything())
+
+
+d1 <- full_results %>% 
+  filter(type == 'train') %>% 
   pivot_wider() %>% 
   transmute(
     Intercept = signif(estimate_int, 3),
     Slope = signif(estimate_g0, 3), 
-    # Adj_R2 = signif(adj.r.squared, 3), 
-    # RMSE = signif(rmse, 3),
     P = {if(p.value < 0.001) '< 0.001' else if(p.value < 0.05) '< 0.05' else '>= 0.05'},
     Equation = str_glue("AGB = {Intercept} + {Slope}x")) %>% 
   dplyr::select(Equation, P)
-d1 <- d1 %>% pivot_longer(everything())
 
-d2 <- mets %>% 
+d2 <- full_results %>% 
   filter(type == 'test') %>% 
   pivot_wider() %>% 
   transmute(
@@ -281,9 +319,10 @@ d2 <- mets %>%
     RMSE = str_c(format(RMSE, digits = 3), " ± ", format(RMSESD, digits = 2)),
     MAE = str_c(format(MAE, digits = 3), " ± ", format(MAESD, digits = 2)),
     Bias = str_c(format(Bias, digits = 3), " ± ", format(BiasSD, digits = 2))) 
-d2 <- d2 %>% pivot_longer(everything())
 
-d3 <- bind_rows(d1, d2)
+d3 <- bind_cols(d1, d2) %>%
+  pivot_longer(everything())
+
 tab <- gridExtra::tableGrob(d3, rows = NULL, cols = NULL,
                             theme = gridExtra::ttheme_minimal())
 

@@ -13,14 +13,12 @@
 # *************************************************************************************************
 
 # Load libraries
-# library(stars)
 library(geobgu) 
 library(broom)
 library(gdalUtils)
 library(tmap)
 require(graphics)
 library(rasterVis)
-# library(raster)
 library(terra)
 library(tidyverse)
 library(clipr)

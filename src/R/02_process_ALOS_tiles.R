@@ -13,7 +13,7 @@
 
 # Load libraries
 library('tidyverse')
-library('tmap')
+# library('tmap')
 library('gdalUtils')
 library('terra')
 library('sf')
@@ -222,168 +222,127 @@ if(!file.exists(report_fp)) {
   df <- df %>%
     add_row(group = 'Land', count = landct) %>% 
     mutate(pct = count / landct)
-  
-  # Barplot
-  # (bp <- ggplot(filter(df, group %in% c('Normal', 'Shadowing', 'Layover')), 
-  #               aes(x="", y=pct, fill=group))+
-  #     geom_bar(width = 1, stat = "identity")+ 
-  #     theme_minimal() + coord_polar("y", start=0))
-  
+
   # Save as CSV
   df %>% write_csv(report_fp)
 } 
 
 # Replicate ALOS Normal mask ----
-msk_norm_fp <- file.path(masks_dir, "mask_ALOS_normal.rds")
+msk_norm_fp <- file.path(masks_dir, str_glue("mask_palsar_normal_{year}.tif"))
 if(!file.exists(msk_norm_fp)) {
   msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
-  msk_A <- terra::rast(msk_fp)
-  msk_A[msk_A < 254] <- NA
-  msk_A[!is.na(msk_A)] <- 1
-  msk_A %>% saveRDS(msk_norm_fp)
+  msk <- terra::rast(msk_fp)
+  msk_A <- msk %>% 
+    # terra::crop()
+    terra::classify(cbind(255,1), 
+                    othersNA = TRUE,
+                    filename = msk_norm_fp, 
+                    overwrite = TRUE, 
+                    wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
 }
 
-# Create inverse mask for > 7000 ----
-g0_fp <- file.path(palsar_dir, "sl_HV.tif")
+# Masks: Land cover -------------------------------------------------------------------
+raw_dir <- file.path('data/raw')
+lc_fp <- file.path(raw_dir, 'landcover', 'Lemoiner', 'Haiti2017_Clip.tif')
+lc_res_fp <- file.path(tidy_dir, 'landcover', 'Haiti2017_agbres.tif')
+masks_dir <- file.path(palsar_dir, 'masks')
 
-msk_norm_fp <- file.path(masks_dir, "mask_ALOS_gt7000.rds")
-if(!file.exists(msk_norm_fp)) {
-  g0 <- terra::rast(g0_fp)
-  g0[g0 < 7000] <- NA
-  g0[!is.na(g0)] <- 1
-  g0 %>% saveRDS(msk_norm_fp)
+# Resample landcover to PALSAR resolution
+lc <- terra::rast(lc_fp)
+g0 <- terra::rast(g0_fp)
+lc <- terra::resample(lc, g0, method='near',
+                      filename = lc_res_fp, 
+                      overwrite = TRUE, 
+                      wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+lc <- terra::rast(lc_res_fp)
+
+# WaterUrban mask
+msk_WU_fp <- file.path(masks_dir, "mask_WaterUrban.tif")
+msk_WU <- lc %>% 
+  terra::classify(cbind(3,7,1), 
+                  include.lowest = TRUE,
+                  othersNA = TRUE,
+                  filename = msk_WU_fp, 
+                  overwrite = TRUE, 
+                  wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+
+# Mask out all but forest
+mskinv_T_fp <- file.path(masks_dir, "mask_inv_TreeCover.tif")
+mskinv_T <- lc %>%
+  terra::classify(cbind(4,1), 
+                  include.lowest = TRUE,
+                  othersNA = TRUE,
+                  filename = mskinv_T_fp, 
+                  overwrite = TRUE, 
+                  wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+
+# Combine ALOS and WaterUrban masks
+# NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels
+msk_norm_fp <- file.path(masks_dir, str_glue("mask_palsar_normal_{year}.tif"))
+msk_A <- terra::rast(msk_norm_fp)
+msk_WU <- terra::rast(file.path(masks_dir, "mask_WaterUrban.tif")) # NA== WaterUrban and ALOS ocean; 1==all other land
+
+msk_AWU <- msk_WU * msk_A
+msk_AWU %>% 
+  terra::writeRaster(file.path(masks_dir, "mask_AWU.tif"),
+                     overwrite = TRUE, 
+                     wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+
+# Make masks (Hispaniola extent) ------------------------------------------------------------
+
+# Create water mask from OSM polygons with 25 m buffer
+# OSM water with 25 m buffer
+water_buff_fp <- file.path(masks_dir, 'vector', 'osm_water_buff25m.shp')
+if(!file.exists(water_buff_fp)){
+  st_read(file.path(tidy_dir, 'contextual_data', 'OSM_free', 
+                    'gis_osm_water_a_free_1.shp')) %>%
+    st_transform(32618) %>%
+    st_buffer(dist = 25) %>%
+    summarize() %>%
+    st_transform(4326) %>%
+    st_write(water_buff_fp, append = FALSE)
 }
 
+msk_waterbuff_fp <- file.path(masks_dir, "mask_water_buff25m.tif")
+water_polysb <- terra::vect(water_buff_fp)
 
-# 
-# 
-# 
-# 
-# 
-# # Make masks (Hispaniola extent) ------------------------------------------------------------
-# # Load LC17 masked to ALOS land 
-# lc <- readRDS(file.path(results_dir, "R_out/LC17_masked_to_ALOS_land_stars.rds"))
-# lc <- raster("data/LULC/Hisp_2017_resALOS_mskLand.tif")
-# 
-# # WaterUrban mask
-# msk_WU <- lc
-# msk_WU[msk_WU<3] <- NA
-# msk_WU[!is.na(msk_WU)] <- 1
-# msk_WU %>% writeRaster(file.path(masks_dir, "mask_WaterUrban_raster.tif"))
-# # msk_WU %>% saveRDS(file.path(results_dir, "R_out/mask_WaterUrban_raster.rds"))
-# 
-# # Water mask
-# msk_W <- lc
-# msk_W[msk_W==1] <- NA
-# msk_W[!is.na(msk_W)] <- 1
-# msk_W %>% writeRaster(file.path(masks_dir, "mask_Water_raster.tif"))
-# msk_W %>% saveRDS(file.path(results_dir, "R_out/mask_WaterLC17_raster.rds"))
-# 
-# # Mask out all but forest
-# mskinv_T <- lc
-# mskinv_T[mskinv_T!=4] <- NA
-# mskinv_T[mskinv_T==4] <- 1
-# mskinv_T %>% writeRaster(file.path(masks_dir, "mask_inv_TreeCover.tif"))
-# mskinv_T %>% saveRDS(file.path(results_dir, "R_out/mask_inv_TreeCover_raster.rds"))
-# 
-# # Mask out Bareland
-# msk_B <- lc
-# msk_B[msk_B!=3] <- 1
-# msk_B[msk_B==3] <- NA
-# msk_B %>% saveRDS(file.path(results_dir, "R_out/mask_Bareland_raster.rds"))
-# 
-# # Mask out all but grassland and shrubs
-# mskinv_GS <- lc
-# mskinv_GS[mskinv_GS<5] <- NA
-# mskinv_GS[mskinv_GS>4] <- 1
-# mskinv_GS %>% saveRDS(file.path(results_dir, "R_out/mask_inv_GrasslandShrubs_stars.rds"))
-# 
-# # Mask out all but tree cover, grassland and shrubs
-# mskinv_GS <- lc
-# mskinv_GS[mskinv_GS<4] <- NA
-# mskinv_GS[mskinv_GS>3] <- 1
-# mskinv_GS %>% saveRDS(file.path(results_dir, "R_out/mask_inv_LC17_vegTreeCGrasslandShrubs_stars.rds"))
-# 
-# # Presence (Inverse mask) of LC17 Water
-# mskinv_W <- lc
-# mskinv_W[mskinv_W!=1] <- NA
-# mskinv_W %>% saveRDS(file.path(results_dir, "R_out/mask_inv_ALOS_Water_raster.rds"))
-# 
-# # Combine ALOS and WaterUrban masks
-# msk_A <- readRDS(file.path(results_dir, "R_out/mask_ALOS_stars.rds"))
-# msk_A %>% as("Raster") %>% writeRaster(file.path(masks_dir, "mask_ALOS18.tif"))
-# 
-# rm(list=ls()) 
-# 
-# msk_A <-  # NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels # HISPANIOLA
-#   raster(file.path(masks_dir, "mask_ALOS18.tif"))
-# msk_WU <- # NA== WaterUrban and ALOS ocean; 1==all other land
-#   raster(file.path(masks_dir, "mask_WaterUrban_raster.tif"))
-# 
-# msk_AWU <- msk_WU * msk_A
-# msk_AWU %>% writeRaster(file.path(masks_dir, "mask_ALOS_WaterUrban.tif"))
-# msk_AWU %>% saveRDS(file.path(results_dir, "R_out/mask_ALOS_WaterUrban_raster.rds"))
-# 
-# # Presence (Inverse mask) of LC17 Water/Urban with ALOS mask applied
-# msk_WU <- lc
-# msk_WU[msk_WU==2] <- 1 # Water is already 1 and now urban is as well
-# msk_WU[msk_WU!=1] <- NA
-# mskinv_WU <- msk_WU*msk_A
-# mskinv_WU %>% # 1==where WaterUrban overlap valid ALOS values
-#   saveRDS(file.path(results_dir, "R_out/mask_inv_ALOS_WU_raster.rds") )
-# 
-# # Create water mask from OSM polygons with 25 m buffer
-# # Create OSM water with 25 m buffer
-# st_read('data/contextual_data/OSM_free/gis_osm_water_a_free_1.shp') %>% 
-#   st_transform(32618) %>% 
-#   st_buffer(dist = 25) %>% 
-#   summarize() %>% 
-#   st_transform(4326) %>% 
-#   st_write(file.path(masks_dir, 'vector/osm_water_buff25m.shp', append=FALSE))
-# water_polysb <- st_read(file.path(masks_dir, 'vector/osm_water_buff25m.shp'))
-# 
-# water_polysb <- st_read(file.path(masks_dir, 'vector/osm_water_buff25m.shp'))
-# msk_wb = msk_AWU
-# values(msk_wb) <- 1
-# msk_wb <- msk_wb %>% 
-#   mask(water_polysb, inverse=TRUE)
+# Initialize raster
+msk_wb = msk_AWU
+values(msk_wb) <- 1
+msk_wb <- msk_wb %>% 
+  terra::mask(water_polysb, inverse=TRUE,
+              filename = msk_waterbuff_fp, 
+              overwrite = TRUE, 
+              wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
 # names(msk_wb) <- 'Mask'
-# msk_wb %>% writeRaster(file.path(masks_dir, "mask_osm_water_buff25m.tif"))
-# 
-# # Mask OSM water 25 (add to ALOS mask)
-# msk_A <-  # NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels # HISPANIOLA
-#   raster(file.path(masks_dir, "mask_ALOS18.tif"))
-# msk_Aw <- msk_A %>% 
-#   mask(water_polysb, inverse=TRUE)
-# msk_Aw %>% saveRDS(file.path(results_dir, "R_out/mask_ALOS_OSMwater25_raster.rds"))
-# 
-# # Water from OSM polygons
-# water_polys <- st_read('data/contextual_data/OSM_free/gis_osm_water_a_free_1.shp')
-# mskinv_WP <- msk_A %>% 
-#   mask(water_polys, inverse=FALSE)
-# mskinv_WP %>% saveRDS(file.path(results_dir, "R_out/mask_inv_ALOS_OSMwater_raster.rds"))
-# 
-# # Water from OSM polygons with 25 m buffer
-# mskinv_WPb <- msk_A %>% 
-#   mask(water_polysb, inverse=FALSE)
-# mskinv_WPb %>% saveRDS(file.path(results_dir, "R_out/mask_inv_OSMwater25mbuffer_raster.rds"))
-# 
-# # Create inverse mask of WU and OSM water 25 m
-# mskinv_WU <- mskinv_WU %>% as("Raster")
-# mskinv_WPb <- mskinv_WPb %>% st_as_stars()
-# mskinv_WUWPb <- mskinv_WU + mskinv_WPb
-# mskinv_WUWPb %>% saveRDS(file.path(results_dir, "R_out/mask_inv_WUWPb_raster.rds"))
-# 
-# # Mask all water
-# msk_W <- readRDS(file.path(results_dir, "R_out/mask_WaterLC17_raster.rds"))
-# msk_wb <- raster(file.path(masks_dir, "mask_osm_water_buff25m.tif"))
-# msk_Ww <- msk_W * msk_wb 
-# msk_Ww %>% saveRDS(file.path(results_dir, "R_out/mask_allwater_raster.rds"))
-# 
-# # Create mask of backscatter >0.3
-# msk_p3 <- # Initialize mask
-#   read_stars(file.path(results_dir, "g0nu_HV/g0nu_2018_HV.tif"))
-# msk_p3[msk_p3>0.3] <- NA
-# msk_p3[msk_p3<=0.3] <- 1
-# msk_p3 %>% saveRDS(file.path(results_dir, "R_out/mask_ALOSoverpt3_stars.rds"))
-# 
+msk_wb %>% writeRaster(msk_waterbuff_fp,
+                       overwrite = TRUE,
+                       wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+
+# Mask all water
+msk_Ww_fp <- file.path(masks_dir, "mask_allwater.tif")
+msk_waterbuff_fp <- file.path(masks_dir, "mask_water_buff25m.tif")
+
+# Make Water mask from landcover
+lc <- terra::rast(lc_res_fp)
+msk_W_fp <- file.path(masks_dir, "mask_Water.tif")
+msk_W <- lc %>% 
+  terra::classify(cbind(2,7,1), 
+                  include.lowest = TRUE,
+                  othersNA = TRUE,
+                  filename = msk_W_fp, 
+                  overwrite = TRUE, 
+                  wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+
+# Combine Water and water buffer masks
+msk_Ww <- msk_W * msk_wb
+msk_Ww %>% writeRaster(msk_Ww_fp,
+                       overwrite = TRUE,
+                       wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+
+# Make default mask - water and urban
+msk_WUw_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
+msk_WUw <- msk_WU * msk_wb
+msk_WUw %>% writeRaster(msk_WUw_fp,
+                       overwrite = TRUE,
+                       wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))

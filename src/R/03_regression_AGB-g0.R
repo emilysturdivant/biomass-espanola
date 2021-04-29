@@ -187,7 +187,7 @@ names(ex) <- c('ID', 'g0_mean')
 g0_agb <- bind_cols(plots_agb, ex)
 
 # Save as polygons and CSV
-g0_agb %>% st_write(ex_shp, delete_dsn = TRUE)
+g0_agb %>% st_write(ex_shp, append = FALSE)
 g0_agb %>% st_drop_geometry() %>% write_csv(ex_csv)
 
 # Linear regression ------------------------------------------------------------

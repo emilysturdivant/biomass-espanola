@@ -29,9 +29,9 @@ masks_dir <- file.path(palsar_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 hti_poly_fp <- "data/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
-hisp_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
+hisp_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
                      xmax = -68.32267, ymin = 17.47022))
-hti_bb <- st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
+hti_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
                     xmax = -71.61815, ymin = 18.02180))
 
 # Merge and mask PALSAR tiles -------------------------------------------------
@@ -287,8 +287,6 @@ msk_AWU %>%
   terra::writeRaster(file.path(masks_dir, "mask_AWU.tif"),
                      overwrite = TRUE, 
                      wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
-
-# Make masks (Hispaniola extent) ------------------------------------------------------------
 
 # Create water mask from OSM polygons with 25 m buffer
 # OSM water with 25 m buffer

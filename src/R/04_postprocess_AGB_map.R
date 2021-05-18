@@ -12,7 +12,7 @@
 #
 # *************************************************************************************************
 
-# Load libraries
+# Load libraries ----
 # library(geobgu) 
 # library(broom)
 # library(gdalUtils)
@@ -23,10 +23,10 @@ library("terra")
 library("tidyverse")
 # library(clipr)
 
-# Set variables
+# Set variables ----
 year <- '2019'
 code <- 'sl_HV'
-suffix <- g0_variant <- 'simple'
+suffix <- g0_variant <- 'lee11s10'
 p3_agb_val = 310
 
 # raw_dir <- file.path('data/raw/ALOS', year)
@@ -36,8 +36,6 @@ tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 masks_dir <- file.path(palsar_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-
-
 
 # Functions ------------------------------------------------------------------------------------------
 get_counts <- function(valuesraster, msk_zone, msk_0, threshold=132){
@@ -148,7 +146,7 @@ get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_fp, dir=file.path(res
   }
   
   # g0 >0.3 mask (AGB>316.76)
-  msk_p3_fp <- file.path(results_dir, str_c("R_out/mask_ALOSoverpt3",fn_suff,"_hti.tif")))
+  msk_p3_fp <- file.path(results_dir, str_c("R_out/mask_ALOSoverpt3",fn_suff,"_hti.tif"))
   if(file.exists(msk_p3_fp)) {
     msk_p3 <- terra::rast(msk_p3_fp)
   } else {
@@ -159,7 +157,7 @@ get_mask_counts_terra <- function(fn_suff, p3_agb_val, agb_fp, dir=file.path(res
                       wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
   }
   
-  msk_Ap3WUwb_u20_fp <- file.path(results_dir, str_c("R_out/mask_msk_Ap3WUwb_u20",fn_suff,"_hti.tif")))
+  msk_Ap3WUwb_u20_fp <- file.path(results_dir, str_c("R_out/mask_msk_Ap3WUwb_u20",fn_suff,"_hti.tif"))
   if(file.exists(msk_Ap3WUwb_u20_fp)){
     msk_Ap3WUwb_u20 <- terra::rast(msk_Ap3WUwb_u20_fp) 
   } else {
@@ -460,95 +458,118 @@ suffix <- if(suffix == 'simple') '' else str_c('_', suffix)
 mod_dir <- file.path(modeling_dir, g0_variant)
 agb_fp <- file.path(mod_dir, str_c("agb_l0", suffix, ".tif"))
 
+msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
+
+# ~ function to mask AGB ----
+mask_agb <- function(agb_fp, p3_agb_val, msk_WUwb_fp, 
+                     masks = c('alos_normal', 'WU', 'wb', 'p3', 'u20'))
+  
+# Load AGB
+agb_ras <- terra::rast(agb_fp)
+
+# AGB <20 mask
+msk_u20 <- agb_ras %>% terra::classify(rbind(c(-9999, 20, NA),
+                                             c(20, 9999, 1)))
+
+# g0 >0.3 mask (AGB>316.76)
+msk_p3 <- agb_ras %>% terra::classify(rbind(c(p3_agb_val, 9999, NA), 
+                                            c(-9999, p3_agb_val, 1)))
+
+# msk_out_fp <- file.path(dirname(agb_fp), str_c('mask_u20to', p3_agb_val, '.tif'))
+
+# LC17 Water and Urban, and OSM water with 25 m buffer
+msk_WUwb <- terra::rast(msk_WUwb_fp) %>% terra::crop(agb_ras)
+
+masks2 <- c(masks, msk_WUwb)
+prod_msks <- app(masks2, prod, 
+                 filename = agb_out_fp, overwrite = T, 
+                 wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
+
+# Check extents
+if(ext(agb_ras) != ext(msk_WUwb)){
+  print("Extents don't match.")
+}
+
+# Combine masks
+msk_WUwb_u20 <- msk_WUwb %>% terra::mask(msk_u20)
+msk_Ap3WUwb_u20 <- msk_WUwb_u20 %>% terra::mask(msk_p3)
+
+# Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+agb_out_fp <- str_c(tools::file_path_sans_ext(agb_fp), 
+                    '_maskWUwb20to', p3_agb_val, '.tif')
+agb_dtype <- raster::dataType(raster::raster(agb_fp))
+agb_masked <- agb_ras %>% 
+  terra::mask(msk_Ap3WUwb_u20, filename = agb_out_fp, overwrite = T, 
+              wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
+
 # (cts_df_v3l3 <- get_mask_counts_terra(suffix, p3_agb_val, agb_fp))
+# ~ Reworking function get_mask_counts_terra ----
 
 # Load AGB
 agb_ras <- terra::rast(agb_fp)
 
-# Load masks
+# Load masks and crop
 # 1 == Intersection of PALSAR 2019 land and Haiti administrative boundary
-msk_land <- terra::rast(landmask_fp)
+msk_land <- terra::rast(landmask_fp) %>% 
+  terra::crop(agb_ras)
+# LC17 Water and Urban, and OSM water with 25 m buffer
+msk_WUwb <- terra::rast(file.path(masks_dir, "mask_WaterUrban_water25.tif")) %>% 
+  terra::crop(agb_ras)
+# 1== LC17 tree cover
+mskinv_T <- terra::rast(file.path(masks_dir, "mask_inv_TreeCover.tif")) %>% 
+  terra::crop(agb_ras)
 
-
-
-msk_AWUwb <- # NA==ALOS mask, LC17 Water and Urban, and OSM water with 25 m buffer
-  terra::rast(file.path(results_dir, "masks/mask_ALOS_WaterUrban_water25.tif"))
-mskinv_T <-  # 1== LC17 tree cover
-  terra::rast(file.path(results_dir, "masks/mask_inv_TreeCover.tif"))
-
-# set extent and crop
-msk_land <- msk_land %>% terra::crop(agb.ras)
-msk_AWUwb <- msk_AWUwb %>% terra::crop(agb.ras)
-mskinv_T <- mskinv_T %>% terra::crop(agb.ras)
+# Check extents
+if(ext(agb_ras) != ext(msk_WUwb)){
+  print("Extents don't match.")
+}
 
 # Get masks
 # AGB <20 mask
-msk_u20_fp <- file.path(results_dir, str_c("R_out/mask_AGB_under20",fn_suff,"_hti.tif"))
-if(file.exists(msk_u20_fp)){
-  msk_u20 <- terra::rast(msk_u20_fp)
-} else {
-  msk_u20 <- agb.ras %>% 
-    terra::classify(rbind(c(-9999,20,NA), c(20,9999,1)),
-                    filename=msk_u20_fp, overwrite=T, 
-                    wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
-}
-
-msk_AWUwb_u20_fp <- file.path(results_dir, str_c("R_out/mask_AWUwb_u20",fn_suff,"_hti.tif"))
-if(file.exists(msk_AWUwb_u20_fp)){
-  msk_AWUwb_u20 <- terra::rast(msk_AWUwb_u20_fp)
-} else {
-  msk_AWUwb_u20 <- msk_AWUwb %>% 
-    terra::mask(msk_u20, filename=msk_AWUwb_u20_fp, overwrite=T, 
-                wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
-}
+msk_u20 <- agb_ras %>% terra::classify(rbind(c(-9999,20,NA), c(20,9999,1)))
+msk_WUwb_u20 <- msk_WUwb %>% terra::mask(msk_u20)
 
 # g0 >0.3 mask (AGB>316.76)
-msk_p3_fp <- file.path(results_dir, str_c("R_out/mask_ALOSoverpt3",fn_suff,"_hti.tif")))
-if(file.exists(msk_p3_fp)) {
-  msk_p3 <- terra::rast(msk_p3_fp)
-} else {
-  msk_p3 <- agb.ras %>% 
-    terra::classify(rbind(c(p3_agb_val, 9999, NA), 
-                          c(-9999, p3_agb_val, 1)),
-                    filename=msk_p3_fp, overwrite=T, 
-                    wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
-}
-
-msk_Ap3WUwb_u20_fp <- file.path(results_dir, str_c("R_out/mask_msk_Ap3WUwb_u20",fn_suff,"_hti.tif")))
-if(file.exists(msk_Ap3WUwb_u20_fp)){
-  msk_Ap3WUwb_u20 <- terra::rast(msk_Ap3WUwb_u20_fp) 
-} else {
-  msk_Ap3WUwb_u20 <- msk_AWUwb_u20 %>% 
-    terra::mask(msk_p3, filename=msk_Ap3WUwb_u20_fp, overwrite=T, 
-                wopt=list(datatype='INT1U', gdal='COMPRESS=LZW', NAflag=0))
-}
+msk_p3 <- agb_ras %>% terra::classify(rbind(c(p3_agb_val, 9999, NA), c(-9999, p3_agb_val, 1)))
+msk_Ap3WUwb_u20 <- msk_WUwb_u20 %>% terra::mask(msk_p3)
 
 # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-if(file.exists(agb_out_fp)){
-  # read
-  agb.r <- terra::rast(agb_out_fp)
-} else {
-  agb.r <- agb.ras %>% 
-    terra::mask(msk_Ap3WUwb_u20, filename=agb_out_fp, overwrite=T, 
-                wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
-}
+agb_out_fp <- str_c(tools::file_path_sans_ext(agb_fp), 
+                    '_maskWUwb20to', p3_agb_val, '.tif')
+agb_dtype <- raster::dataType(raster::raster(agb_fp))
+agb_masked <- agb_ras %>% 
+  terra::mask(msk_Ap3WUwb_u20, filename = agb_out_fp, overwrite = T, 
+              wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
 
+# if(file.exists(agb_out_fp)){
+#   # read
+#   agb_masked <- terra::rast(agb_out_fp)
+# } else {
+#   agb_masked <- agb_ras %>% 
+#     terra::mask(msk_Ap3WUwb_u20, filename=agb_out_fp, overwrite=T, 
+#                 wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
+# }
+
+# Get stats ----
 # Get mean and count
-mn <- global(agb.r, 'mean', na.rm=T)
-ct_valid_pixels <- global(!is.na(agb.r), 'sum')
+mn <- global(agb_masked, 'mean', na.rm=T)
+ct_valid_pixels <- global(!is.na(agb_masked), 'sum')
 est_area_ha <- (25*25*0.0001) * ct_valid_pixels
 est_total_AGB <- mn * est_area_ha
 
 # Count NAs as percent of all land
-Ap3WUwb_u20 <- get_counts_raster(agb.ras, msk_land, msk_Ap3WUwb_u20, 310) %>% 
-  filter(name=='masked') %>% select('pct')
+Ap3WUwb_u20 <- get_counts_raster(agb_ras, msk_land, msk_Ap3WUwb_u20, 310) %>% 
+  filter(name == 'masked') %>% select('pct')
 
 # 1. Convert rasters to DF
 df <- tibble(zone = as.vector(msk_land),
-             agb = as.vector(agb.ras) %>% round(4), 
-             mask = as.vector(msk_AWUwb_u20)) %>% 
+             agb = as.vector(agb_ras) %>% round(4), 
+             mask = as.vector(msk_WUwb_u20)) %>% 
   filter(!is.na(zone)) 
+
+# Count all pixels in land mask
 total <- nrow(df)
+ct_land_pix <- global(msk_land, 'sum', na.rm = TRUE)
 
 # Filter by mask
 df1 <- df %>% filter(!is.na(mask))
@@ -562,15 +583,15 @@ over200 <- filter_by_thresh_and_tally(df1, total, 200) %>% filter(name=='over_th
 over132 <- filter_by_thresh_and_tally(df1, total, 132) %>% filter(name=='over_thresh') %>% select('pct')
 
 # get Tree Cover
-df <- get_counts_raster(agb.ras, mskinv_T, msk_u20, 132)
+df <- get_counts_raster(agb_ras, mskinv_T, msk_u20, 132)
 (TCu20 <- df %>% filter(name=='masked') %>% select('pct'))
 (TCu20o132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
-df <- get_counts_raster(agb.ras, mskinv_T, msk_AWUwb_u20, 132)
+df <- get_counts_raster(agb_ras, mskinv_T, msk_AWUwb_u20, 132)
 (TC_AWUwb_u20 <- df %>% filter(name=='masked') %>% select('pct'))
 (TCover132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
-df <- get_counts_raster(agb.ras, mskinv_T, mskinv_T, 132)
+df <- get_counts_raster(agb_ras, mskinv_T, mskinv_T, 132)
 (TCo132 <- df %>% filter(name=='over_thresh') %>% select('pct'))
-df <- get_counts_raster(agb.ras, mskinv_T, msk_AWUwb, 132)
+df <- get_counts_raster(agb_ras, mskinv_T, msk_WUwb, 132)
 (TC_AWUwb <- df %>% filter(name=='masked') %>% select('pct'))
 
 # Get pct of TC class that intersects water buffer
@@ -644,14 +665,14 @@ df_out <-
 # Get counts for v3l3 outside of function ----
 # Filenames
 dir <- file.path(results_dir, 'tifs_by_R')
-agb.ras_fp <- file.path(dir, agb_fp) 
+agb_ras_fp <- file.path(dir, agb_fp) 
 msk_land_fp <- file.path(results_dir, "masks/hti18_maskLand.tif")
 wb_fp <- file.path(results_dir, 'masks/vector/osm_water_buff25m.shp')
 mskinv_T_fp <- file.path(results_dir, "masks/mask_inv_TreeCover.tif")
 
 # Crop to intersecting extents of AGB and land 
 out <- crop_to_intersecting_extents(
-  terra::rast(agb.ras_fp), 
+  terra::rast(agb_ras_fp), 
   terra::rast(msk_land_fp), 
   return_r1=T, return_r2=T, return_bb=T)
 

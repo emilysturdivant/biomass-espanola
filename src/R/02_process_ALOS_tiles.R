@@ -94,7 +94,8 @@ if(perform_merge) {
     msk_poly <- terra::vect(hti_poly_fp)
     dn_mask %>% 
       terra::crop(msk_poly) %>% 
-      terra::mask(msk_poly, inverse = FALSE, 
+      terra::mask(msk_poly, 
+                  inverse = FALSE, 
                   filename = landmask_fp,
                   overwrite = TRUE,
                   wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))

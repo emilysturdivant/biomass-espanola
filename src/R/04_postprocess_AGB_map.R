@@ -39,7 +39,7 @@ if(!file.exists(agb_cap_fp)){
     terra::classify(rbind(c(saturation_pt, Inf, saturation_pt)), 
                     filename = agb_cap_fp, 
                     overwrite=T, 
-                    wopt=list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
+                    wopt = list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
 }
 
 # Get mask counts --------------------------------------------------------------

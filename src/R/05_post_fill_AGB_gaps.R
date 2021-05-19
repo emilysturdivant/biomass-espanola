@@ -19,43 +19,40 @@ library('tmap')
 tmap_mode('view')
 
 # Set variables ----
-g0_variant <- 'lee11s10'
+g0_variant <- 'med5'
+rmse_cv <- 23
 year <- '2019'
 lc_stat <-  'median'
+input_level <- 'l1_cap'
 
-
-landmask_fp <- file.path('data', 'tidy', str_c('palsar_', year), 'masks', 
-                         'hti_land_palsar.tif')
-suffix <- if(g0_variant == 'simple') '' else str_c('_', g0_variant)
+# Input filepaths
 agb_dir <- file.path('data', 'modeling', g0_variant)
+agb_capped_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*\\.tif'), full.names = TRUE)
 agb_masked_fp <- list.files(agb_dir, 'agb_l2.*\\.tif', full.names = TRUE)
 
-# Initialize variables ----
 lc_fps <- c("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif", 
             "data/raw/landcover/Lemoiner/DR_2017_clip.tif")
 
-lc_fp_out <- "data/tidy/landcover/Hisp_2017_resALOS_terra.tif"
-lc_out <- "data/tidy/landcover/Hisp_2017_resALOS_mskLand.tif"
-
 # Output filepaths
-lc_pols_agb_fp <- str_glue("data/tidy/landcover/Haiti2017_polys_AGBzonal.gpkg")
-lc_pols_agb_fp <- file.path(agb_dir, str_glue('agb_{lc_stat}_byLC_l2.gpkg'))
+lc_pols_fp <- "data/tidy/landcover/Haiti2017_Clip_polys.gpkg"
 
-agb_by_lc_fp <- file.path(agb_dir, str_glue('agb_{lc_stat}_byLC_l2.tif'))
-agb_by_lc_sd_fp <- file.path(agb_dir, str_glue('agb_{lc_stat}_byLC_l2_sd.tif'))
+agb_by_lc_prefix <- file.path(agb_dir, 'agb_by_landcover', 
+                              str_glue('agb_{input_level}_{lc_stat}_byLC'))
+lc_pols_agb_fp <- str_c(agb_by_lc_prefix, '.gpkg')
+agb_by_lc_fp <- str_c(agb_by_lc_prefix, '.tif') 
+agb_by_lc_sd_fp <- str_c(agb_by_lc_prefix, '_sd.tif') 
 
-agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}.tif'))
-agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_sd.tif'))
-
+agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}.tif'))
+agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_sd.tif'))
 
 # Load AGB ================================================================
-agb_ras <- terra::rast(agb_masked_fp)
+agb_ras <- terra::rast(agb_capped_fp)
+agb_dtype <- raster::dataType(raster::raster(agb_capped_fp))
 
 # ~ AGB mean by LC patch =========================================================
 # Get mean AGB for each land cover patch (extract)
 
 # Polygonize LULC raster ----
-lc_pols_fp <- "data/tidy/landcover/Haiti2017_Clip_polys.gpkg"
 if(!file.exists(lc_pols_fp)) {
   # Temporary file
   lc_multipols_fp <- "data/tidy/landcover/Haiti2017_Clip_multipolys"
@@ -103,13 +100,15 @@ if(!file.exists(lc_pols_agb_fp)){
                         wkt="geometry", 
                         crs=crs(lc_vect2))
   
+  # Append columns to SF polys
   lc_sf_all <- agb %>% 
     select(-ID) %>% 
     cbind(lc_sf, .) %>% 
     filter(ct > 1)
   
   # Save
-  lc_sf_all %>% st_write(lc_pols_agb_fp, delete_dsn = T)
+  dir.create(dirname(lc_pols_agb_fp), showWarnings = FALSE, recursive = TRUE)
+  lc_sf_all %>% st_write(lc_pols_agb_fp, append = FALSE)
   
 } 
 
@@ -131,35 +130,34 @@ if(!file.exists(agb_filled_fp)) {
   
   # Rasterize means
   agb_by_lcpatch <- lc_all_vect %>% 
-    terra::rasterize(agb_ras, field = lc_stat, 
-                     filename=agb_by_lc_fp, overwrite=T, 
-                     wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
-  
+    terra::rasterize(agb_ras, field = lc_stat)
+
   # Fill gaps and save
   agb_ras <- terra::rast(agb_masked_fp)
-  agb_filled <- terra::cover(agb_ras, agb_by_lcpatch, 
-                             filename=agb_filled_fp, overwrite=T, 
-                             wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
-  
-} else {
-  
-  agb_by_lcpatch <- terra::rast(agb_filled_fp)
+  agb_filled <- terra::cover(agb_ras, 
+                             agb_by_lcpatch, 
+                             filename = agb_filled_fp, 
+                             overwrite = TRUE, 
+                             wopt = list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
   
 }
 
 # Create uncertainty layer for agb_filled ----
-agb_err <- agb_ras <- terra::rast(agb_masked_fp)
-agb_err[agb_err > 0] <- 23 # cross-validation RMSE
-
 if(!file.exists(agb_filled_sd_fp)) {
-  # Rasterize SDs
-  agb_by_lcpatch_sd <- lc_all_vect %>% 
-    terra::rasterize(agb_err, field = 'sd', filename=agb_by_lc_sd_fp, overwrite=T, 
-                     wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
   
-  agb_filled_err <- terra::cover(agb_err, agb_by_lcpatch_sd,
-                                 filename=agb_filled_sd_fp, overwrite=T, 
-                                 wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
+  # RMSE from CV for all areas with final AGB
+  agb_err <- terra::rast(agb_masked_fp) %>% 
+    terra::classify(rbind(c(0, Inf, rmse_cv)))
+  
+  # Rasterize SDs
+  agb_by_lcpatch_sd <- lc_all_vect %>% terra::rasterize(agb_err, field = 'sd')
+  
+  # Use SDs from landcover to fill gaps
+  agb_filled_err <- terra::cover(agb_err, 
+                                 agb_by_lcpatch_sd,
+                                 filename = agb_filled_sd_fp, 
+                                 overwrite = TRUE, 
+                                 wopt = list(datatype= agb_dtype, gdal='COMPRESS=LZW'))
   
 }
 
@@ -168,6 +166,10 @@ plot(agb_by_lcpatch_sd)
 
 
 # Pre-process land cover -------------------------------------------------------
+lc_fp_out <- "data/tidy/landcover/Hisp_2017_resALOS_terra.tif"
+lc_out <- "data/tidy/landcover/Hisp_2017_resALOS_mskLand.tif"
+lc_fp <- "data/tidy/landcover/Haiti2017_agbres.tif"
+
 if(!file.exists(lc_fp_out)){
   # Resample Haiti and DR land cover to AGB res 
   rs <- sapply(lc_fps, 
@@ -181,31 +183,5 @@ if(!file.exists(lc_fp_out)){
   lc2 <- terra::cover(rs$`data/LULC/Haiti2017_Clip.tif`, 
                       rs$`data/LULC/DR_2017_clip.tif`, 
                       filename=lc_fp_out, overwrite=T, 
-                      wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
+                      wopt=list(datatype='INT1U', gdal='COMPRESS=LZW'))
 }
-
-# ~ AGB mean by LC (6 values) ----------------------------------------------------
-agb_filled_fp <- file.path(results_dir, 'tifs_by_R/agb18_v3_l3_Ap3WUw25u20_hti_filled_6zones.tif')
-
-# Create AGB surface from mean AGB for each LC class (6 values) 
-# Load and crop LC
-lc <- terra::rast(lc_fp_out) %>% 
-  terra::crop(agb_ras) 
-
-# Mask LC to land pixels
-lc <- lc * terra::rast(landmask_fp)
-
-# Compute mean AGB for each LC (zonal statistics) 
-zonal_stats <- terra::zonal(agb_ras, lc, 'mean', na.rm=T)
-
-# Reclass LC to AGB values -> AGB by LC surface
-agb_by_lc <- terra::classify(lc, zonal_stats)
-
-# Fill gaps in AGB with AGB by LC ----------------------------------------------
-agb_filled <- terra::cover(agb_ras, agb_by_lc, filename=agb_filled_fp, 
-                           wopt=list(datatype='FLT4S', gdal='COMPRESS=LZW'))
-
-if(file.exists(agb_filled_fp)) agb_filled <- terra::rast(agb_filled_fp)
-
-plot(agb_filled)
-plot(agb_ras)

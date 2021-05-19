@@ -36,7 +36,7 @@ agb_cap_fp <- file.path(dirname(agb_fp),
 if(!file.exists(agb_cap_fp)){
   agb_dtype <- raster::dataType(raster::raster(agb_fp))
   agb_sat <- terra::rast(agb_fp) %>% 
-    terra::classify(rbind(c(saturation_pt, 9999, saturation_pt)), 
+    terra::classify(rbind(c(saturation_pt, Inf, saturation_pt)), 
                     filename = agb_cap_fp, 
                     overwrite=T, 
                     wopt=list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
@@ -78,19 +78,19 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
   agb_ras <- terra::rast(agb_fp)
   
   # Initialize mask raster (all 1's)
-  msk <- agb_ras %>% terra::classify(rbind(c(-9999, 9999, 1)))
+  msk <- agb_ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
   
   # AGB <20 mask
   if('u20' %in% masks){
-    msk_u20 <- agb_ras %>% terra::classify(rbind(c(-9999, 20, NA),
-                                                 c(20, 9999, 1)))
+    msk_u20 <- agb_ras %>% terra::classify(rbind(c(-Inf, 20, NA),
+                                                 c(20, Inf, 1)))
     msk <- msk %>% terra::mask(msk_u20)
   }
   
   # g0 >0.3 mask (AGB>316.76)
   if('p3' %in% masks){
-    msk_p3 <- agb_ras %>% terra::classify(rbind(c(p3_agb_val, 9999, NA), 
-                                                c(-9999, p3_agb_val, 1)))
+    msk_p3 <- agb_ras %>% terra::classify(rbind(c(p3_agb_val, Inf, NA), 
+                                                c(-Inf, p3_agb_val, 1)))
     msk <- msk %>% terra::mask(msk_p3)
   }
   
@@ -145,13 +145,13 @@ agb_l2 <- mask_agb(agb_fp = agb_cap_fp,
 # Report (incomplete update): Get value frequencies within masks ---------------
 get_frequencies <- function(agb_ras, msk_name = 'none'){
   # Reclass masked raster
-  rcl_tbl <- rbind(c(-9999, 20, -1),
+  rcl_tbl <- rbind(c(-Inf, 20, -1),
                    c(20, 132, 0),
                    c(132, 200, 1), 
                    c(200, 250, 2), 
                    c(250, 300, 3), 
                    c(300, 310, 4), 
-                   c(310, 9999, 5)) %>% 
+                   c(310, Inf, 5)) %>% 
     as_tibble() %>% 
     rename(value = V3) %>% 
     mutate(name = str_c(V1, ' to ', V2))

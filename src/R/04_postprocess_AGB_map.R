@@ -17,7 +17,7 @@ library("tidyverse")
 
 # Set variables ----
 suffix <- g0_variant <- 'lee11s10'
-# suffix <- g0_variant <- 'med5'
+suffix <- g0_variant <- 'med5'
 p3_agb_val = 310
 year <- '2019'
 
@@ -42,7 +42,7 @@ if(!file.exists(agb_cap_fp)){
                     wopt = list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
 }
 
-# Get mask counts --------------------------------------------------------------
+# Mask agb --------------------------------------------------------------
 mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1', 
                      masks = c('A', 'WU', 'wb', 'u20', 'p3'), overwrite = TRUE,
                      masked_agb_fp) {
@@ -60,6 +60,7 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
     return(terra::rast(masked_agb_fp))
   }
   
+  # Use mask file if it already exists
   if(file.exists(msk_all_fp) & !overwrite) {
     agb_ras <- terra::rast(agb_fp)
     msk <- terra::rast(msk_all_fp)
@@ -105,6 +106,29 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
     }
     
     msk <- msk %>% terra::mask(msk_WUwb)
+    
+  } else if('WU' %in% masks) {
+      msk_fp <- file.path(masks_dir, "mask_WaterUrban.tif")
+      msk_WU <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
+      
+      # Check extents
+      if(ext(agb_ras) != ext(msk_WU)){
+        print("Extents don't match.")
+      }
+      
+      msk <- msk %>% terra::mask(msk_WU)
+      
+  } else if('U' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_Urban.tif")
+    msk_U <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
+    
+    # Check extents
+    if(ext(agb_ras) != ext(msk_U)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_U)
+    
   }
   
   # LC17 Water and Urban, and OSM water with 25 m buffer
@@ -116,29 +140,59 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
   }
   
   # Save mask raster
-  msk %>% terra::writeRaster(filename = msk_all_fp, overwrite = T, 
-                             wopt = list(datatype = 'INT1S', gdal = 'COMPRESS=LZW'))
+  msk %>% terra::writeRaster(filename = msk_all_fp, 
+                             overwrite = T, 
+                             datatype = 'INT1S', 
+                             gdal = 'COMPRESS=LZW')
   
   # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
   agb_dtype <- raster::dataType(raster::raster(agb_fp))
   agb_masked <- agb_ras %>% 
-    terra::mask(msk, filename = masked_agb_fp, overwrite = T, 
-                wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
+    terra::mask(msk, 
+                filename = masked_agb_fp, 
+                overwrite = T, 
+                datatype = agb_dtype, 
+                gdal = 'COMPRESS=LZW')
   
   # Return
   return(agb_masked)
 }
-  
-agb_masked <- mask_agb(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
+
+# Apply masks ----
+# Apply WU, wb, u20, p3 mask to L0 agb
+agb_masked <- mask_agb(agb_fp,
+                       p3_agb_val, 
+                       masks_dir, 
+                       level_code = 'l1',
                        masks = c('WU', 'wb', 'u20', 'p3'), overwrite = FALSE)
 
+# Apply WU, wb, u20 mask to L1 capped AGB
 agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
                        p3_agb_val, 
                        masks_dir, 
                        level_code = 'l2',
                        masks = c('WU', 'wb', 'u20'), overwrite = FALSE)
 
+# Apply WU, wb mask to L1 capped AGB
+agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
+                   p3_agb_val, 
+                   masks_dir, 
+                   level_code = 'l2',
+                   masks = c('WU', 'wb'), overwrite = FALSE)
 
+# Apply WU, wb mask to L1 capped AGB
+agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
+                   p3_agb_val, 
+                   masks_dir, 
+                   level_code = 'l2',
+                   masks = c('WU', 'u20'), overwrite = FALSE)
+
+# Apply WU, wb mask to L1 capped AGB
+agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
+                       p3_agb_val, 
+                       masks_dir, 
+                       level_code = 'l2',
+                       masks = c('U'), overwrite = FALSE)
 
 
 
@@ -174,15 +228,11 @@ get_frequencies <- function(agb_ras, msk_name = 'none'){
   return(cts)
 }
 
-total_mskd <- global(agb_masked, 'sum', na.rm = TRUE) %>% deframe()
-
-# Default mask
-cts <- get_frequencies(agb_masked, 'default mask')
-sum(cts$count)
-
 # Load
 agb_ras <- terra::rast(agb_fp)
 msk_land <- terra::rast(landmask_fp)
+agb_masked <- agb_l2
+mask_name <- 'WUu20'
 
 # Tree cover 
 mskinv_T_fp <- file.path(masks_dir, "mask_inv_TreeCover.tif")
@@ -190,39 +240,73 @@ mskinv_T <- terra::rast(mskinv_T_fp) %>%
   terra::crop(agb_ras) %>% 
   terra::mask(msk_land)
 
-# Get total tree cover pixels in land
-total_tc <- global(mskinv_T, 'sum', na.rm = TRUE) %>% deframe()
+# Totals
+total_land <- global(!is.na(msk_land), 'sum', na.rm = TRUE) %>% deframe()
+total_tc <- global(!is.na(mskinv_T), 'sum', na.rm = TRUE) %>% deframe()
+total_mskd <- global(!is.na(agb_masked), 'sum', na.rm = TRUE) %>% deframe()
+
+# Default mask
+cts <- get_frequencies(agb_masked, mask_name)
+cts <- cts %>% 
+  mutate(pct = count / total_mskd,
+         pct_land = count / total_land)
 
 # Tree cover, no mask
 agb_tc <- agb_ras %>% terra::mask(mskinv_T)
 tc_cts <- get_frequencies(agb_tc, 'tree cover unmasked') %>% 
-  mutate(pct = count / total_tc)
+  mutate(pct = count / total_tc,
+         pct_land = count / total_land)
 
-# Tree cover, Default mask
+# Tree cover, with mask
 agb_tc_mskd <- agb_masked %>% terra::mask(mskinv_T)
-tc_mskd_cts <- get_frequencies(agb_tc_mskd, 'tree cover, default mask') %>% 
-  mutate(pct = count / total_tc)
+tc_mskd_cts <- get_frequencies(agb_tc_mskd, str_c('tree cover, ', mask_name)) %>% 
+  mutate(pct = count / total_tc,
+         pct_land = count / total_land)
+
+# Get mean and count
+(tc_mn <- global(agb_tc_mskd, 'mean', na.rm=T))
+ct_tc_pixels <- global(!is.na(agb_tc_mskd), 'sum')
+(est_tc_area_ha <- (25*25*0.0001) * ct_tc_pixels)
+est_tc_area_ha <- 953800
+(est_total_AGB <- tc_mn * est_tc_area_ha)
 
 # Get pct of TC class inside water buffer
 msk_wb_fp <- file.path(masks_dir, 'mask_water_buff25m.tif')
 msk_wb <- terra::rast(msk_wb_fp)
 mskinv_T_wb <- mskinv_T %>% terra::mask(msk_wb, inverse = TRUE)
-total_tc_wb <- global(mskinv_T_wb, 'sum', na.rm = TRUE)
+total_tc_wb <- global(!is.na(mskinv_T_wb), 'sum', na.rm = TRUE)
 tc_wb_cts <- total_tc_wb %>% 
   rename(count = sum) %>% 
   mutate(name = 'water', 
-         mask = 'tree cover')
+         mask = 'tree cover', 
+         pct = count / total_tc,
+         pct_land = count / total_land)
 
+combo_df <- bind_rows(cts, tc_mskd_cts, tc_wb_cts)
 
+combo <- combo_df %>% 
+  mutate(
+    name = str_replace_all(name, 
+                           "20 to 132|132 to 200|200 to 250|250 to 300|300 to 310|310 to Inf", 
+                           'over20'))
 
+combo %>% 
+  dplyr::group_by(name, mask) %>% 
+  dplyr::summarize(pct = sum(pct), 
+                   pct_land = sum(pct_land), 
+                   count = sum(count)) %>% 
+  mutate(area_ha = count * (25*25*0.0001),
+         area_from_pct = pct_land * 2710675)
 
+hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
+sf::st_area(st_read(hti_poly_fp))
 
 # Get stats 
 # Get mean and count
-mn <- global(agb_masked, 'mean', na.rm=T)
-ct_valid_pixels <- global(!is.na(agb_masked), 'sum')
-est_area_ha <- (25*25*0.0001) * ct_valid_pixels
-est_total_AGB <- mn * est_area_ha
+(mn <- global(agb_masked, 'mean', na.rm=T))
+ct_valid_pixels <- global(!is.na(agb_masked), 'sum', na.rm=T)
+(est_area_ha <- (25*25*0.0001) * ct_valid_pixels)
+(est_total_AGB <- mn * est_area_ha)
 
 
 

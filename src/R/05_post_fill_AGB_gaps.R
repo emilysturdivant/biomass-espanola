@@ -20,15 +20,17 @@ tmap_mode('view')
 
 # Set variables ----
 g0_variant <- 'med5'
-rmse_cv <- 23
+rmse_cv <- 19.8
 year <- '2019'
 lc_stat <-  'median'
 input_level <- 'l1_cap'
+mask_level <- 'WUwb'
 
 # Input filepaths
 agb_dir <- file.path('data', 'modeling', g0_variant)
-agb_capped_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*\\.tif'), full.names = TRUE)
-agb_masked_fp <- list.files(agb_dir, 'agb_l2.*\\.tif', full.names = TRUE)
+(agb_capped_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*\\.tif'), full.names = TRUE))
+(agb_masked_fp <- list.files(agb_dir, str_glue('agb_l2.*{mask_level}\\.tif'), 
+                             full.names = TRUE))
 
 lc_fps <- c("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif", 
             "data/raw/landcover/Lemoiner/DR_2017_clip.tif")
@@ -37,13 +39,13 @@ lc_fps <- c("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif",
 lc_pols_fp <- "data/tidy/landcover/Haiti2017_Clip_polys.gpkg"
 
 agb_by_lc_prefix <- file.path(agb_dir, 'agb_by_landcover', 
-                              str_glue('agb_{input_level}_{lc_stat}_byLC'))
+                              str_glue('agb_{input_level}_{mask_level}_{lc_stat}_byLC'))
 lc_pols_agb_fp <- str_c(agb_by_lc_prefix, '.gpkg')
 agb_by_lc_fp <- str_c(agb_by_lc_prefix, '.tif') 
 agb_by_lc_sd_fp <- str_c(agb_by_lc_prefix, '_sd.tif') 
 
-agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}.tif'))
-agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_sd.tif'))
+agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}.tif'))
+agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}_sd.tif'))
 
 # Load AGB ================================================================
 agb_ras <- terra::rast(agb_capped_fp)
@@ -113,10 +115,10 @@ if(!file.exists(lc_pols_agb_fp)){
 } 
 
 # Look
-agb_raster <- raster::raster(agb_masked_fp)
-lc_sf_all <- st_read(lc_pols_agb_fp)
-tm_shape(lc_sf_all) + tm_fill(col='mean') +
-  tm_shape(agb_raster) + tm_raster()
+# agb_raster <- raster::raster(agb_masked_fp)
+# lc_sf_all <- st_read(lc_pols_agb_fp)
+# tm_shape(lc_sf_all) + tm_fill(col='mean') +
+#   tm_shape(agb_raster) + tm_raster()
 
 # Fill missing AGB with patch means --------------------------------------------
 # agb_by_lc_sd_fp <- file.path(results_dir, 'tifs_by_R/LCpatches_agb18_v3l1_Ap3WUw25u20_hti_sd.tif')

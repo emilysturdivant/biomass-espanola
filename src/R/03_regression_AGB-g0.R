@@ -9,29 +9,60 @@
 #     * backscatter image (g0)
 #     * plot polygons with AGB by plot (plots_agb)
 # *************************************************************************************************
-
-# Load libraries
+# Load libraries -----
 library("caret")
 library("terra")
 library("sf")
-# library(geobgu)
 library("broom")
-# library(gdalUtils)
-# library(tmap)
-# require(graphics)
 library("patchwork")
 library("tidyverse")
 
-# Set variables
+# Set variables ----
 year <- '2019'
 code <- 'sl_HV'
-suffix <- g0_variant <- 'agg50'
+code <- 'HV_nu'
+suffix <- g0_variant <- 'med5'
 
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- 'data/modeling'
 field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
+
+# Set output filepaths ----
+# List palsar mosaic files
+fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
+                  str_glue('{code}_{g0_variant}.*\\.tif$'), 
+                  full.names = TRUE)
+
+(g0_fp <- fps[[1]])
+
+# Get variant code
+(g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
+if(is.na(suffix)) {
+  suffix <- ''
+  g0_variant <- 'simple'
+} else {
+  suffix <- str_c('_', suffix)
+}
+
+# g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
+
+# Get path for model outputs
+mod_dir <- file.path(modeling_dir, g0_variant, 'calibration')
+dir.create(mod_dir, recursive = TRUE)
+
+# extracted backscatter values
+ex_shp <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.gpkg'))
+ex_csv <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.csv'))
+
+# Linear regression
+ols_fp <- file.path(mod_dir, str_c("ols", suffix, ".rds"))
+ols_vals_fp <- file.path(mod_dir, str_c('ols_results', suffix, '.csv'))
+full_results_csv <- file.path(mod_dir, str_c('model_results', suffix, '.csv'))
+
+# AGB map
+agb_fp <- file.path(modeling_dir, g0_variant, str_c("agb_l0", suffix, ".tif"))
 
 # Functions ----
 #' Report OLS results
@@ -136,45 +167,9 @@ fxn.bias <- function(data, lev = NULL, model = NULL) {
     RSE = sqrt(rss / df))
 }
 
-# Set output filepaths ----
-# List palsar mosaic files
-fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
-                  str_glue('{code}.*\\.tif$'), 
-                  full.names = TRUE)
-
-(g0_fp <- fps[[6]])
-
-# Get variant code
-(g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
-if(is.na(suffix)) {
-  suffix <- ''
-  g0_variant <- 'simple'
-} else {
-  suffix <- str_c('_', suffix)
-}
-
-# g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
-
-# Get path for model outputs
-mod_dir <- file.path(modeling_dir, g0_variant)
-dir.create(mod_dir, recursive = TRUE)
-
-# Set output filepaths ----
-# extracted backscatter values
-ex_shp <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.gpkg'))
-ex_csv <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.csv'))
-
-# Linear regression
-ols_fp <- file.path(mod_dir, str_c("ols", suffix, ".rds"))
-ols_vals_fp <- file.path(mod_dir, str_c('ols_results', suffix, '.csv'))
-full_results_csv <- file.path(mod_dir, str_c('model_results', suffix, '.csv'))
-
-# AGB map
-agb_fp <- file.path(mod_dir, str_c("agb_l0", suffix, ".tif"))
-
 # Get mean backscatter for each plot --------------------------------------------------------------
 # Load raster and polygon data
-g0 <- rast(g0_fp)             # pre-processed in 02_process_ALOS_tiles.R 
+g0 <- terra::rast(g0_fp)             # pre-processed in 02_process_ALOS_tiles.R 
 
 # Add plot backscatter mean to polygons
 plots_agb <- readRDS(field_agb_fp)
@@ -251,7 +246,7 @@ full_results <- rbind(mutate(train_vals, type = 'train'),
 full_results %>% write_csv(full_results_csv)
 
 # ~Look~ at values ----
-# Scatterplot - AGB against backscatter
+# Scatterplot - AGB against backscatter ----
 p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
        x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) +
@@ -259,46 +254,12 @@ p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
   # annotate(geom = 'text', label = l1, x = -Inf, y = +Inf, hjust = 0, vjust = 1) +
   theme_minimal()
 
-# Inset table with regression summary
+ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),
+       p, 
+       width=14, height=12.5, units='cm')
+
+# Inset table with regression summary ----
 full_results <- read_csv(full_results_csv)
-
-d1 <- full_results %>% 
-  filter(type == 'train') %>%
-  pivot_wider() %>% 
-  dplyr::select(Intercept = estimate_int, 
-                Slope = estimate_g0, 
-                P = p.value)
-d2 <- full_results %>% 
-  filter(type == 'test') %>%
-  pivot_wider() %>% 
-  dplyr::select(Adj_R2 = adj.r.squared, 
-                Adj_R2_sd = adj.r.squaredSD, 
-                RMSE, 
-                RMSE_SD = RMSESD, 
-                MAE,
-                MAE_SD = MAESD, 
-                Bias, 
-                Bias_SD = BiasSD)
-
-report_tbl <- bind_cols(d1, d2) %>% 
-  mutate(across(everything(), ~ signif(.x, 2)), 
-         Filter = g0_variant)
-
-d1 <- report_tbl %>% 
-  transmute(
-    P = {if(P < 0.001) '< 0.001' else if(P < 0.05) '< 0.05' else '>= 0.05'},
-    Equation = str_glue("AGB = {Intercept} + {Slope}x"))
-
-d2 <- report_tbl %>% 
-  transmute(
-    Adj_R2 = str_c(Adj_R2, " ± ", Adj_R2_sd),
-    RMSE = str_c(RMSE, " ± ", RMSE_SD),
-    MAE = str_c(MAE, " ± ", MAE_SD),
-    Bias = str_c(Bias, " ± ", Bias_SD))
-
-d3 <- bind_cols(d1, d2) %>%
-  pivot_longer(everything())
-
 
 d1 <- full_results %>% 
   filter(type == 'train') %>% 
@@ -334,9 +295,9 @@ p + inset_element(tab,
   theme(plot.background = NULL)
 
 # Save
-ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}.png')),
+ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}_table.png')),
        width=14, height=12.5, units='cm')
-ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),
+ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}_table.png')),
        width=14, height=12.5, units='cm')
 
 # Create AGB raster --------------------------------------------------------------------------------

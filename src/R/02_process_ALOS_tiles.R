@@ -10,8 +10,7 @@
 #     * study area polygons
 #
 # *************************************************************************************************
-
-# Load libraries
+# Load libraries ----
 library('tidyverse')
 # library('tmap')
 library('gdalUtils')
@@ -20,14 +19,17 @@ library('sf')
 library('whitebox')
 
 # Initialize ----
-tidy_dir <- 'data/tidy'
-suffix <- ''
+polarization <- 'HV'
+units <- 'nu'
 year <- '2019'
+
+suffix <- ''
+tidy_dir <- 'data/tidy'
 raw_dir <- file.path('data/raw/ALOS', year)
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 masks_dir <- file.path(palsar_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-hti_poly_fp <- "data/contextual_data/HTI_adm/HTI_adm0_fix.shp"
+hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
 hisp_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
                      xmax = -68.32267, ymin = 17.47022))
@@ -72,7 +74,7 @@ mask_raster <- function(code, suffix, palsar_dir, landmask_fp) {
 }
 
 if(!file.exists(hti_poly_fp)){
-  hti_poly <- st_read("data/contextual_data/HTI_adm/HTI_adm0.shp") %>% 
+  hti_poly <- st_read("data/tidy/contextual_data/HTI_adm/HTI_adm0.shp") %>% 
     st_make_valid(hti_poly)
   hti_poly %>% st_write(hti_poly_fp, append=FALSE)
 }
@@ -111,14 +113,38 @@ if(perform_merge) {
   code_list %>% purrr::walk(mask_raster, suffix, palsar_dir, landmask_fp)
 }
 
-# De-speckle with Lee filter ----------------------------------------------------
-g0_fp <- file.path(palsar_dir, "sl_HV.tif")
+# Convert to g0 dB -------------------------------------------------------------
+# The DN values can be converted to gamma-0 values in decibel unit (dB) using the following equation:
+#   𝛾0 = 10log10〈𝐷𝑁2〉+ 𝐶𝐹
+# where, CF is a calibration factor, and <> is the ensemble averaging. 
+# The CF value is “-83.0 dB”for the PALSAR-2/PALSAR mosaic
+g0_fp <- file.path(palsar_dir, str_glue("sl_{polarization}_{units}.tif"))
 
+if(!file.exists(g0_fp)) {
+
+  # Load raw DN  
+  sl_fp <- file.path(palsar_dir, str_glue("sl_{polarization}.tif"))
+  sl <- terra::rast(sl_fp)
+  
+  # Convert to decibels
+  g0 = 10 * log10( sl^2 ) + -83 # agrees with biota getGamma0
+  
+  # Convert to natural units (from biota getGamma0)
+  if(units == 'nu') {
+    g0 <- 10 ^ (g0 / 10)
+  }
+  
+  # Save
+  g0 %>% terra::writeRaster(g0_fp)
+  
+}
+
+# Apply filters ----------------------------------------------------
 # Lee sigma filter
 filtsize <- 11
 sigma <- 10
-out_fp <- str_c(tools::file_path_sans_ext(g0_fp), 
-                str_glue('_smooth_f{filtsize}sig{sigma}.tif'))
+out_fp <- file.path(dirname(g0_fp), 'mosaic_variants', 
+                    str_glue('{polarization}_{units}_lee{filtsize}s{sigma}.tif'))
 wbt_lee_sigma_filter(g0_fp, 
                      out_fp, 
                      filterx = filtsize, filtery = filtsize,
@@ -130,26 +156,45 @@ max(g0_filt)
 
 # Median filter - good smoothing, preserves edges
 filtsize <- 5
-out_fp <- str_c(tools::file_path_sans_ext(g0_fp), 
-                str_glue('_smooth_med{filtsize}.tif'))
-wbt_median_filter(g0_fp, 
-                  out_fp, 
-                  filterx = filtsize, filtery = filtsize,
-                  verbose_mode = FALSE, 
-                  compress_rasters = TRUE)
-g0_filt <- terra::rast(out_fp)
-max(g0_filt)
+out_fp <- file.path(dirname(g0_fp), 'mosaic_variants',
+                str_glue('{polarization}_{units}_med{filtsize}.tif'))
+# wbt_median_filter(g0_fp, 
+#                   out_fp, 
+#                   filterx = filtsize, filtery = filtsize,
+#                   verbose_mode = FALSE, 
+#                   compress_rasters = TRUE)
+# g0_filt <- terra::rast(out_fp)
+# max(g0_filt)
 
-# Saturate values at 7000 ----
-capval <- 7000
-cap_fp <- str_c(tools::file_path_sans_ext(g0_fp), 
-                str_glue('_cap{capval}.tif'))
-g0 <- terra::rast(g0_fp)
-g0[g0 > capval] <- capval + 1
-terra::writeRaster(g0,
-                   cap_fp, 
-                   overwrite = TRUE,
-                   wopt = list(datatype='INT2U', gdal='COMPRESS=LZW'))
+g0_filt <- terra::rast(g0_fp) %>% 
+  terra::focal(w = 5, fun = 'median', na.rm = TRUE, 
+               filename = out_fp, 
+               overwrite = TRUE,
+               datatype = 'FLT4S', 
+               gdal = 'COMPRESS = DEFLATE')
+
+# Saturate values at 0.3 natural units ----
+capval <- .2
+cap_code <- 'pt2'
+cap_fp <- file.path(dirname(g0_fp), 'mosaic_variants', 
+                    str_glue('{polarization}_{units}_cap{capval}.tif'))
+g0 <- terra::rast(g0_fp) %>% 
+  terra::classify(rbind(c(capval, Inf, capval)), 
+                  filename = cap_fp, 
+                  overwrite = TRUE,
+                  datatype = 'FLT4S', 
+                  gdal = 'COMPRESS = DEFLATE')
+
+# Median filter - good smoothing, preserves edges
+filtsize <- 5
+out_fp <- file.path(dirname(g0_fp), 'mosaic_variants',
+                    str_glue('{polarization}_{units}_cap{capval}_med{filtsize}.tif'))
+g0_filt <- terra::rast(cap_fp) %>% 
+  terra::focal(w = 5, fun = 'median', na.rm = TRUE, 
+               filename = out_fp, 
+               overwrite = TRUE,
+               datatype = 'FLT4S', 
+               gdal = c('COMPRESS = DEFLATE'))
 
 # Conservative smoothing - minimal changes, but reduces local maximum
 filtsize <- 13
@@ -249,13 +294,27 @@ lc_res_fp <- file.path(tidy_dir, 'landcover', 'Haiti2017_agbres.tif')
 masks_dir <- file.path(palsar_dir, 'masks')
 
 # Resample landcover to PALSAR resolution
-lc <- terra::rast(lc_fp)
-g0 <- terra::rast(g0_fp)
-lc <- terra::resample(lc, g0, method='near',
-                      filename = lc_res_fp, 
-                      overwrite = TRUE, 
-                      wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+if(!file.exists(lc_res_fp)) {
+  lc <- terra::rast(lc_fp)
+  g0 <- terra::rast(g0_fp)
+  lc <- terra::resample(lc, g0, method='near',
+                        filename = lc_res_fp, 
+                        overwrite = TRUE, 
+                        wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+}
+
 lc <- terra::rast(lc_res_fp)
+
+# Urban mask
+msk_U_fp <- file.path(masks_dir, "mask_Urban.tif")
+msk_U <- lc %>% 
+  terra::classify(rbind(cbind(0,1.5,1), 
+                        cbind(3,7,1)), 
+                  include.lowest = TRUE,
+                  othersNA = TRUE,
+                  filename = msk_U_fp, 
+                  overwrite = TRUE, 
+                  wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
 
 # WaterUrban mask
 msk_WU_fp <- file.path(masks_dir, "mask_WaterUrban.tif")

@@ -16,19 +16,25 @@ library("terra")
 library("tidyverse")
 
 # Set variables ----
-suffix <- g0_variant <- 'lee11s10'
-suffix <- g0_variant <- 'med5'
-p3_agb_val = 310
 year <- '2019'
+code <- 'HV_nu'
+modeling_dir <- file.path('data/modeling', code)
+
+# Get level 0 AGB
+(dirs <- list.dirs(modeling_dir, recursive = FALSE))
+mod_dir <- dirs[[5]]
+(agb_fp <- list.files(mod_dir, 'agb_l0.*\\.tif$', full.names = TRUE))
+
+# Get variant code
+(items <- str_split(dirname(agb_fp), '/') )
+g0_variant <- nth(items[[1]], -1)
+suffix <- if(g0_variant == 'simple') '' else str_c('_', g0_variant)
 
 masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 
-suffix <- if(suffix == 'simple') '' else str_c('_', suffix)
-agb_fp <- file.path('data', 'modeling', g0_variant, str_c("agb_l0", suffix, ".tif"))
-
 # Apply value cap to AGB -------------------------------------------------------
-saturation_pt <- 310
+saturation_pt <- 300
 agb_cap_fp <- file.path(dirname(agb_fp), 
                         str_c('agb_l1_cap', saturation_pt, '.tif'))
 
@@ -36,20 +42,20 @@ agb_cap_fp <- file.path(dirname(agb_fp),
 if(!file.exists(agb_cap_fp)){
   agb_dtype <- raster::dataType(raster::raster(agb_fp))
   agb_sat <- terra::rast(agb_fp) %>% 
-    terra::classify(rbind(c(saturation_pt, Inf, saturation_pt)), 
+    terra::classify(rbind(c(saturation_pt, Inf, saturation_pt),
+                          c(-Inf, 0, 0)), 
                     filename = agb_cap_fp, 
                     overwrite=T, 
                     wopt = list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
 }
 
 # Mask agb --------------------------------------------------------------
-mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1', 
-                     masks = c('A', 'WU', 'wb', 'u20', 'p3'), overwrite = TRUE,
+mask_agb <- function(agb_fp, masks_dir, level_code = 'l1', 
+                     masks = c('L', 'WU', 'wb', 'u20'), overwrite = TRUE,
                      masked_agb_fp) {
   
   # Get output filename
   masks_str <- masks %>% 
-    str_replace('p3', str_c('t', p3_agb_val)) %>% 
     str_c(collapse = '')
   masked_agb_fp <- file.path(dirname(agb_fp), 
                              str_c('agb_', level_code, '_mask', masks_str, '.tif'))
@@ -88,13 +94,6 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
     msk <- msk %>% terra::mask(msk_u20)
   }
   
-  # g0 >0.3 mask (AGB>316.76)
-  if('p3' %in% masks){
-    msk_p3 <- agb_ras %>% terra::classify(rbind(c(p3_agb_val, Inf, NA), 
-                                                c(-Inf, p3_agb_val, 1)))
-    msk <- msk %>% terra::mask(msk_p3)
-  }
-  
   # LC17 Water and Urban, and OSM water with 25 m buffer
   if('WU' %in% masks & 'wb' %in% masks){
     msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
@@ -131,17 +130,23 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
     
   }
   
-  # LC17 Water and Urban, and OSM water with 25 m buffer
+  # ALOS mask
   if('A' %in% masks){
-    msk_A_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
-    msk_A <- terra::rast(msk_A_fp) %>% terra::crop(agb_ras)
+    msk_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
+    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
     
-    msk <- msk %>% terra::mask(msk_A)
+    msk <- msk %>% terra::mask(msk_tmp)
+    
+  } else if('L' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_palsar_layover_2019.tif")
+    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
+    
+    msk <- msk %>% terra::mask(msk_tmp)
   }
   
   # Save mask raster
   msk %>% terra::writeRaster(filename = msk_all_fp, 
-                             overwrite = T, 
+                             overwrite = TRUE, 
                              datatype = 'INT1S', 
                              gdal = 'COMPRESS=LZW')
   
@@ -159,37 +164,38 @@ mask_agb <- function(agb_fp, p3_agb_val, masks_dir, level_code = 'l1',
 }
 
 # Apply masks ----
+# Apply layover and Urban mask to L1 capped AGB
+agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
+                   masks_dir, 
+                   level_code = 'l2',
+                   masks = c('L', 'U'), overwrite = FALSE)
+
 # Apply WU, wb, u20, p3 mask to L0 agb
 agb_masked <- mask_agb(agb_fp,
-                       p3_agb_val, 
                        masks_dir, 
                        level_code = 'l1',
-                       masks = c('WU', 'wb', 'u20', 'p3'), overwrite = FALSE)
+                       masks = c('WU', 'wb', 'u20'), overwrite = FALSE)
 
 # Apply WU, wb, u20 mask to L1 capped AGB
 agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                       p3_agb_val, 
                        masks_dir, 
                        level_code = 'l2',
                        masks = c('WU', 'wb', 'u20'), overwrite = FALSE)
 
 # Apply WU, wb mask to L1 capped AGB
 agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                   p3_agb_val, 
                    masks_dir, 
                    level_code = 'l2',
                    masks = c('WU', 'wb'), overwrite = FALSE)
 
-# Apply WU, wb mask to L1 capped AGB
+# Apply WU, u20 mask to L1 capped AGB
 agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                   p3_agb_val, 
                    masks_dir, 
                    level_code = 'l2',
                    masks = c('WU', 'u20'), overwrite = FALSE)
 
-# Apply WU, wb mask to L1 capped AGB
+# Apply Urban mask to L1 capped AGB
 agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                       p3_agb_val, 
                        masks_dir, 
                        level_code = 'l2',
                        masks = c('U'), overwrite = FALSE)

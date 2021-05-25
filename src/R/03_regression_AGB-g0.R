@@ -19,23 +19,26 @@ library("tidyverse")
 
 # Set variables ----
 year <- '2019'
-code <- 'sl_HV'
 code <- 'HV_nu'
 suffix <- g0_variant <- 'med5'
 
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
-modeling_dir <- 'data/modeling'
+modeling_dir <- file.path('data/modeling', code)
 field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
-fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
-                  str_glue('{code}_{g0_variant}.*\\.tif$'), 
-                  full.names = TRUE)
+(fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
+                  str_glue('{code}_.*\\.tif$'), 
+                  full.names = TRUE))
+(g0_fp <- fps[[10]])
 
-(g0_fp <- fps[[1]])
+
+(dirs <- list.dirs(modeling_dir, recursive = FALSE))
+mod_dir <- dirs[[4]]
+(g0_fp <- list.files(mod_dir, 'tif$', full.names = TRUE))
 
 # Get variant code
 (g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
@@ -311,8 +314,6 @@ minmax(agb.ras)
 agb.ras %>% writeRaster(agb_fp, 
                         overwrite = TRUE,
                         wopt = list(datatype='INT2S', gdal='COMPRESS=LZW'))
-
-
 
 
 

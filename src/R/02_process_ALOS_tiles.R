@@ -12,7 +12,6 @@
 # *************************************************************************************************
 # Load libraries ----
 library('tidyverse')
-# library('tmap')
 library('gdalUtils')
 library('terra')
 library('sf')
@@ -21,6 +20,7 @@ library('whitebox')
 # Initialize ----
 polarization <- 'HV'
 units <- 'nu'
+code <- str_c(polarization, '_', units)
 year <- '2019'
 
 suffix <- ''
@@ -31,6 +31,10 @@ masks_dir <- file.path(palsar_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
+# Output filepaths
+g0_fp <- file.path(palsar_dir, 'mosaic_variants', str_glue("{code}.tif"))
+
+# Bounding boxes
 hisp_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
                      xmax = -68.32267, ymin = 17.47022))
 hti_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
@@ -38,7 +42,6 @@ hti_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044,
 
 # Merge and mask PALSAR tiles -------------------------------------------------
 # Downloaded from https://www.eorc.jaxa.jp/ALOS/en/palsar_fnf/data/2019/html/Grid24_fnf.htm
-
 perform_merge = FALSE
 
 merge_tiles <- function(code, suffix, palsar_dir, hti_bb, raw_dir) {
@@ -118,8 +121,6 @@ if(perform_merge) {
 #   𝛾0 = 10log10〈𝐷𝑁2〉+ 𝐶𝐹
 # where, CF is a calibration factor, and <> is the ensemble averaging. 
 # The CF value is “-83.0 dB”for the PALSAR-2/PALSAR mosaic
-g0_fp <- file.path(palsar_dir, str_glue("sl_{polarization}_{units}.tif"))
-
 if(!file.exists(g0_fp)) {
 
   # Load raw DN  
@@ -139,111 +140,272 @@ if(!file.exists(g0_fp)) {
   
 }
 
-# Apply filters ----------------------------------------------------
-# Lee sigma filter
-filtsize <- 11
-sigma <- 10
-out_fp <- file.path(dirname(g0_fp), 'mosaic_variants', 
-                    str_glue('{polarization}_{units}_lee{filtsize}s{sigma}.tif'))
-wbt_lee_sigma_filter(g0_fp, 
-                     out_fp, 
-                     filterx = filtsize, filtery = filtsize,
-                     sigma = sigma,
-                     verbose_mode = FALSE, 
-                     compress_rasters = TRUE)
-g0_filt <- terra::rast(out_fp)
-max(g0_filt)
+# Mask ----
+mask_g0 <- function(g0_fp, masks_dir, code = 'HV_nu', 
+                     masks = c('L', 'WU', 'wb'), overwrite = TRUE,
+                     masked_g0_fp) {
+  
+  # Get output filename
+  masks_str <- masks %>% str_c(collapse = '')
+  masked_g0_fp <- file.path(dirname(g0_fp), 
+                             str_c(code, '_mask', masks_str, '.tif'))
+  msk_all_fp <- file.path(masks_dir, str_c('mask', masks_str, '.tif'))
+  
+  # Stop if file already exists
+  if(file.exists(masked_g0_fp) & !overwrite) {
+    return(terra::rast(masked_g0_fp))
+  }
+  
+  # Use mask file if it already exists
+  if(file.exists(msk_all_fp) & !overwrite) {
+    ras <- terra::rast(g0_fp)
+    msk <- terra::rast(msk_all_fp)
+    
+    # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+    agb_dtype <- raster::dataType(raster::raster(g0_fp))
+    agb_masked <- ras %>% 
+      terra::mask(msk, filename = masked_g0_fp, overwrite = T, 
+                  wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
+    
+    # Return
+    return(agb_masked)
+  }
+  
+  # Load AGB
+  ras <- terra::rast(g0_fp)
+  
+  # Initialize mask raster (all 1's)
+  msk <- ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
+  
+  # LC17 Water and Urban, and OSM water with 25 m buffer
+  if('WU' %in% masks & 'wb' %in% masks){
+    msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
+    msk_WUwb <- terra::rast(msk_WUwb_fp) %>% terra::crop(ras)
+    
+    # Check extents
+    if(ext(ras) != ext(msk_WUwb)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_WUwb)
+    
+  } else if('WU' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_WaterUrban.tif")
+    msk_WU <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    # Check extents
+    if(ext(ras) != ext(msk_WU)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_WU)
+    
+  } else if('U' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_Urban.tif")
+    msk_U <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    # Check extents
+    if(ext(ras) != ext(msk_U)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_U)
+    
+  }
+  
+  # ALOS mask
+  if('A' %in% masks){
+    msk_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
+    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    msk <- msk %>% terra::mask(msk_tmp)
+    
+  } else if('L' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_palsar_layover_2019.tif")
+    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    msk <- msk %>% terra::mask(msk_tmp)
+  }
+  
+  # Save mask raster
+  msk %>% terra::writeRaster(filename = msk_all_fp, 
+                             overwrite = TRUE, 
+                             datatype = 'INT1S', 
+                             gdal = 'COMPRESS=LZW')
+  
+  # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+  r_dtype <- raster::dataType(raster::raster(g0_fp))
+  r_masked <- agb_ras %>% 
+    terra::mask(msk, 
+                filename = masked_g0_fp, 
+                overwrite = T, 
+                datatype = r_dtype, 
+                gdal = 'COMPRESS=LZW')
+  
+  # Return
+  return(r_masked)
+}
 
-# Median filter - good smoothing, preserves edges
-filtsize <- 5
-out_fp <- file.path(dirname(g0_fp), 'mosaic_variants',
-                str_glue('{polarization}_{units}_med{filtsize}.tif'))
-# wbt_median_filter(g0_fp, 
-#                   out_fp, 
-#                   filterx = filtsize, filtery = filtsize,
-#                   verbose_mode = FALSE, 
-#                   compress_rasters = TRUE)
-# g0_filt <- terra::rast(out_fp)
-# max(g0_filt)
+g0_masked_fp <- file.path(dirname(g0_fp), str_c(code, '_maskLU.tif'))
+g0_masked <- mask_g0(g0_fp, masks_dir, code = 'HV_nu', 
+                     masks = c('L', 'U'), overwrite = FALSE)
 
-g0_filt <- terra::rast(g0_fp) %>% 
-  terra::focal(w = 5, fun = 'median', na.rm = TRUE, 
-               filename = out_fp, 
-               overwrite = TRUE,
-               datatype = 'FLT4S', 
-               gdal = 'COMPRESS = DEFLATE')
+# Apply filters with function ----------------------------------------------------
+filter_g0 <- function(in_fp, filter, params=list(filtsize=5), cap=NA) {
+  
+  # cap <- 0.3
+  if(!is.na(cap)) {
+    out_fp <- str_c(tools::file_path_sans_ext(in_fp), 
+                    str_glue('_cap{cap}.tif'))
+    g0 <- terra::rast(in_fp) %>% 
+      terra::classify(rbind(c(cap, Inf, cap)), 
+                      filename = out_fp, 
+                      overwrite = TRUE,
+                      datatype = 'FLT4S', 
+                      gdal = 'COMPRESS = DEFLATE')
+    
+    in_fp <- out_fp
+  }
+  
+  # params <- list(filtsize = 11, sigma = 10)
+  if(filter == 'lee') {
+    # Lee sigma filter
+    out_fp <- str_c(tools::file_path_sans_ext(in_fp), 
+                    str_glue('_lee{params$filtsize}s{params$sigma}.tif'))
+    wbt_lee_sigma_filter(in_fp, 
+                         out_fp, 
+                         filterx = params$filtsize, 
+                         filtery = params$filtsize,
+                         sigma = params$sigma,
+                         verbose_mode = FALSE, 
+                         compress_rasters = TRUE)
+    
+    in_fp <- out_fp
+  } 
+  
+  # params <- list(filtsize = 5)
+  if(filter == 'median') {
+    # Median filter - good smoothing, preserves edges
+    out_fp <- str_c(tools::file_path_sans_ext(in_fp), 
+                    str_glue('_med{params$filtsize}.tif'))
+    g0_filt <- terra::rast(in_fp) %>% 
+      terra::focal(w = params$filtsize, 
+                   fun = 'median', 
+                   na.rm = TRUE, 
+                   filename = out_fp, 
+                   overwrite = TRUE,
+                   datatype = 'FLT4S', 
+                   gdal = 'COMPRESS = DEFLATE')
+    
+    in_fp <- out_fp
+  }
+  
+  # params <- list(filtsize = 13)
+  if(filter == 'conservative') {
+    # Conservative smoothing - minimal changes, but reduces local maximum
+    out_fp <- str_c(tools::file_path_sans_ext(in_fp), 
+                    str_glue('_conserv{params$filtsize}.tif'))
+    wbt_conservative_smoothing_filter(in_fp, 
+                                      out_fp, 
+                                      filterx = params$filtsize, 
+                                      filtery = params$filtsize,
+                                      verbose_mode = FALSE, 
+                                      compress_rasters = TRUE)
+    
+    in_fp <- out_fp
+  }
+  
+  if(filter == 'aggregate') {
+    # recommended by Saatchi 2015 and performed by Michelakis et al. 2015
+    out_fp <- str_c(tools::file_path_sans_ext(in_fp), '_agg50.tif')
+    if(!file.exists(out_fp)) {
+      g0 <- terra::rast(in_fp) %>% 
+        terra::aggregate(fact = 2, 
+                         fun = mean, 
+                         na.rm = TRUE,
+                         filename = out_fp,
+                         overwrite = TRUE,
+                         datatype = 'FLT4S', 
+                         gdal = 'COMPRESS = DEFLATE')
+    }
+  }
+  
+  return(out_fp)
+}
 
-# Saturate values at 0.3 natural units ----
-capval <- .2
-cap_code <- 'pt2'
-cap_fp <- file.path(dirname(g0_fp), 'mosaic_variants', 
-                    str_glue('{polarization}_{units}_cap{capval}.tif'))
-g0 <- terra::rast(g0_fp) %>% 
-  terra::classify(rbind(c(capval, Inf, capval)), 
-                  filename = cap_fp, 
-                  overwrite = TRUE,
-                  datatype = 'FLT4S', 
-                  gdal = 'COMPRESS = DEFLATE')
+filt_fp <- filter_g0(g0_masked_fp, 'lee', params = list(filtsize = 11, sigma = 10))
 
-# Median filter - good smoothing, preserves edges
-filtsize <- 5
-out_fp <- file.path(dirname(g0_fp), 'mosaic_variants',
-                    str_glue('{polarization}_{units}_cap{capval}_med{filtsize}.tif'))
+# Interpolate by landcover ----
+lc_stat <-  'median'
+lc_pols_fp <- "data/tidy/landcover/Haiti2017_Clip_polys.gpkg"
+
+fn_prefix <- tools::file_path_sans_ext(filt_fp) %>% basename()
+g0_variant <- fn_prefix %>% 
+  str_extract(str_glue('(?<={code}_).*')) %>% 
+  str_c('_LCinterp')
+mod_dir <- file.path('data', 'modeling', code, g0_variant)
+g0_filled_fp <- file.path(mod_dir, str_c(fn_prefix, '_LCinterp.tif'))
+
+by_lc_prefix <- file.path(mod_dir, 'by_landcover', str_glue('{fn_prefix}_{lc_stat}'))
+summary_pols_fp <- str_c(by_lc_prefix, '.gpkg')
+dir.create(dirname(by_lc_prefix), recursive = TRUE)
+
+filt_ras <- terra::rast(filt_fp)
+# Function from 05_post_fill_AGB_gaps.R
+summarize_raster_by_polygons(lc_pols_fp, filt_ras, summary_pols_fp) 
+
+fill_gaps_from_polygons <- function(filt_ras, masked_fp, summary_pols_fp, out_fp, lc_stat = 'median') {
+  
+  # Stop if file already exists
+  if(file.exists(out_fp)) return(terra::rast(out_fp))
+    
+  # SF to SpatVector
+  lc_all_vect <- terra::vect(summary_pols_fp)
+  
+  # Rasterize medians
+  lcpatch_ras <- lc_all_vect %>% terra::rasterize(filt_ras, field = lc_stat)
+  
+  # Fill gaps and save
+  ras_dtype <- raster::dataType(raster::raster(masked_fp))
+  masked_ras <- terra::rast(masked_fp)
+  agb_filled <- terra::cover(masked_ras, 
+                             lcpatch_ras, 
+                             filename = out_fp, 
+                             overwrite = TRUE, 
+                             datatype = ras_dtype)
+  
+  return(agb_filled)
+}
+
+g0_filled_fp <- file.path(mod_dir, str_c(fn_prefix, '_LCinterp.tif'))
+fill_gaps_from_polygons(filt_ras, filt_fp, summary_pols_fp, g0_filled_fp)
+
+
+
+
+# Mean filters are finicky. Using terra seems to superimpose the offset of the same image and using wbt sometimes doesn't work. 
+# Mean filter 
+filtsize <- 3
+out_fp <- str_c(tools::file_path_sans_ext(cap_fp), 
+                str_glue('_mean{filtsize}.tif'))
 g0_filt <- terra::rast(cap_fp) %>% 
-  terra::focal(w = 5, fun = 'median', na.rm = TRUE, 
+  terra::focal(w = filtsize, 
+               fun = 'mean',
+               na.rm = TRUE, 
                filename = out_fp, 
                overwrite = TRUE,
                datatype = 'FLT4S', 
                gdal = c('COMPRESS = DEFLATE'))
 
-# Conservative smoothing - minimal changes, but reduces local maximum
-filtsize <- 13
-out_fp2 <- str_c(tools::file_path_sans_ext(cap_fp), 
-                str_glue('_conserv{filtsize}.tif'))
-wbt_conservative_smoothing_filter(cap_fp, 
-                                  out_fp2, 
-                                  filterx = filtsize, filtery = filtsize,
-                                  verbose_mode = FALSE, 
-                                  compress_rasters = TRUE)
-g0_filt <- terra::rast(out_fp2)
-max(g0_filt)
-
-# Median filter
-filtsize <- 3
-out_fp3 <- str_c(tools::file_path_sans_ext(cap_fp), 
-                 str_glue('_med{filtsize}.tif'))
-wbt_median_filter(cap_fp, 
-                  out_fp3, 
+# Mean filter 
+filtsize <- 5
+out_fp <- str_c(tools::file_path_sans_ext(out_fp2), 
+                 str_glue('_mean{filtsize}.tif'))
+wbt_mean_filter(out_fp2, 
+                  out_fp, 
                   filterx = filtsize, filtery = filtsize,
                   verbose_mode = FALSE, 
                   compress_rasters = TRUE)
-g0_filt <- terra::rast(out_fp3)
-max(g0_filt)
-
-# Lee filter
-filtsize <- 11
-sigma <- 10
-out_fp3 <- str_c(tools::file_path_sans_ext(cap_fp), 
-                 str_glue('_lee{filtsize}sig{sigma}.tif'))
-wbt_lee_sigma_filter(cap_fp, 
-                     out_fp3, 
-                     filterx = filtsize, filtery = filtsize,
-                     sigma = sigma,
-                     verbose_mode = FALSE, 
-                     compress_rasters = TRUE)
-g0_filt <- terra::rast(out_fp3)
-max(g0_filt)
-
-# Aggregate to 50m ----
-# recommended by Saatchi 2015 and performed by Michelakis et al. 2015
-out_fp <- str_c(tools::file_path_sans_ext(g0_fp), '_agg50.tif')
-if(!file.exists(out_fp)) {
-  g0 <- rast(g0_fp)
-  g0.agg <- aggregate(g0, fact = 2, fun = mean, na.rm = TRUE,
-                      filename = out_fp,
-                      overwrite = TRUE,
-                      wopt = list(datatype='INT2U', gdal='COMPRESS=LZW'))
-}
 
 
 # ~Look~ at proportion of values in each mask category----
@@ -273,7 +435,8 @@ if(!file.exists(report_fp)) {
   df %>% write_csv(report_fp)
 } 
 
-# Replicate ALOS Normal mask ----
+# Masks: ALOS ----
+# Replicate ALOS normal 
 msk_norm_fp <- file.path(masks_dir, str_glue("mask_palsar_normal_{year}.tif"))
 if(!file.exists(msk_norm_fp)) {
   msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
@@ -283,6 +446,21 @@ if(!file.exists(msk_norm_fp)) {
     terra::classify(cbind(255,1), 
                     othersNA = TRUE,
                     filename = msk_norm_fp, 
+                    overwrite = TRUE, 
+                    wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
+}
+
+# Layover mask
+msk_layover_fp <- file.path(masks_dir, str_glue("mask_palsar_layover_{year}.tif"))
+if(!file.exists(msk_layover_fp)) {
+  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  msk <- terra::rast(msk_fp)
+  msk_L <- msk %>% 
+    terra::classify(rbind(cbind(-Inf, 99, 1), 
+                    cbind(99, 101, NA), 
+                    cbind(101, Inf, 1)), 
+                    othersNA = TRUE,
+                    filename = msk_layover_fp, 
                     overwrite = TRUE, 
                     wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
 }
@@ -336,7 +514,7 @@ mskinv_T <- lc %>%
                   overwrite = TRUE, 
                   wopt = list(datatype='INT1U', gdal='COMPRESS=LZW'))
 
-# Combine ALOS and WaterUrban masks
+# Combine ALOS and WaterUrban masks ----
 # NA== ALOS mask: non-valid ALOS pixels; 1==Normal ALOS land pixels
 msk_norm_fp <- file.path(masks_dir, str_glue("mask_palsar_normal_{year}.tif"))
 msk_A <- terra::rast(msk_norm_fp)

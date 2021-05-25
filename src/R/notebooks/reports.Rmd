@@ -14,10 +14,11 @@ library("tidyverse")
 
 tidy_dir <- 'data/tidy'
 code <- 'sl_HV'
-suffix <- ''
+code <- 'HV_nu'
+suffix <- 'cappt2_conserv13'
 year <- '2019'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
-modeling_dir <- 'data/modeling'
+modeling_dir <- file.path('data/modeling', code)
 ```
 
 ## Percent of land pertaining to PALSAR masks
@@ -85,7 +86,7 @@ wrap_plots(tab, bp)
 load_plot_vals <- function(fp) {
   # Get variant code
   items <- str_split(dirname(fp), '/')
-  g0_variant <- suffix <- last(items[[1]])
+  g0_variant <- suffix <- nth(items[[1]], -2)
   
   # Load data
   g0_agb <- read_csv(fp) %>% 
@@ -100,6 +101,7 @@ fps <- list.files(modeling_dir,
                   full.names = TRUE)
 
 var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
+var_order <- c('simple', 'cappt2_conserv13', 'agg50', 'lee11s10', 'med5', 'cappt2_med5')
 vals <- fps %>% 
   map_dfr(load_plot_vals) %>% 
   mutate(g0_variant = factor(g0_variant, levels = var_order))
@@ -116,7 +118,7 @@ p <- ggplot(vals, aes(x=backscatter, y=AGB)) +
               col='black', 
               size=0.2) +
   facet_wrap(facets=vars(g0_variant)) +
-  coord_fixed(ratio = 21) +
+  coord_fixed(ratio = .0005) +
   theme(strip.background = element_blank(),
         strip.text = element_text(hjust=0))
 
@@ -135,7 +137,7 @@ summarize_results <- function(full_results_csv, digits = 3) {
   
   # Get variant code
   (items <- str_split(dirname(full_results_csv), '/') )
-  g0_variant <- suffix <- last(items[[1]])
+  g0_variant <- suffix <- nth(items[[1]], -2)
   suffix <- if(suffix == 'simple') '' else str_c('_', suffix)
   
   # Inset table with regression summary

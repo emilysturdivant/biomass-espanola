@@ -19,15 +19,16 @@ library('tmap')
 tmap_mode('view')
 
 # Set variables ----
-g0_variant <- 'med5'
-rmse_cv <- 19.8
+g0_variant <- 'lee11s10'
+rmse_cv <- 21.2
 year <- '2019'
 lc_stat <-  'median'
-input_level <- 'l1_cap'
-mask_level <- 'WUwb'
+input_level <- 'l2_mask'
+mask_level <- 'LU'
+code <- 'HV_nu'
 
 # Input filepaths
-agb_dir <- file.path('data', 'modeling', g0_variant)
+agb_dir <- file.path('data', 'modeling', code, g0_variant)
 (agb_capped_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*\\.tif'), full.names = TRUE))
 (agb_masked_fp <- list.files(agb_dir, str_glue('agb_l2.*{mask_level}\\.tif'), 
                              full.names = TRUE))
@@ -76,7 +77,11 @@ if(!file.exists(lc_pols_fp)) {
 }
 
 # Extract AGB values ----
-if(!file.exists(lc_pols_agb_fp)){
+summarize_raster_by_polygons <- function(lc_pols_fp, agb_ras, lc_pols_agb_fp) {
+  
+  if(file.exists(lc_pols_agb_fp)) return(lc_pols_agb_fp)
+  
+
   # Load polygons
   lc_vect <- terra::vect(lc_pols_fp)
   
@@ -90,8 +95,8 @@ if(!file.exists(lc_pols_agb_fp)){
   # Convert matrix to tibble and get mean and count for each polygon
   agb <- agb_ex %>% 
     as_tibble() %>% 
-    group_by(ID) %>% 
-    summarise(median = median(agb, na.rm=T),
+    dplyr::group_by(ID) %>% 
+    dplyr::summarise(median = median(agb, na.rm=T),
               mean = mean(agb, na.rm=T),
               ct = sum(!is.na(agb)), 
               sd = sd(agb, na.rm = T))
@@ -104,15 +109,19 @@ if(!file.exists(lc_pols_agb_fp)){
   
   # Append columns to SF polys
   lc_sf_all <- agb %>% 
-    select(-ID) %>% 
+    dplyr::select(-ID) %>% 
     cbind(lc_sf, .) %>% 
-    filter(ct > 1)
+    dplyr::filter(ct > 1)
   
   # Save
   dir.create(dirname(lc_pols_agb_fp), showWarnings = FALSE, recursive = TRUE)
   lc_sf_all %>% st_write(lc_pols_agb_fp, append = FALSE)
   
-} 
+  # Return
+  return(lc_pols_agb_fp)
+}
+
+summarize_raster_by_polygons(lc_pols_fp, agb_ras, lc_pols_agb_fp) 
 
 # Look
 # agb_raster <- raster::raster(agb_masked_fp)

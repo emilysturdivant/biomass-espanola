@@ -1,5 +1,5 @@
-# biomass-espanola
-Generating a biomass map of the Island of Hispaniola for the Modeling Woodfuel Environmental Impacts within Dynamic Landscapes project ([MoFuSS](https://www.mofuss.unam.mx)). 
+# Above-ground biomass map for Hispaniola, 2019
+Generating a biomass map of the island of Hispaniola for the Modeling Woodfuel Environmental Impacts within Dynamic Landscapes project ([MoFuSS](https://www.mofuss.unam.mx)). 
 
-![biomass-mapping](https://github.com/emilysturdivant/biomass-espanola/blob/master/presentations/biomass-mapping.png "Workflow")
+![biomass-mapping](/presentations/biomass-mapping.png "Workflow")
 

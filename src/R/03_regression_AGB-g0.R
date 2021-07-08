@@ -20,7 +20,7 @@ library("tidyverse")
 # Set variables ----
 year <- '2019'
 code <- 'HV_nu'
-suffix <- g0_variant <- 'med5'
+suffix <- g0_variant <- 'simple'
 
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
@@ -31,14 +31,13 @@ field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 # Set output filepaths ----
 # List palsar mosaic files
 (fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
-                  str_glue('{code}_.*\\.tif$'), 
+                  str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-(g0_fp <- fps[[10]])
+(g0_fp <- fps %>% last())
 
-
-(dirs <- list.dirs(modeling_dir, recursive = FALSE))
-mod_dir <- dirs[[4]]
-(g0_fp <- list.files(mod_dir, 'tif$', full.names = TRUE))
+# (dirs <- list.dirs(modeling_dir, recursive = FALSE))
+# mod_dir <- dirs[[4]]
+# (g0_fp <- list.files(mod_dir, 'tif$', full.names = TRUE))
 
 # Get variant code
 (g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
@@ -279,28 +278,32 @@ d2 <- full_results %>%
   pivot_wider() %>% 
   transmute(
     Adj_R2 = str_c(format(adj.r.squared, digits = 2), " ± ", 
-                           format(adj.r.squaredSD, digits = 3)),
+                           format(adj.r.squaredSD, digits = 2)),
     RMSE = str_c(format(RMSE, digits = 3), " ± ", format(RMSESD, digits = 2)),
     MAE = str_c(format(MAE, digits = 3), " ± ", format(MAESD, digits = 2)),
     Bias = str_c(format(Bias, digits = 3), " ± ", format(BiasSD, digits = 2))) 
 
 d3 <- bind_cols(d1, d2) %>%
-  pivot_longer(everything())
+  pivot_longer(everything()) %>% 
+  column_to_rownames('name')
 
-tab <- gridExtra::tableGrob(d3, rows = NULL, cols = NULL,
-                            theme = gridExtra::ttheme_minimal())
+tab <- gridExtra::tableGrob(d3, 
+                            cols = NULL,
+                            theme = gridExtra::ttheme_minimal(base_size = 9,
+                                                              base_colour = 'violetred4',
+                                                              padding = unit(c(2,2), 'mm')))
 
 # Overlay plot with regression table
 p + inset_element(tab, 
-                  left = 0, bottom = 0.65,
-                  right = 0.5, top = 1, 
+                  left = 0, bottom = 0.8,
+                  right = 0.2, top = 1, 
                   on_top = TRUE) +
   theme(plot.background = NULL)
 
 # Save
-ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0{suffix}_table.png')),
+ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0_{g0_variant}_table.png')),
        width=14, height=12.5, units='cm')
-ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}_table.png')),
+ggsave(file.path(mod_dir, str_glue('scatter_agb_g0_{g0_variant}_table.png')),
        width=14, height=12.5, units='cm')
 
 # Create AGB raster --------------------------------------------------------------------------------

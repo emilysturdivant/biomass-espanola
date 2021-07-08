@@ -13,9 +13,8 @@ library("sf")
 library("tidyverse")
 
 tidy_dir <- 'data/tidy'
-code <- 'sl_HV'
 code <- 'HV_nu'
-suffix <- 'cappt2_conserv13'
+# suffix <- 'cappt2_conserv13'
 year <- '2019'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
@@ -102,6 +101,7 @@ fps <- list.files(modeling_dir,
 
 var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
 var_order <- c('simple', 'cappt2_conserv13', 'agg50', 'lee11s10', 'med5', 'cappt2_med5')
+var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
 vals <- fps %>% 
   map_dfr(load_plot_vals) %>% 
   mutate(g0_variant = factor(g0_variant, levels = var_order))
@@ -136,8 +136,8 @@ We want to see high correlation (adjusted R2) and low Bias, RMSE, and MAE.
 summarize_results <- function(full_results_csv, digits = 3) {
   
   # Get variant code
-  (items <- str_split(dirname(full_results_csv), '/') )
-  g0_variant <- suffix <- nth(items[[1]], -2)
+  g0_variant <- suffix <-  full_results_csv %>% 
+    str_extract(str_glue('(?<={code}/).*(?=/cal)'))
   suffix <- if(suffix == 'simple') '' else str_c('_', suffix)
   
   # Inset table with regression summary
@@ -193,6 +193,7 @@ tab <- gridExtra::tableGrob(results_summary,
 # Reformat results table for plotting
 # Order to display variants
 var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
+var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
 
 # Prep
 rs1 <- results_sum %>% 
@@ -254,3 +255,5 @@ wrap_plots(list(p, pt_plot), nrow=1) + plot_layout(widths = c(4,1))
 ggsave(file.path('figures', year, 'modeling', str_glue('compare_scatter_and_graphs.png')),
        width=10.5, height=6, units='in')
 ```
+
+There is no significant difference in performance statistics between filtering options so we'll use 5x5 median as the simplest. 

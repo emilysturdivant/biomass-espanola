@@ -26,14 +26,14 @@ suffix <- g0_variant <- 'simple'
 tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
-field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
+field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_gt5dbh.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
 (fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-(g0_fp <- fps %>% last())
+(g0_fp <- fps %>% nth(16))
 
 # (dirs <- list.dirs(modeling_dir, recursive = FALSE))
 # mod_dir <- dirs[[4]]
@@ -48,6 +48,7 @@ if(is.na(suffix)) {
   suffix <- str_c('_', suffix)
 }
 
+code <- 'HV_nu_gt5dbh'
 # g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
 
 # Get path for model outputs
@@ -220,9 +221,12 @@ if(!file.exists(cv_fp)) {
   
   # Run cross-validation
   set.seed(45)
-  cv_mod <- caret::train(AGB ~ backscatter, data = g0_agb, method = "lm",
+  cv_mod <- caret::train(AGB ~ backscatter, 
+                         data = g0_agb, 
+                         method = "lm",
                          trControl = caret::trainControl(method = "repeatedcv", 
-                                                         number = cv_num, repeats = repeats,
+                                                         number = cv_num, 
+                                                         repeats = repeats,
                                                          summaryFunction = fxn.bias))
   
   # Save model
@@ -248,12 +252,18 @@ full_results <- rbind(mutate(train_vals, type = 'train'),
 full_results %>% write_csv(full_results_csv)
 
 # ~Look~ at values ----
+# Get AGB, backscatter, plot number dataframe
+g0_agb <- read_csv(ex_csv) %>%
+  dplyr::select(plot_no, AGB = AGB_ha, backscatter = g0_mean) %>% 
+  mutate(AGB = as.numeric(AGB))
+
 # Scatterplot - AGB against backscatter ----
 p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
        x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) +
   geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) +
   # annotate(geom = 'text', label = l1, x = -Inf, y = +Inf, hjust = 0, vjust = 1) +
+  # geom_text(aes(label = plot_no)) +
   theme_minimal()
 
 ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),

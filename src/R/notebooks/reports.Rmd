@@ -4,6 +4,8 @@ output:
   html_document:
     df_print: paged
   pdf_document: default
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r initialize, echo=FALSE, message=FALSE, warning=FALSE}
@@ -18,6 +20,8 @@ code <- 'HV_nu'
 year <- '2019'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
+
+var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
 ```
 
 ## Percent of land pertaining to PALSAR masks
@@ -99,9 +103,7 @@ fps <- list.files(modeling_dir,
                   recursive = TRUE, 
                   full.names = TRUE)
 
-var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
-var_order <- c('simple', 'cappt2_conserv13', 'agg50', 'lee11s10', 'med5', 'cappt2_med5')
-var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
+
 vals <- fps %>% 
   map_dfr(load_plot_vals) %>% 
   mutate(g0_variant = factor(g0_variant, levels = var_order))
@@ -170,6 +172,33 @@ summarize_results <- function(full_results_csv, digits = 3) {
            Filter = g0_variant)
 }
 
+# Read model results as list of tibbles
+fps <- list.files(modeling_dir, 'model_results_.*\\.csv', 
+                  recursive = TRUE, 
+                  full.names = TRUE)
+variants <- fps %>% str_extract(str_glue('(?<={code}/).*(?=/cal)'))
+out <- fps %>% map(read_csv)
+
+# Format
+out2 <- out %>% 
+  map_dfr(pivot_wider, names_from = c(name, type)) %>% 
+  select(Intercept = estimate_int_train, 
+                Slope = estimate_g0_train, 
+                Intcpt_95CI = ci_int_train, 
+                Slope_95CI = ci_slope_train,
+                Adj_r2 = adj.r.squared_train, 
+                starts_with('rmse'), 
+                starts_with('mae'),
+                starts_with('Bias')
+                ) %>% 
+  mutate(across(where(is.numeric), ~ signif(.x, digits = 4))) %>% 
+  bind_cols(tibble(Variant = variants), .)
+
+# Save
+report_fp <- file.path('data/reports', str_c('model_results_by_variant_', code, '.csv'))
+out2 %>% write_csv(report_fp)
+
+# Alternative version that I set up to make graphics
 fps <- list.files(modeling_dir,
                   pattern = "^model_results.*\\.csv",
                   recursive = TRUE, 
@@ -191,9 +220,6 @@ tab <- gridExtra::tableGrob(results_summary,
 ```
 ```{r model summaries graphs, echo=FALSE, message=FALSE, fig.height=3.5, fig.width=4}
 # Reformat results table for plotting
-# Order to display variants
-var_order <- c('simple', 'cap7k_conserv13', 'agg50', 'lee11s10', 'med5', 'cap7k_med5')
-var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
 
 # Prep
 rs1 <- results_sum %>% 
@@ -247,6 +273,7 @@ layout <- c(
 wrap_plots(list(pt_plot, tab), ncol=2) +
   plot_layout(design = layout)
 ```
+
 ```{r save plots, echo=FALSE, fig.height=6, fig.width=12, message=FALSE, include=FALSE}
 # Combine plot and table
 wrap_plots(list(p, pt_plot), nrow=1) + plot_layout(widths = c(4,1))
@@ -256,4 +283,38 @@ ggsave(file.path('figures', year, 'modeling', str_glue('compare_scatter_and_grap
        width=10.5, height=6, units='in')
 ```
 
-There is no significant difference in performance statistics between filtering options so we'll use 5x5 median as the simplest. 
+There is no significant difference in performance statistics between filtering options so we'll use 5x5 median as the most conceptually simple de-noising option. 
+
+```{r show final choice, echo=FALSE, fig.height=2, fig.width=7, message=FALSE}
+g0_variant <- 'med5'
+final_vals <- results_sum %>% filter(Filter == g0_variant)
+
+d1 <- final_vals %>% 
+  transmute(
+    P = {if(P < 0.001) '< 0.001' else if(P < 0.05) '< 0.05' else '>= 0.05'},
+    Equation = str_glue("AGB = {Intercept} + {Slope}x")) %>% 
+  dplyr::select(Equation, P) %>%
+  pivot_longer(everything()) %>%
+  column_to_rownames('name')
+
+d2 <- final_vals %>% 
+  transmute(
+    Adj_R2 = str_c(format(Adj_R2, digits = 2), " ± ", 
+                           format(Adj_R2_sd, digits = 2)),
+    RMSE = str_c(format(RMSE, digits = 3), " ± ", format(RMSE_SD, digits = 2)),
+    MAE = str_c(format(MAE, digits = 3), " ± ", format(MAE_SD, digits = 2)),
+    Bias = str_c(format(Bias, digits = 3), " ± ", format(Bias_SD, digits = 2)))  %>%
+  pivot_longer(everything()) %>%
+  column_to_rownames('name')
+
+# d3 <- bind_rows(d1, d2)
+
+tab1 <- gridExtra::tableGrob(d1, 
+                             cols = NULL) 
+
+tab2 <- gridExtra::tableGrob(d2, 
+                             cols = NULL) 
+
+wrap_plots(list(tab1, tab2), ncol=2) +
+  plot_annotation(title = g0_variant)
+```

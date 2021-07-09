@@ -19,7 +19,7 @@ library(tidyverse)
 library(sf)
 
 results_dir <- 'data/results'
-tidy_dir <- 'data/tidied'
+tidy_dir <- 'data/tidy'
 
 # Filenames
 plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
@@ -29,10 +29,15 @@ mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
 mplots <- read_csv("data/species_and_wds/mplots_geoms.csv", col_types = cols(plot_no = col_integer()))
 creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
 
+# Prep mstems ----
+mstems <- mstems %>% filter(is.na(dbh_cm) | dbh_cm >= 5)
+
 # Consolidate plot polygons ---- ######################################################
 # Extract plot values from stems
-plots_no <- mstems %>% group_by(plot_no, plot_shp) %>% 
+plots_no <- mstems %>% 
+  group_by(plot_no, plot_shp) %>% 
   summarize()
+
 # Revise shp names to match raw data
 plots_no$plot_shp <- plots_no$plot_shp %>% 
   str_replace('Pandiassou2', '2pandiassou') %>% 
@@ -68,69 +73,102 @@ plots <- fps %>% lapply(standardize.names)
 plots <- do.call(rbind, plots)
 
 # Join to plot_no from mstems
-plot_polys <- plots %>% full_join(plots_no, by=c('Name' ='plot_shp')) %>% 
+plot_polys <- plots %>% 
+  full_join(plots_no, by=c('Name' ='plot_shp')) %>% 
   filter(!is.na(plot_no)) 
+
+# Save
 plot_polys %>% 
   st_write(plots_shp, append=FALSE)
 
+# Load
 plot_polys <- st_read(plots_shp)
 
 # Look at data ---- ####################################################################
 summary(mstems$dbh_cm, na.rm=TRUE)
 sd(mstems$dbh_cm, na.rm=TRUE)
+n_stems <- nrow(filter(mstems, !is.na(dbh_cm)))
+
 # 
 (p <-ggplot(mstems, aes(x=dbh_cm)) + 
   geom_histogram(binwidth=5) +
   labs(y = "")+
   scale_x_continuous(name = "Diameter at breast height (cm)") +
-  ggtitle("Histogram of tree diameters (N = 6,256, bin width = 5 m)")+
+    ggtitle(str_c("Histogram of tree diameters (N = ",
+                  format(n_stems, big.mark = ','), ", bin width = 5 m)")) +
   theme_minimal())
+
+
+dbh_lim <- 140
+filter(mstems, dbh_cm > dbh_lim)
 mstems %>% 
-  mutate(dbh_new = ifelse(dbh_cm > 75, 75, dbh_cm)) %>% 
+  mutate(dbh_new = ifelse(dbh_cm > dbh_lim, dbh_lim, dbh_cm)) %>% 
   ggplot(aes(dbh_new)) +
   geom_histogram(binwidth = 2) +
   labs(y = "")+
   scale_x_continuous(name = "Diameter at breast height (cm)",
-                     breaks = seq(0, 75, 10),
-                     limits=c(0, 75)) +
-  ggtitle("Histogram of tree diameters (N = 6,256, bin width = 5 m, outliers grouped at 75 cm)")+
+                     breaks = seq(0, dbh_lim, 10),
+                     limits=c(0, dbh_lim)) +
+  ggtitle(str_c("Histogram of tree diameters (N = ",
+                format(n_stems, big.mark = ','), 
+                ", bin width = 5 m, outliers grouped at ",
+                dbh_lim, " cm)")
+          ) +
   theme_minimal()
+  
+n_hts <- nrow(filter(mstems, !is.na(ht_m)))
 (p <-ggplot(mstems, aes(x=ht_m)) + 
   geom_histogram(binwidth=1) +
   labs(x = expression(paste("Height (m)")), 
        y = "")+
-  ggtitle("Histogram of tree heights (N = 2,843, bin width = 1 m)")+
+  ggtitle(str_c("Histogram of tree heights (N = ",
+                format(n_hts, big.mark = ','), 
+                ", bin width = 1 m)"))+
   theme_minimal())
 
 # Boxplots per plot ----
+# DBH
 (p <-ggplot(mstems, aes(y=dbh_cm, x=plot_no, group=plot_no)) + 
    geom_boxplot() +
    labs(y = expression(paste("DBH (cm)")), 
         x = "")+
-   ggtitle("Tree diameter at breast height (DBH; N = 6,256)")+
+   ggtitle(str_c("Tree diameter (DBH; N = ",
+           format(n_stems, big.mark = ','), 
+           ")"))+
    theme_minimal())
 ggsave('figures/qc_plots/boxes_byplot_dbh.png', width=6, height=2.5)
+
+# Height
 (p <-ggplot(mstems, aes(y=ht_m, x=plot_no, group=plot_no)) + 
     geom_boxplot() +
     labs(y = expression(paste("Height (m)")), 
          x = "")+
-    ggtitle("Tree heights (N = 2,843)")+
+    ggtitle(str_c("Tree heights (N = ",
+            format(n_hts, big.mark = ','), 
+            ")")) +
     theme_minimal())
 ggsave('figures/qc_plots/boxes_byplot_ht.png', width=6, height=2.5)
 
+# DBH
 (p <-ggplot(mstems, aes(x=dbh_cm, y=plot_no, group=plot_no)) + 
     geom_boxplot() +
     labs(x = expression(paste("DBH (cm)")), 
          y = "")+
-    ggtitle("Tree diameter \n(DBH; N = 6,256)")+
+    ggtitle(str_c("Tree diameter \n(DBH; N = ",
+            format(n_stems, big.mark = ','), 
+            ")")) +
     theme_minimal()+
     theme(axis.text.y=element_blank()))
 ggsave('figures/qc_plots/boxes_byplot_dbhX.png', width=2.5, height=6)
+
+# Height
 (p <-ggplot(mstems, aes(x=ht_m, y=plot_no, group=plot_no)) + 
     geom_boxplot() +
     labs(x = expression(paste("Height (m)")), 
          y = "")+
-    ggtitle("Tree heights (N = 2,843)")+
+    ggtitle(str_c("Tree heights (N = ",
+                  format(n_hts, big.mark = ','), 
+                  ")")) +
     theme_minimal()+
     theme(axis.text.y=element_blank()))
 ggsave('figures/qc_plots/boxes_byplot_htX.png', width=2.5, height=6)
@@ -144,7 +182,9 @@ mstems_temp <- mstems %>% group_by(plot_no) %>%
     geom_boxplot() +
     labs(y = expression(paste("Height (m)")), 
          x = "")+
-    ggtitle("Tree heights (N = 2,843)")+
+    ggtitle(str_c("Tree heights (N = ",
+                  format(n_hts, big.mark = ','), 
+                  ")")) +
     theme_minimal()+
     theme(axis.text.x=element_blank()))
 
@@ -177,8 +217,10 @@ mstems$agb <- computeAGB(
 )
 
 # Save
-saveRDS(mstems, file.path(results_dir, 'R_out/mstems_agb.rds'))
-mstems <- readRDS(file.path(results_dir, 'R_out/mstems_agb.rds'))
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb.rds')
+saveRDS(mstems, mstems_fp)
+mstems <- readRDS(mstems_fp)
 
 # Compute AGB per plot and convert to AGB per hectare ---- #########################################
 # compute AGB(Mg) per plot
@@ -196,7 +238,18 @@ plots_agb <- merge(plot_polys, AGBplot, by.x='plot_no', by.y='plot', all=TRUE)
 plots_agb$AGB_ha <- plots_agb$AGB / plots_agb$area
 plots_agb$AGB_ha[is.na(plots_agb$AGB_ha)] <- 0
 
-saveRDS(plots_agb, file.path(tidy_dir, 'survey_plots', 'plots_agb.rds'))
+plots_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
+plots_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_gt5dbh.rds')
+saveRDS(plots_agb, plots_agb_fp)
+
+plots_agb1 <- readRDS(plots_agb_fp)
+
+# Compare
+plots_compare <- plots_agb1 %>% 
+  st_drop_geometry() %>% 
+  select(plot_no, AGB_ha) %>% 
+  left_join(select(st_drop_geometry(plots_agb), plot_no, AGB_ha), by = 'plot_no') %>% 
+  mutate(diff = AGB_ha.x - AGB_ha.y)
 
 # Look at data ---- ####################################################################
 summary(mstems$meanWD)
@@ -210,7 +263,7 @@ mstems.filt <- mstems %>% filter(agb < 10)
   geom_histogram(binwidth=0.05) +
   labs(y = "")+
   scale_x_continuous(name = "AGB") +
-  ggtitle("Histogram of AGB (N = 6,256, bin width = 0.05 m)")+
+  ggtitle("Histogram of AGB (bin width = 0.05 m)")+
   theme_minimal())
 limO <- 2
 mstems.filt %>% 
@@ -221,7 +274,7 @@ mstems.filt %>%
   scale_x_continuous(name = "AGB",
                      breaks = seq(0, 5, 0.1),
                      limits=c(0, limO)) +
-  ggtitle(str_c("Histogram of AGB (N = 6,256, bin width = 0.05 m, outliers grouped at ",limO,")"))+
+  ggtitle(str_c("Histogram of AGB (bin width = 0.05 m, outliers grouped at ",limO,")"))+
   theme_minimal()
 (p.dens.agb <- ggplot(mstems.filt, aes(x=agb)) +
   geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)+ 

@@ -190,24 +190,31 @@ mstems_temp <- mstems %>% group_by(plot_no) %>%
 
 # Compute AGB ---- ##################################################################
 # HEIGHTS, input: mstems$dbh_cm, mstems$ht_m, output: mstems$H, mstems$Hrse
-interp_heights <- function(.data){
+interp_heights <- function(.data, method = 'log1'){
   # Create H-D model and use to fill missing heights
+  
+  # Create model
   HDmodel <- modelHD(
     D = .data$dbh_cm,
     H = .data$ht_m,
-    method="log1", # best model is log1 based on prior checking
+    method = method, # best model is log1 based on prior checking
     useWeight = TRUE,
     drawGraph = FALSE
   )
+  
   # Retrieve height data
   .data$H <- .data$ht_m
   .data$Hrse <- 0.5 # recommended RSE for observed heights
   filt <- is.na(.data$H)
+  
+  # Model missing heights 
   .data$H[filt] <- retrieveH(D = .data$dbh_cm, model = HDmodel)$H[filt]
   .data$Hrse[filt] <- HDmodel$RSE
+  
+  # Return
   return(.data)
 }
-mstems <- mstems %>% interp_heights()
+mstems <- mstems %>% interp_heights('log1')
 
 # AGB, input: mstems[c(dbh_cm, meanWD, H, plot_no)]
 mstems$agb <- computeAGB(
@@ -224,7 +231,7 @@ mstems <- readRDS(mstems_fp)
 
 # Compute AGB per plot and convert to AGB per hectare ---- #########################################
 # compute AGB(Mg) per plot
-AGBplot <- summaryByPlot(
+AGBplot <- BIOMASS::summaryByPlot(
   computeAGB(
     D = mstems$dbh_cm,
     WD = mstems$meanWD,
@@ -242,14 +249,7 @@ plots_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 plots_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_gt5dbh.rds')
 saveRDS(plots_agb, plots_agb_fp)
 
-plots_agb1 <- readRDS(plots_agb_fp)
-
-# Compare
-plots_compare <- plots_agb1 %>% 
-  st_drop_geometry() %>% 
-  select(plot_no, AGB_ha) %>% 
-  left_join(select(st_drop_geometry(plots_agb), plot_no, AGB_ha), by = 'plot_no') %>% 
-  mutate(diff = AGB_ha.x - AGB_ha.y)
+plots_agb <- readRDS(plots_agb_fp)
 
 # Look at data ---- ####################################################################
 summary(mstems$meanWD)
@@ -320,7 +320,7 @@ filt <- plots_agb %>% filter(AGB_ha > 0)
 summary(filt$AGB_ha)
 
 
-(summaries <- cbind(Mean = c(dbh=mean(mstems$dbh_cm, na.rm=TRUE),
+(summaries <- as_tibble(cbind(Mean = c(dbh=mean(mstems$dbh_cm, na.rm=TRUE),
                               ht=mean(mstems$H, na.rm=TRUE),
                               wd=mean(mstems$meanWD, na.rm=TRUE),
                               sdWD=mean(mstems$sdWD, na.rm=TRUE),
@@ -329,24 +329,29 @@ summary(filt$AGB_ha)
                              ht=sd(mstems$H, na.rm=TRUE),
                              wd=sd(mstems$meanWD, na.rm=TRUE),
                              sdWD=NA, 
-                             agb=sd(mstems$agb, na.rm=TRUE))))
+                             agb=sd(mstems$agb, na.rm=TRUE))), 
+                    rownames = 'variable'))
+
+summaries %>% write_csv('data/reports/01_field_plots.csv')
 
 # Look at values
 plots_agb$AGB <- as.vector(plots_agb$AGB_ha)
 plots_agb$area <- as.vector(plots_agb$area)
+g0.agb <- plots_agb
 AGB <- c(
   all_mean=mean(g0.agb$AGB),
   all_sd=sd(g0.agb$AGB),
-  bio_mean=mean(g0.agb[9:36, ]$AGB),
-  bio_sd=sd(g0.agb[9:36, ]$AGB),
+  biomass_mean=mean(g0.agb[9:36, ]$AGB),
+  biomass_sd=sd(g0.agb[9:36, ]$AGB),
   min=min(g0.agb$AGB),
   max=max(g0.agb$AGB))
+g0_AGB <- plots_agb
 Area <- c(
   all_mean=mean(g0_AGB$area),
   all_sd=sd(g0_AGB$area),
-  bio_mean=mean(g0_AGB[9:36, ]$area),
-  bio_sd=sd(g0_AGB[9:36, ]$area),
+  biomass_mean=mean(g0_AGB[9:36, ]$area),
+  biomass_sd=sd(g0_AGB[9:36, ]$area),
   min=min(g0_AGB$area),
   max=max(g0_AGB$area))
 (summaries <- cbind(AGB, Area))
-(plots_agb$AGB[plots_agb$AGB > 98])
+(plots_agb %>% filter(AGB > 98))

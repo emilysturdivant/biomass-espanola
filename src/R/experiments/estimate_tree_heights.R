@@ -4,20 +4,20 @@ library(BIOMASS)
 library(ggplot2)
 
 # Load data - Desktop
-mstems <- read_csv("~/code/biomass-espanola/data/mstems_with_wooddensities.csv", col_types = cols(plot_no = col_integer()))
-mplots <- read_csv("~/code/biomass-espanola/data/haiti_plots_meta.csv", col_types = cols(plot_no = col_integer()))
-bwayo_densities <- read_csv("~/code/biomass-espanola/data/bwayo_densities_2.csv", col_types = cols(wd = col_double()))
-g0_plots <- read_csv("~/code/biomass-espanola/data/plots_g0nu2018_HV.csv")
-creole_df <- read_csv("~/code/biomass-espanola/data/exploded_specieslookup.csv")
+mstems <- read_csv("data/species_and_wds/mstems_with_wooddensities.csv", col_types = cols(plot_no = col_integer()))
+mplots <- read_csv("data/species_and_wds/haiti_plots_meta.csv", col_types = cols(plot_no = col_integer()))
+bwayo_densities <- read_csv("data/species_and_wds/bwayo_densities_2.csv", col_types = cols(wd = col_double()))
+g0_plots <- read_csv("data/plots_g0nu2018_HV.csv")
+creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
 
 # Load data - Mac
-mstems <- read_csv("~/GitHub/biomass-espanola/data/haiti_data_wds2.csv")
-mplots <- read_csv("~/GitHub/biomass-espanola/data/mplots_geoms.csv", col_types = cols(plot_no = col_integer()))
-g0_plots <- read_csv("~/GitHub/biomass-espanola/data/plots_g0nu_HV.csv")
-creole_df <- read_csv("~/GitHub/biomass-espanola/data/exploded_specieslookup.csv")
+mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
+mplots <- read_csv("data/species_and_wds/mplots_geoms.csv", col_types = cols(plot_no = col_integer()))
+g0_plots <- read_csv("data/species_and_wds/plots_g0nu_HV.csv")
+creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
 
 # ------------------------
-# Run Chave14 equation without computeAGB() 
+# Run Chave14 equation without computeAGB()  -----
 # Mask the 8 rows with ht_m == 2 and dbh_cm > 20. 
 test <- na.omit(mstems[c('ht_m', 'dbh_cm')])
 test <- test[!(test$ht_m == 2 & test$dbh_cm > 20), ]

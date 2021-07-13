@@ -409,7 +409,7 @@ wbt_mean_filter(out_fp2,
 
 
 # ~Look~ at proportion of values in each mask category----
-report_fp <- file.path('data', 'reports', str_glue('palsar{year}_mask_pcts.csv'))
+report_fp <- file.path('data', 'reports', str_glue('02_palsar{year}_mask_pcts.csv'))
 if(!file.exists(report_fp)) {
   
   # Load PALSAR mask

@@ -30,7 +30,7 @@ plot_polys <- st_read(plots_shp)
 # creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
 ```
 
-## Distributions by stem value
+## Distribution of DBH for trees with missing heights
 
 ```{r}
 # Load
@@ -38,14 +38,166 @@ mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
 mstems <- readRDS(mstems_fp) %>% 
   filter(dbh_cm >= 5)
 
-# Overall statistics of DBH
-summary(mstems$dbh_cm, na.rm=TRUE)
-sd(mstems$dbh_cm, na.rm=TRUE)
-quantile(mstems$dbh_cm, c(0.005, 0.1, 0.5, 0.9, 0.995, 0.999), na.rm=TRUE)
-n_stems <- nrow(filter(mstems, !is.na(dbh_cm)))
-nrow_str <- format(n_stems, big.mark = ',')
+mstems %>% 
+  filter(is.na(ht_m)) %>% 
+  ggplot(aes(x = dbh_cm)) +
+  geom_histogram()
+```
 
-# DBH
+## Compare height-diameter models
+
+```{r}
+# Compute height based on heigh-diameter model - see Vignette BIOMASS in Help
+# Load
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+mstems_all <- readRDS(mstems_fp)
+
+# See results for all 4 models (log1, log2, weibull, michaelis)
+(result <- modelHD(
+  D = mstems$dbh_cm,
+  H = mstems$ht_m,
+  useWeight = TRUE
+))
+
+# Remove high DBH and rerun
+mstems_noxtrm <- mstems %>%
+  filter(dbh_cm < 200) %>% 
+  filter(ht_m != 2)
+
+# Compare models
+(result <- modelHD(
+  D = mstems_noxtrm$dbh_cm,
+  H = mstems_noxtrm$ht_m,
+  useWeight = TRUE
+))
+
+
+brk <- 20
+
+# Remove high DBH and rerun
+mstems_lower <- mstems_all %>%
+  filter(dbh_cm < brk) %>% 
+  filter(ht_m != 2) %>% 
+  filter(dbh_cm >= 5)
+
+# Graphic and numeric results
+(res_lower <- modelHD(
+  D = mstems_lower$dbh_cm,
+  H = mstems_lower$ht_m,
+  useWeight = TRUE
+))
+
+# Remove high DBH and rerun
+mstems_upper <- mstems_all %>%
+  filter(dbh_cm >= brk) %>% 
+  filter(ht_m > 5)
+
+# Graphic and numeric results
+(res_upper <- modelHD(
+  D = mstems_upper$dbh_cm,
+  H = mstems_upper$ht_m,
+  useWeight = TRUE
+))
+```
+
+## Compare variations for AGB values
+
+```{r}
+# HEIGHTS, input: mstems$dbh_cm, mstems$ht_m, output: mstems$H, mstems$Hrse
+interp_heights <- function(.data, method = 'log1'){
+  # Create H-D model and use to fill missing heights
+  
+  # Create model
+  HDmodel <- modelHD(
+    D = .data$dbh_cm,
+    H = .data$ht_m,
+    method = method, # best model is log1 based on prior checking
+    useWeight = TRUE,
+    drawGraph = FALSE
+  )
+  
+  # Retrieve height data
+  .data$H <- .data$ht_m
+  .data$Hrse <- 0.5 # recommended RSE for observed heights
+  filt <- is.na(.data$H)
+  
+  # Model missing heights 
+  .data$H[filt] <- retrieveH(D = .data$dbh_cm, model = HDmodel)$H[filt]
+  .data$Hrse[filt] <- HDmodel$RSE
+  
+  # Return
+  return(.data)
+}
+
+agb_by_plot <- function(mstems, plot_polys) {
+  # compute AGB(Mg) per plot
+  AGBplot <- BIOMASS::summaryByPlot(
+    computeAGB(
+      D = mstems$dbh_cm,
+      WD = mstems$meanWD,
+      H = mstems$H
+    ), 
+    mstems$plot_no
+  )
+  
+  # Calculate AGB per hectare
+  plots_agb <- #merge(plot_polys, AGBplot, by.x='plot_no', by.y='plot', all=TRUE) %>% 
+    left_join(plot_polys, AGBplot, by = c(plot_no = 'plot')) %>% 
+    mutate(AGB_ha = AGB / area,
+           AGB_ha = replace_na(AGB_ha, 0)) 
+  
+  return(plots_agb)
+}
+
+# Load
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+mstems_all <- readRDS(mstems_fp)
+
+# Calculate AGB by plot
+pagb_all <- agb_by_plot(mstems_all, plot_polys)
+
+# Get two variations
+mstems_Dgt5 <- mstems_all %>% filter(is.na(dbh_cm) | dbh_cm >= 5)
+pagb_Dgt5 <- agb_by_plot(mstems_Dgt5, plot_polys)
+
+mstems_Dgt5_Hlog2 <- mstems_Dgt5 %>% interp_heights('weibull')
+pagb_Dgt5_Hlog2 <- agb_by_plot(mstems_Dgt5_Hlog2, plot_polys)
+
+# Compare
+plots_compare <- pagb_all %>% 
+  st_drop_geometry() %>% 
+  select(plot_no, AGB_ha) %>% 
+  left_join(select(st_drop_geometry(pagb_Dgt5), plot_no, AGB_ha), by = 'plot_no') %>% 
+  mutate(diff = AGB_ha.x - AGB_ha.y) %>% 
+  arrange(desc(diff))
+plots_compare %>% filter(diff != 0)
+
+# Compare
+plots_compare <- pagb_Dgt5 %>% 
+  st_drop_geometry() %>% 
+  select(plot_no, AGB_ha) %>% 
+  left_join(select(st_drop_geometry(pagb_Dgt5_Hlog2), plot_no, AGB_ha), by = 'plot_no') %>% 
+  mutate(diff = AGB_ha.x - AGB_ha.y) %>% 
+  arrange(desc(abs(diff)))
+plots_compare %>% filter(diff != 0)
+
+# Compare interpolated heights to observed heights
+mstems_Dgt5_Hlog2 <- mstems_Dgt5_Hlog2 %>% mutate(
+  H_interp = case_when(ht_m == H ~ FALSE,
+                       TRUE ~ TRUE)
+)
+
+mstems_Dgt5_Hlog2 %>% ggplot(aes(x=dbh_cm, y=H, color=H_interp)) +
+  geom_point(size = 1, alpha = 0.2) +
+  # geom_jitter(size = 1, alpha = 0.2, width = 2) +
+  xlim(c(0,150)) +
+  theme_minimal()
+```
+
+## Distributions by stem value
+
+```{r}
+# Plotting function
 plot_box_density <- function(mstems, var = 'dbh_cm', var_name = 'DBH (cm)', 
                              log_scale = TRUE,
                              breaks = c(5, 10, 20, 40, 80, 160, 320), 
@@ -83,6 +235,15 @@ plot_box_density <- function(mstems, var = 'dbh_cm', var_name = 'DBH (cm)',
   
   return(p)
 }
+# Load
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+mstems <- readRDS(mstems_fp) %>% 
+  filter(dbh_cm >= 5)
+
+# Overall statistics of DBH
+# summary(mstems$dbh_cm, na.rm=TRUE)
+# sd(mstems$dbh_cm, na.rm=TRUE)
+# quantile(mstems$dbh_cm, c(0.005, 0.1, 0.5, 0.9, 0.995, 0.999), na.rm=TRUE)
 
 # DBH
 plot_box_density(mstems,
@@ -246,8 +407,10 @@ ggsave('figures/qc_plots/01_boxes_byplot_wd.png', width=4, height=6)
 
 ```{r}
 # Facet ----
+# Load
 mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
-mstems <- readRDS(mstems_fp)
+mstems <- readRDS(mstems_fp) %>% 
+  filter(dbh_cm >= 5)
 
 # DBH
 mstems_cts <- mstems %>% 
@@ -257,223 +420,46 @@ mstems_cts <- mstems %>%
   mutate(n = sum(value > 0 & !is.na(value)))
 (p <-ggplot(mstems_cts, aes(x=value, y=plot_no, group=plot_no, color = n)) + 
     geom_boxplot() +
-    labs(x = str_c("Tree heights (N = ",
-            format(n_hts, big.mark = ','), 
-            ")"), 
-         y = "Plot number (arranged by median height)")+
-        scale_color_gradientn(name = 'N', trans = 'sqrt',
+    scale_color_gradientn(name = 'N', trans = 'sqrt',
                          colors = colorRamps::blue2green(5)) +
     theme_minimal() +
     theme(legend.position = c(0.9, 0.2)) +
     facet_wrap(vars(name), scales = 'free'))
 ```
 
-## Distribution of DBH for trees with missing heights
-
-```{r}
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
-mstems_all <- readRDS(mstems_fp)
-
-mstems_all %>% filter(is.na(ht_m)) %>% 
-  ggplot(aes(x = dbh_cm)) +
-  geom_histogram()
-```
-
-## Compare height-diameter models
-
-```{r}
-# Compute height based on heigh-diameter model - see Vignette BIOMASS in Help
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
-mstems_all <- readRDS(mstems_fp)
-
-# See results for all 4 models (log1, log2, weibull, michaelis)
-(result <- modelHD(
-  D = mstems$dbh_cm,
-  H = mstems$ht_m,
-  useWeight = TRUE
-))
-
-# Remove high DBH and rerun
-mstems_noxtrm <- mstems %>%
-  filter(dbh_cm < 200) %>% 
-  filter(ht_m != 2)
-
-# Compare models
-(result <- modelHD(
-  D = mstems_noxtrm$dbh_cm,
-  H = mstems_noxtrm$ht_m,
-  useWeight = TRUE
-))
-
-
-brk <- 20
-
-# Remove high DBH and rerun
-mstems_lower <- mstems_all %>%
-  filter(dbh_cm < brk) %>% 
-  filter(ht_m != 2) %>% 
-  filter(dbh_cm >= 5)
-
-# Graphic and numeric results
-(res_lower <- modelHD(
-  D = mstems_lower$dbh_cm,
-  H = mstems_lower$ht_m,
-  useWeight = TRUE
-))
-
-# Remove high DBH and rerun
-mstems_upper <- mstems_all %>%
-  filter(dbh_cm >= brk) %>% 
-  filter(ht_m > 5)
-
-# Graphic and numeric results
-(res_upper <- modelHD(
-  D = mstems_upper$dbh_cm,
-  H = mstems_upper$ht_m,
-  useWeight = TRUE
-))
-```
-
-## Compare variations for AGB values
-
-```{r}
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
-mstems_all <- readRDS(mstems_fp)
-
-agb_by_plot <- function(mstems, plot_polys) {
-  # compute AGB(Mg) per plot
-  AGBplot <- BIOMASS::summaryByPlot(
-    computeAGB(
-      D = mstems$dbh_cm,
-      WD = mstems$meanWD,
-      H = mstems$H
-    ), 
-    mstems$plot_no
-  )
-  
-  # Calculate AGB per hectare
-  plots_agb <- #merge(plot_polys, AGBplot, by.x='plot_no', by.y='plot', all=TRUE) %>% 
-    left_join(plot_polys, AGBplot, by = c(plot_no = 'plot')) %>% 
-    mutate(AGB_ha = AGB / area,
-           AGB_ha = replace_na(AGB_ha, 0)) 
-  
-  return(plots_agb)
-}
-
-pagb_all <- agb_by_plot(mstems_all, plot_polys)
-
-mstems_Dgt5 <- mstems_all %>% filter(is.na(dbh_cm) | dbh_cm >= 5)
-pagb_Dgt5 <- agb_by_plot(mstems_Dgt5, plot_polys)
-
-mstems_Dgt5_Hlog2 <- mstems_Dgt5 %>% interp_heights('weibull')
-pagb_Dgt5_Hlog2 <- agb_by_plot(mstems_Dgt5_Hlog2, plot_polys)
-
-# Compare
-plots_compare <- pagb_all %>% 
-  st_drop_geometry() %>% 
-  select(plot_no, AGB_ha) %>% 
-  left_join(select(st_drop_geometry(pagb_Dgt5), plot_no, AGB_ha), by = 'plot_no') %>% 
-  mutate(diff = AGB_ha.x - AGB_ha.y) %>% 
-  arrange(desc(diff))
-
-# Compare
-plots_compare <- pagb_Dgt5 %>% 
-  st_drop_geometry() %>% 
-  select(plot_no, AGB_ha) %>% 
-  left_join(select(st_drop_geometry(pagb_Dgt5_Hlog2), plot_no, AGB_ha), by = 'plot_no') %>% 
-  mutate(diff = AGB_ha.x - AGB_ha.y) %>% 
-  arrange(desc(abs(diff)))
-
-# Compare interpolated heights to observed heights
-mstems_Dgt5_Hlog2 <- mstems_Dgt5_Hlog2 %>% mutate(
-  H_interp = case_when(ht_m == H ~ FALSE,
-                       TRUE ~ TRUE)
-)
-
-mstems_Dgt5_Hlog2 %>% ggplot(aes(x=dbh_cm, y=H, color=H_interp)) +
-  # geom_point(size = 1, alpha = 0.2) +
-  geom_jitter(size = 1, alpha = 0.2, width = 2) +
-  xlim(c(0,150))
-```
-
-## Distribution of AGB
-
-```{r}
-
-# Look at data ---- ####################################################################
-summary(mstems$meanWD)
-wd_sd=sd(mstems$meanWD, na.rm=TRUE)
-summary(mstems$agb)
-sd(mstems$agb, na.rm=TRUE)
-
-# Plot histograms and density plot
-mstems.filt <- mstems %>% filter(agb < 10)
-(p <-ggplot(mstems.filt, aes(x=agb)) + 
-  geom_histogram(binwidth=0.05) +
-  labs(y = "")+
-  scale_x_continuous(name = "AGB") +
-  ggtitle("Histogram of AGB (bin width = 0.05 m)")+
-  theme_minimal())
-limO <- 2
-mstems.filt %>% 
-  mutate(x_new = ifelse(agb > limO, limO, agb)) %>% 
-  ggplot(aes(x_new)) +
-  geom_histogram(binwidth = 0.002) +
-  labs(y = "")+
-  scale_x_continuous(name = "AGB",
-                     breaks = seq(0, 5, 0.1),
-                     limits=c(0, limO)) +
-  ggtitle(str_c("Histogram of AGB (bin width = 0.05 m, outliers grouped at ",limO,")"))+
-  theme_minimal()
-(p.dens.agb <- ggplot(mstems.filt, aes(x=agb)) +
-  geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)+ 
-  labs(x = expression(paste("Aboveground biomass (MgC)")), 
-       y = "Density"))
-ggplot(mstems.filt, aes(x=plot_no, y=agb))+
-  geom_boxplot()
-
-# Look at per plot 
-plot.means <- mstems %>% 
-  group_by(plot_no) %>%
-  summarise_at(vars(dbh_cm, H, meanWD, agb, plot_area), list(mean = mean))
-summary(plot.means$agb_mean)
-sd(plot.means$meanWD_mean, na.rm=TRUE)
-plot.sums <- mstems %>% 
-  group_by(plot_no) %>%
-  summarise_at(vars(dbh_cm, H, meanWD, agb), list(sum = sum)) 
-plot.sums <- merge(mplots, plot.sums, by='plot_no', all=TRUE)
-plot.dens <- plot.sums %>% mutate_at(vars(dbh_cm_sum, H_sum, agb_sum), `/`, y = .$plot_area)
-summary(plot.dens$meanWD_sum)
-sd(plot.dens$dbh_cm_sum, na.rm=TRUE)
-
-```
-
 ## Distribution of AGB per hectare
 
 ```{r}
-# Look at data ---- ####################################################################
-plots_agb <- agb_by_plot(mstems_all, plot_polys)
+# Load
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+mstems <- readRDS(mstems_fp) %>% 
+  filter(dbh_cm >= 5)
 
-summary(plots_agb$AGB_ha)
-# Plots
-ggplot(plots_agb, aes(x=plot_no, y=AGB_ha))+
-  geom_boxplot()
-p.dens.agb <- ggplot(plots_agb, aes(x=AGB_ha)) +
-  geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)+ 
-  labs(x = expression(paste("Aboveground biomass (MgC)")), 
-       y = "Density")
-p.dens.agb
-p <-ggplot(plots_agb, aes(x=AGB_ha)) + 
-  geom_histogram(binwidth=5) +
+# Calculate AGB per hectare
+plot_agb <- agb_by_plot(mstems, plot_polys) %>% 
+  st_drop_geometry()
+
+# Join AGB/ha to mstems
+mstems <- mstems %>% left_join(plot_agb, by = 'plot_no')
+
+# Look at data ----
+summary(plot_agb$AGB_ha)
+
+# Histogram
+ct <- plot_agb %>% filter(!is.na(AGB_ha)) %>% nrow
+binwidth = 5
+p <-ggplot(plot_agb, aes(x=AGB_ha)) + 
+  geom_histogram(binwidth = binwidth) +
   scale_y_continuous(name = "", breaks = seq(0, 8, 2)) +
-  labs(y = "")+
-  scale_x_continuous(name = "Aboveground Biomass (Mg/ha)") +
-  ggtitle("Histogram of AGB (N = 36, bin width = 5)")+
-  theme_minimal()
+  labs(caption = str_glue("N = {ct}, bin width = {binwidth}")) +
+  scale_x_continuous(name = "Aboveground biomass (Mg/ha)") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank())
 p
-filt <- plots_agb %>% filter(AGB_ha > 0)
-summary(filt$AGB_ha)
+ggsave('figures/qc_plots/01_hist_plotAGB.png', width=4, height=1.8)
 
+filt <- plot_agb %>% filter(AGB_ha > 0)
+summary(filt$AGB_ha)
 
 (summaries <- cbind(Mean = c(dbh=mean(mstems$dbh_cm, na.rm=TRUE),
                               ht=mean(mstems$H, na.rm=TRUE),
@@ -487,24 +473,28 @@ summary(filt$AGB_ha)
                              agb=sd(mstems$agb, na.rm=TRUE))))
 
 # Look at values
-plots_agb$AGB <- as.vector(plots_agb$AGB_ha)
-plots_agb$area <- as.vector(plots_agb$area)
+plot_agb <- plot_agb %>% 
+  mutate(AGB = as.vector(AGB_ha),
+         area = as.vector(area))
+
 AGB <- c(
-  all_mean=mean(g0.agb$AGB),
-  all_sd=sd(g0.agb$AGB),
-  bio_mean=mean(g0.agb[9:36, ]$AGB),
-  bio_sd=sd(g0.agb[9:36, ]$AGB),
-  min=min(g0.agb$AGB),
-  max=max(g0.agb$AGB))
+  all_mean=mean(plot_agb$AGB, na.rm = TRUE),
+  all_sd=sd(plot_agb$AGB, na.rm = TRUE),
+  bio_mean=mean(plot_agb[9:36, ]$AGB, na.rm = TRUE),
+  bio_sd=sd(plot_agb[9:36, ]$AGB, na.rm = TRUE),
+  min=min(plot_agb$AGB, na.rm = TRUE),
+  max=max(plot_agb$AGB, na.rm = TRUE))
+
 Area <- c(
-  all_mean=mean(g0_AGB$area),
-  all_sd=sd(g0_AGB$area),
-  bio_mean=mean(g0_AGB[9:36, ]$area),
-  bio_sd=sd(g0_AGB[9:36, ]$area),
-  min=min(g0_AGB$area),
-  max=max(g0_AGB$area))
+  all_mean=mean(plot_agb$area),
+  all_sd=sd(plot_agb$area),
+  bio_mean=mean(plot_agb[9:36, ]$area),
+  bio_sd=sd(plot_agb[9:36, ]$area),
+  min=min(plot_agb$area),
+  max=max(plot_agb$area))
+
 (summaries <- cbind(AGB, Area))
-(plots_agb$AGB[plots_agb$AGB > 98])
+(plot_agb$AGB[plot_agb$AGB > 98])
 
 ```
 

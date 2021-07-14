@@ -498,3 +498,16 @@ Area <- c(
 
 ```
 
+# Look at species in plot 27
+
+```{r}
+# Load
+mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+mstems <- readRDS(mstems_fp)
+
+p27 <- mstems %>% filter(plot_no == 27)
+
+p27 %>% count(sp_creole, meanWD, sort=TRUE)
+
+```
+

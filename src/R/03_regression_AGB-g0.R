@@ -33,7 +33,7 @@ field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
 (fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-(g0_fp <- fps %>% nth(16))
+(g0_fp <- fps %>% nth(6))
 
 # (dirs <- list.dirs(modeling_dir, recursive = FALSE))
 # mod_dir <- dirs[[4]]
@@ -259,13 +259,13 @@ g0_agb <- read_csv(ex_csv) %>%
   mutate(AGB = as.numeric(AGB))
 
 # Scatterplot - AGB against backscatter ----
-p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
+(p <- ggplot(g0_agb, aes(x=backscatter, y=AGB)) + geom_point() +
   labs(y = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
        x = expression(paste("Radar backscatter, ",sigma['HV']^0," (m"^2, "/m"^2, ")"))) +
   geom_smooth(method='lm', se=TRUE, fullrange=TRUE, level=0.95, col='black', size=0.2) +
-  # annotate(geom = 'text', label = l1, x = -Inf, y = +Inf, hjust = 0, vjust = 1) +
-  # geom_text(aes(label = plot_no)) +
-  theme_minimal()
+  # annotate(geom = 'text', label = plot_no, x = -Inf, y = +Inf, hjust = 0, vjust = 1) +
+  # geom_text(aes(label = plot_no), hjust = -.2, vjust = 1) +
+  theme_minimal())
 
 ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),
        p, 
@@ -305,7 +305,8 @@ tab <- gridExtra::tableGrob(d3,
                                                               padding = unit(c(2,2), 'mm')))
 
 # Overlay plot with regression table
-p + inset_element(tab, 
+p +
+  inset_element(tab, 
                   left = 0, bottom = 0.8,
                   right = 0.2, top = 1, 
                   on_top = TRUE) +
@@ -314,6 +315,16 @@ p + inset_element(tab,
 # Save
 ggsave(file.path('figures', year, 'modeling', str_glue('scatter_agb_g0_{g0_variant}_table.png')),
        width=14, height=12.5, units='cm')
+
+p + 
+  geom_text(aes(label = plot_no), hjust = -.2, vjust = 1, 
+            size = 3) +
+  inset_element(tab, 
+                left = 0, bottom = 0.8,
+                right = 0.2, top = 1, 
+                on_top = TRUE) +
+  theme(plot.background = NULL)
+
 ggsave(file.path(mod_dir, str_glue('scatter_agb_g0_{g0_variant}_table.png')),
        width=14, height=12.5, units='cm')
 

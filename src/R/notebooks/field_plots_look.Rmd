@@ -30,7 +30,7 @@ plot_polys <- st_read(plots_shp)
 # creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
 ```
 
-## Distribution of DBH for trees with missing heights
+## DBH of trees without H
 
 ```{r}
 # Load
@@ -44,7 +44,7 @@ mstems %>%
   geom_histogram()
 ```
 
-## Compare height-diameter models
+## Compare H-D models
 
 ```{r}
 # Compute height based on heigh-diameter model - see Vignette BIOMASS in Help
@@ -100,7 +100,7 @@ mstems_upper <- mstems_all %>%
 ))
 ```
 
-## Compare variations for AGB values
+## Compare AGB variations
 
 ```{r}
 # HEIGHTS, input: mstems$dbh_cm, mstems$ht_m, output: mstems$H, mstems$Hrse
@@ -132,7 +132,7 @@ interp_heights <- function(.data, method = 'log1'){
 agb_by_plot <- function(mstems, plot_polys) {
   # compute AGB(Mg) per plot
   AGBplot <- BIOMASS::summaryByPlot(
-    computeAGB(
+    BIOMASS::computeAGB(
       D = mstems$dbh_cm,
       WD = mstems$meanWD,
       H = mstems$H

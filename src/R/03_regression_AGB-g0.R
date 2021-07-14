@@ -26,7 +26,7 @@ suffix <- g0_variant <- 'simple'
 tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
-field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_gt5dbh.rds')
+field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
@@ -48,7 +48,8 @@ if(is.na(suffix)) {
   suffix <- str_c('_', suffix)
 }
 
-code <- 'HV_nu_gt5dbh'
+code <- 'HV_nu_noXtrms'
+modeling_dir <- file.path('data/modeling', code)
 # g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
 
 # Get path for model outputs
@@ -327,29 +328,3 @@ minmax(agb.ras)
 agb.ras %>% writeRaster(agb_fp, 
                         overwrite = TRUE,
                         wopt = list(datatype='INT2S', gdal='COMPRESS=LZW'))
-
-
-
-# ~ OLD - Create 95% CI raster ---------------------------------------------------
-# Function to create raster of confidence intervals
-predict.ci.raster <- function(g0, model){
-  names(g0) <- 'backscatter'
-  df <- as.data.frame(g0)
-  chunks <- split(df, (seq(nrow(df))-1) %/% 1000000) 
-  agblist <- list()
-  for (i in 1:length(chunks)){
-    chunk <- chunks[[i]]
-    agb1 <- stats::predict(model, newdata=chunk, 
-                           interval="confidence", level = 0.95) %>%
-      as.data.frame()
-    agblist[[i]] <- agb1
-  }
-  agb <- bind_rows(agblist)
-  agb.ci.v <- as.vector((agb$upr - agb$lwr)/2)
-  ci.ras <- setValues(g0, values=agb.ci.v)
-}
-
-ras.agb.ci <- predict.ci.raster(g0, ols)
-ras.agb.ci[agb.ras > 310] <- NA
-ras.agb.ci[agb.ras < 0] <- NA
-writeRaster(ras.agb.ci, file.path(results_dir, "agb/agb_CI_sub310.tif"), overwrite=TRUE)

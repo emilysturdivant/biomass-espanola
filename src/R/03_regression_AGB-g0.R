@@ -15,7 +15,6 @@ library("terra")
 library("sf")
 library("broom")
 library("patchwork")
-library('stars')
 library("tidyverse")
 
 # Set variables ----

@@ -593,3 +593,43 @@ plot_fp <- file.path(dirname(agb_fp), 'external_comparison', str_c('comparison_s
 ggsave(plot_fp, p0, width=10, height=10, units='cm')
 
 
+
+
+# Make maps ----
+
+# Load as stars
+lklhd_stars <- read_stars(lklhd_fp)
+
+# Plot
+likelihood_plot <- ggplot() +
+  geom_stars(data = lklhd_stars) +
+  geom_sf(data = mex, fill = "transparent", size = 0.2, color = "gray70") +
+  colormap::scale_fill_colormap("Occupancy\nlikelihood", na.value = "transparent", 
+                                colormap = colormap::colormaps$viridis) +
+  ggthemes::theme_hc() +
+  theme(legend.position=c(.95, 1), legend.title.align=0, legend.justification = c(1,1)) +
+  labs(x = NULL, y = NULL)
+
+like_plot <- likelihood_plot +
+  # geom_sf(data = sp_ch, fill = "transparent", size = 0.2, color = "white") +
+  geom_sf(data = sp_df, color = "firebrick3", size = 1)
+
+# Layout maps
+layout <- '
+  AAABBB
+  AAABBB
+  CDEGGG
+  CDEGGG
+  '
+maps <- wrap_plots(A = likelihood_plot, B = like_plot, 
+                   C = stat_grob, D = thresh_grob, E = acc_grob, G = binned_map, 
+                   design = layout) +
+  plot_annotation(
+    title = title,
+    caption = 'Top row shows relative likelihood of species presence. Red points are observations. 
+      Bottom right are areas with likelihood greater than the spec_sens threshold. 
+      Right table shows accuracy metrics for the binary map.'
+  )
+
+# Save
+ggsave(plot_fp, maps, width=12, height=8, dpi=120)

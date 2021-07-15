@@ -22,7 +22,7 @@ modeling_dir <- file.path('data/modeling', code)
 
 # Get level 0 AGB
 (dirs <- list.dirs(modeling_dir, recursive = FALSE))
-mod_dir <- dirs[[5]]
+mod_dir <- dirs[[1]]
 (agb_fp <- list.files(mod_dir, 'agb_l0.*\\.tif$', full.names = TRUE))
 
 # Get variant code
@@ -203,21 +203,22 @@ agb_l2 <- mask_agb(agb_fp = agb_cap_fp,
 
 
 # Report (incomplete update): Get value frequencies within masks ---------------
-get_frequencies <- function(agb_ras, msk_name = 'none'){
-  # Reclass masked raster
-  rcl_tbl <- rbind(c(-Inf, 20, -1),
+get_frequencies <- function(agb_ras, msk_name){
+
+  # Create reclass matrix
+  rcl_mat <- rbind(c(-Inf, 20, -1),
                    c(20, 132, 0),
                    c(132, 200, 1), 
                    c(200, 250, 2), 
                    c(250, 300, 3), 
                    c(300, 310, 4), 
-                   c(310, Inf, 5)) %>% 
-    as_tibble() %>% 
-    rename(value = V3) %>% 
-    mutate(name = str_c(V1, ' to ', V2))
+                   c(310, Inf, 5)) 
+  colnames(rcl_mat) <- c('V1', 'V2', 'value')
   
-  # Convert to matrix
-  rcl_mat <- rcl_tbl %>% select(-name) %>% as.matrix()
+  # Convert to tibble and create strings
+  rcl_tbl <- rcl_mat %>% 
+    as_tibble() %>% 
+    mutate(name = str_c(V1, ' to ', V2))
   
   # Reclass masked raster
   agb_rcl <- agb_ras %>% 
@@ -238,7 +239,10 @@ get_frequencies <- function(agb_ras, msk_name = 'none'){
 agb_ras <- terra::rast(agb_fp)
 msk_land <- terra::rast(landmask_fp)
 agb_masked <- agb_l2
-mask_name <- 'WUu20'
+# mask_name <- 'WUu20'
+# Get name of mask
+mask_name <- agb_ras@ptr$filenames %>% str_extract("(?<=mask).*(?=\\.tif)")
+mask_name <- ifelse(mask_name == '', 'none', mask_name)
 
 # Tree cover 
 mskinv_T_fp <- file.path(masks_dir, "mask_inv_TreeCover.tif")

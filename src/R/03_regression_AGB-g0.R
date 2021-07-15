@@ -15,25 +15,27 @@ library("terra")
 library("sf")
 library("broom")
 library("patchwork")
+library('stars')
 library("tidyverse")
 
 # Set variables ----
 year <- '2019'
 code <- 'HV_nu'
-suffix <- g0_variant <- 'simple'
+suffix <- g0_variant <- 'med5'
 
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
 palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
 field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
+field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
 (fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-(g0_fp <- fps %>% nth(6))
+(g0_fp <- fps %>% nth(16))
 
 # (dirs <- list.dirs(modeling_dir, recursive = FALSE))
 # mod_dir <- dirs[[4]]
@@ -48,8 +50,8 @@ if(is.na(suffix)) {
   suffix <- str_c('_', suffix)
 }
 
-code <- 'HV_nu_noXtrms'
-modeling_dir <- file.path('data/modeling', code)
+# code <- 'HV_nu_noXtrms'
+# modeling_dir <- file.path('data/modeling', code)
 # g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
 
 # Get path for model outputs
@@ -67,6 +69,7 @@ full_results_csv <- file.path(mod_dir, str_c('model_results', suffix, '.csv'))
 
 # AGB map
 agb_fp <- file.path(modeling_dir, g0_variant, str_c("agb_l0", suffix, ".tif"))
+
 
 # Functions ----
 #' Report OLS results
@@ -339,3 +342,42 @@ minmax(agb.ras)
 agb.ras %>% writeRaster(agb_fp, 
                         overwrite = TRUE,
                         wopt = list(datatype='INT2S', gdal='COMPRESS=LZW'))
+
+# Plot map ----
+# Load as terra rast 
+agb <- rast(agb_fp)
+
+# Aggregate
+agb_a <- terra::aggregate(agb, fact = 7)
+agb_a_df <- as.data.frame(agb_a, xy = T) 
+
+# Plot
+(agb_map <- ggplot(agb_a_df, aes(x = x, y = y, fill = backscatter)) +
+  # geom_raster() +
+    geom_tile() +
+  # geom_sf(data = mex, fill = "transparent", size = 0.2, color = "gray70") +
+  colormap::scale_fill_colormap(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
+                                na.value = "transparent", 
+                                colormap = colormap::colormaps$viridis,
+                                limits = c(0, 200), 
+                                oob = scales::squish
+                                ) +
+    coord_fixed() +
+    # theme_minimal() +
+    ggthemes::theme_map() +
+  theme(legend.position=c(0.23, 0.9),
+        legend.title.align=0,
+        legend.justification = c(1,1),
+        legend.box.background = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title = element_blank()) 
+  )
+
+# Save
+map_fp <- file.path('figures/agb_maps', code, g0_variant, str_c("agb_l0", suffix, ".png"))
+dir.create(dirname(map_fp), recursive = TRUE)
+
+ggsave(map_fp, agb_map, 
+       width=7,
+       height=5.6,
+       dpi=120)

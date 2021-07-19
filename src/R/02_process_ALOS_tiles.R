@@ -26,13 +26,13 @@ year <- '2019'
 suffix <- ''
 tidy_dir <- 'data/tidy'
 raw_dir <- file.path('data/raw/ALOS', year)
-palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
-masks_dir <- file.path(palsar_dir, 'masks')
+g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
+masks_dir <- file.path(g0_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
 # Output filepaths
-g0_fp <- file.path(palsar_dir, 'mosaic_variants', str_glue("{code}.tif"))
+g0_fp <- file.path(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
 
 # Bounding boxes
 hisp_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044, 
@@ -44,7 +44,7 @@ hti_bb <- sf::st_bbox(c(xmin = -74.48133, ymax = 20.09044,
 # Downloaded from https://www.eorc.jaxa.jp/ALOS/en/palsar_fnf/data/2019/html/Grid24_fnf.htm
 perform_merge = FALSE
 
-merge_tiles <- function(code, suffix, palsar_dir, hti_bb, raw_dir) {
+merge_tiles <- function(code, suffix, g0_dir, hti_bb, raw_dir) {
   # Set datatype
   dtype <- if(code == 'mask' | code == 'linci') 'Byte' else 'UInt16'
   nbits <- if(code == 'mask' | code == 'linci') '8' else '16'
@@ -62,9 +62,9 @@ merge_tiles <- function(code, suffix, palsar_dir, hti_bb, raw_dir) {
   return(out_fp)
 }
 
-mask_raster <- function(code, suffix, palsar_dir, landmask_fp) { 
+mask_raster <- function(code, suffix, g0_dir, landmask_fp) { 
   # Set output filename
-  out_fp <- file.path(palsar_dir, str_glue('{code}{suffix}.tif'))
+  out_fp <- file.path(g0_dir, str_glue('{code}{suffix}.tif'))
   
   # Mask
   dtype <- if(code == 'mask' | code == 'linci') 'INT1U' else 'INT2U'
@@ -86,7 +86,7 @@ if(perform_merge) {
   
   # Create mosaic of mask file
   code <- 'mask'
-  out_fp <- file.path(palsar_dir, str_glue('{code}.tif'))
+  out_fp <- file.path(g0_dir, str_glue('{code}.tif'))
   msk_fp <- merge_tiles(code, out_fp, hti_bb, raw_dir)
   
   # Get Haiti land mask, combine PALSAR mosaic and Haiti boundary
@@ -110,10 +110,10 @@ if(perform_merge) {
   code_list <- c('sl_HV', 'sl_HH', 'linci', 'date')
   
   # Mosaic tiles with merge_tiles
-  code_list %>% purrr::walk(merge_tiles, suffix, palsar_dir, hti_bb, raw_dir)
+  code_list %>% purrr::walk(merge_tiles, suffix, g0_dir, hti_bb, raw_dir)
   
   # Mask mosaics with the land mask created above
-  code_list %>% purrr::walk(mask_raster, suffix, palsar_dir, landmask_fp)
+  code_list %>% purrr::walk(mask_raster, suffix, g0_dir, landmask_fp)
 }
 
 # Convert to g0 dB -------------------------------------------------------------
@@ -124,7 +124,7 @@ if(perform_merge) {
 if(!file.exists(g0_fp)) {
 
   # Load raw DN  
-  sl_fp <- file.path(palsar_dir, str_glue("sl_{polarization}.tif"))
+  sl_fp <- file.path(g0_dir, str_glue("sl_{polarization}.tif"))
   sl <- terra::rast(sl_fp)
   
   # Convert to decibels
@@ -413,7 +413,7 @@ report_fp <- file.path('data', 'reports', str_glue('02_palsar{year}_mask_pcts.cs
 if(!file.exists(report_fp)) {
   
   # Load PALSAR mask
-  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  msk_fp <- file.path(g0_dir, str_glue('mask{suffix}.tif'))
   dn_mask <- terra::rast(msk_fp)
   
   # Get values
@@ -439,7 +439,7 @@ if(!file.exists(report_fp)) {
 # Replicate ALOS normal 
 msk_norm_fp <- file.path(masks_dir, str_glue("mask_palsar_normal_{year}.tif"))
 if(!file.exists(msk_norm_fp)) {
-  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  msk_fp <- file.path(g0_dir, str_glue('mask{suffix}.tif'))
   msk <- terra::rast(msk_fp)
   msk_A <- msk %>% 
     # terra::crop()
@@ -453,7 +453,7 @@ if(!file.exists(msk_norm_fp)) {
 # Layover mask
 msk_layover_fp <- file.path(masks_dir, str_glue("mask_palsar_layover_{year}.tif"))
 if(!file.exists(msk_layover_fp)) {
-  msk_fp <- file.path(palsar_dir, str_glue('mask{suffix}.tif'))
+  msk_fp <- file.path(g0_dir, str_glue('mask{suffix}.tif'))
   msk <- terra::rast(msk_fp)
   msk_L <- msk %>% 
     terra::classify(rbind(cbind(-Inf, 99, 1), 
@@ -469,7 +469,7 @@ if(!file.exists(msk_layover_fp)) {
 raw_dir <- file.path('data/raw')
 lc_fp <- file.path(raw_dir, 'landcover', 'Lemoiner', 'Haiti2017_Clip.tif')
 lc_res_fp <- file.path(tidy_dir, 'landcover', 'Haiti2017_agbres.tif')
-masks_dir <- file.path(palsar_dir, 'masks')
+masks_dir <- file.path(g0_dir, 'masks')
 
 # Resample landcover to PALSAR resolution
 if(!file.exists(lc_res_fp)) {

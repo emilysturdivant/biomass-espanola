@@ -30,22 +30,24 @@ library('tidyverse')
 
 # Set variables ----------------------------------------------------------------
 g0_variant <- 'med5'
+code <- 'HV_nu'
 year <- '2019'
-input_level <- 'l2'
+agb_input_level <- 'l2'
 agb_code <- 'l2_WU'
 
 # Input filepaths
-agb_dir <- file.path('data', 'modeling', g0_variant)
-(agb_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*[^(sd)]\\.tif'), 
-                      full.names = TRUE)[[2]])
+agb_dir <- file.path('data', 'modeling', code, g0_variant)
+(agb_fps <- list.files(agb_dir, str_c('agb_', agb_input_level, '.*[^(sd)]\\.tif'), 
+                      full.names = TRUE))
+agb_fp <- agb_fps[[2]]
 hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
 # External map filepaths
 tidy_dir <- 'data/tidy'
 glob_fp <- file.path(tidy_dir, 'biomass_maps', "GlobBiomass/N40W100_agb_crop_hti.tif")
-esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
-avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
-bacc_fp <- file.path(tidy_dir, 'biomass_maps', "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
+# esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
+# avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
+# bacc_fp <- file.path(tidy_dir, 'biomass_maps', "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_value=NA, overwrite=F){
@@ -340,13 +342,13 @@ plot_differences_map <- function(diff_ras, ext_name, prefix, boundary_fp, filena
   
 }
 
-perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, input_level = 'l3'){
+perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_input_level = 'l3'){
   # Compare our AGB to External AGB
   
   # Get filenames
-  out_dir <- file.path(dirname(agb_fp), 'external_comparison', input_level)
-  agb_res_fp <- file.path(out_dir, str_c(input_level, '_resamp_to', ext_name, '.tif'))
-  diff_fp <- file.path(out_dir, str_c('diff_', ext_name, '_v_', input_level, '.tif'))
+  out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_input_level)
+  agb_res_fp <- file.path(out_dir, str_c(agb_input_level, '_resamp_to', ext_name, '.tif'))
+  diff_fp <- file.path(out_dir, str_c('diff_', ext_name, '_v_', agb_input_level, '.tif'))
   dir.create(out_dir, recursive = TRUE) 
   
   # Input datatype
@@ -398,21 +400,21 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, input_leve
   df <- summarize_raster_differences(agb_res, agb_ext)
 
   # Histogram
-  hist_diff_fp <- file.path(out_dir, str_c('hist_diff_', ext_name, '_v_', input_level, '.png'))
+  hist_diff_fp <- file.path(out_dir, str_c('hist_diff_', ext_name, '_v_', agb_input_level, '.png'))
   p_hist <- plot_hist_density(df$diffs, -300, 300, bwidth=10, sample_size=500000,
-                              ext_name, input_level, filename = hist_diff_fp)
+                              ext_name, agb_input_level, filename = hist_diff_fp)
   
   # Scatterplot
-  scatter_diff_fp <- file.path(out_dir, str_c('scatter_diff_', ext_name, '_v_', input_level, '.png'))
-  p_scatt <- scatter_AGB_differences_from_DF(df$diffs, ext_name, input_level, 
+  scatter_diff_fp <- file.path(out_dir, str_c('scatter_diff_', ext_name, '_v_', agb_input_level, '.png'))
+  p_scatt <- scatter_AGB_differences_from_DF(df$diffs, ext_name, agb_input_level, 
                                              filename = scatter_diff_fp)
   
   # Spatial map of differences
   N <- df$summary %>% filter(names=='N') %>% dplyr::select(value) %>% deframe
   if (N < 3000000) {
     
-    map_diff_fp <- file.path(out_dir, str_c('map_diff_', ext_name, '_v_', input_level, '.png'))
-    p_map <- plot_differences_map(diff_ras, ext_name, input_level, boundary_fp, filename = map_diff_fp)
+    map_diff_fp <- file.path(out_dir, str_c('map_diff_', ext_name, '_v_', agb_input_level, '.png'))
+    p_map <- plot_differences_map(diff_ras, ext_name, agb_input_level, boundary_fp, filename = map_diff_fp)
     
   } else {
     p_map <- NULL
@@ -426,10 +428,10 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, input_leve
   return(out)
 }
 
-get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, input_level) {
+get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_input_level) {
   
-  out_dir <- file.path(dirname(agb_fp), 'external_comparison', input_level)
-  agb_res_fp <- file.path(out_dir, str_c(input_level, '_resamp_to', ext_name, '.tif'))  
+  out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_input_level)
+  agb_res_fp <- file.path(out_dir, str_c(agb_input_level, '_resamp_to', ext_name, '.tif'))  
   agb_res <- terra::rast(agb_res_fp)
   agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
   out <- summarize_raster_differences(agb_res, agb_ext)
@@ -562,7 +564,7 @@ diff_stats <- list(rmse, bias, me) %>%
   mutate(across(where(is.numeric), ~ round(.x, 2)))
 
 diff_stats %>% write_csv(file.path(dirname(agb_fp), 'external_comparison', 
-                            str_c('comparison_rmse_', input_level, '.csv')))
+                            str_c('comparison_rmse_', agb_input_level, '.csv')))
 
 # Scatterplot - AGB against backscatter ----------------------------------------
 plot_scatter_ext <- function(g0.agb, y_var, name){
@@ -586,10 +588,10 @@ p4 <- plot_scatter_ext(g0.agb, 'bacc', name='Baccini')
 
 library('patchwork')
 (p1 | p2 )/ (p3 | p4)
-plot_fp <- file.path(dirname(agb_fp), 'external_comparison', str_c('comparison_scatter_', input_level, '.png'))
+plot_fp <- file.path(dirname(agb_fp), 'external_comparison', str_c('comparison_scatter_', agb_input_level, '.png'))
 ggsave(plot_fp, width=20, height=20, units='cm')
 
-plot_fp <- file.path(dirname(agb_fp), 'external_comparison', str_c('comparison_scatter_', input_level, '_ourAGB.png'))
+plot_fp <- file.path(dirname(agb_fp), 'external_comparison', str_c('comparison_scatter_', agb_input_level, '_ourAGB.png'))
 ggsave(plot_fp, p0, width=10, height=10, units='cm')
 
 

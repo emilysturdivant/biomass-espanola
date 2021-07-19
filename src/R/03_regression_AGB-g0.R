@@ -24,17 +24,18 @@ suffix <- g0_variant <- 'med5'
 
 # raw_dir <- file.path('data/raw/ALOS', year)
 tidy_dir <- 'data/tidy'
-palsar_dir <- file.path(tidy_dir, str_c('palsar_', year))
+g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
 field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
 field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
-(fps <- list.files(file.path(palsar_dir, 'mosaic_variants'), 
+(fps <- list.files(file.path(g0_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-(g0_fp <- fps %>% nth(16))
+g0_fp <- fps %>% str_subset(str_glue('{code}_{g0_variant}'))
+# (g0_fp <- fps %>% nth(16))
 
 # (dirs <- list.dirs(modeling_dir, recursive = FALSE))
 # mod_dir <- dirs[[4]]
@@ -51,7 +52,7 @@ if(is.na(suffix)) {
 
 # code <- 'HV_nu_noXtrms'
 # modeling_dir <- file.path('data/modeling', code)
-# g0_fp <- file.path(palsar_dir, str_glue("{code}{suffix}.tif"))
+# g0_fp <- file.path(g0_dir, str_glue("{code}{suffix}.tif"))
 
 # Get path for model outputs
 mod_dir <- file.path(modeling_dir, g0_variant, 'calibration')

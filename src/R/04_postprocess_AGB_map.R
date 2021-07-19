@@ -18,7 +18,11 @@ library("tidyverse")
 # Set variables ----
 year <- '2019'
 code <- 'HV_nu'
+saturation_pt <- 300
 modeling_dir <- file.path('data/modeling', code)
+
+masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
+landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 
 # Get level 0 AGB
 (dirs <- list.dirs(modeling_dir, recursive = FALSE))
@@ -30,11 +34,7 @@ mod_dir <- dirs[[1]]
 g0_variant <- nth(items[[1]], -1)
 suffix <- if(g0_variant == 'simple') '' else str_c('_', g0_variant)
 
-masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
-landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-
 # Apply value cap to AGB -------------------------------------------------------
-saturation_pt <- 300
 agb_cap_fp <- file.path(dirname(agb_fp), 
                         str_c('agb_l1_cap', saturation_pt, '.tif'))
 

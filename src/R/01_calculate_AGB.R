@@ -22,6 +22,8 @@ library(sf)
 results_dir <- 'data/results'
 tidy_dir <- 'data/tidy'
 
+stems_fp_in <- "data/species_and_wds/haiti_data_wds2.csv"
+plots_fp_in <- "data/species_and_wds/mplots_geoms.csv"
 plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
 
 # Functions ----
@@ -96,10 +98,8 @@ agb_by_plot <- function(mstems, plot_polys) {
 }
 
 # Load data ----
-mstems <- read_csv("data/species_and_wds/haiti_data_wds2.csv")
-mplots <- read_csv("data/species_and_wds/mplots_geoms.csv", 
-                   col_types = cols(plot_no = col_integer()))
-creole_df <- read_csv("data/species_and_wds/exploded_specieslookup.csv")
+mstems <- read_csv(stems_fp_in)
+mplots <- read_csv(plots_fp_in, col_types = cols(plot_no = col_integer()))
 
 # Prep mstems ----
 mstems <- mstems %>% 

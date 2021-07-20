@@ -50,16 +50,16 @@ if(!file.exists(agb_cap_fp)){
 }
 
 # Mask agb --------------------------------------------------------------
-mask_agb <- function(agb_fp, masks_dir, level_code = 'l1', 
+mask_agb <- function(agb_l0_fp, masks_dir, level_code = 'l1', 
                      masks = c('L', 'WU', 'wb', 'u20'), overwrite = TRUE,
                      masked_agb_fp) {
   
   # Get output filename
   masks_str <- masks %>% 
     str_c(collapse = '')
-  masked_agb_fp <- file.path(dirname(agb_fp), 
+  masked_agb_fp <- file.path(dirname(agb_l0_fp), 
                              str_c('agb_', level_code, '_mask', masks_str, '.tif'))
-  msk_all_fp <- file.path(dirname(agb_fp), str_c('mask', masks_str, '.tif'))
+  msk_all_fp <- file.path(dirname(agb_l0_fp), str_c('mask', masks_str, '.tif'))
   
   # Stop if file already exists
   if(file.exists(masked_agb_fp) & !overwrite) {
@@ -68,11 +68,11 @@ mask_agb <- function(agb_fp, masks_dir, level_code = 'l1',
   
   # Use mask file if it already exists
   if(file.exists(msk_all_fp) & !overwrite) {
-    agb_ras <- terra::rast(agb_fp)
+    agb_ras <- terra::rast(agb_l0_fp)
     msk <- terra::rast(msk_all_fp)
     
     # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-    agb_dtype <- raster::dataType(raster::raster(agb_fp))
+    agb_dtype <- raster::dataType(raster::raster(agb_l0_fp))
     agb_masked <- agb_ras %>% 
       terra::mask(msk, filename = masked_agb_fp, overwrite = T, 
                   wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
@@ -82,7 +82,7 @@ mask_agb <- function(agb_fp, masks_dir, level_code = 'l1',
   }
   
   # Load AGB
-  agb_ras <- terra::rast(agb_fp)
+  agb_ras <- terra::rast(agb_l0_fp)
   
   # Initialize mask raster (all 1's)
   msk <- agb_ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
@@ -151,7 +151,7 @@ mask_agb <- function(agb_fp, masks_dir, level_code = 'l1',
                              gdal = 'COMPRESS=LZW')
   
   # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-  agb_dtype <- raster::dataType(raster::raster(agb_fp))
+  agb_dtype <- raster::dataType(raster::raster(agb_l0_fp))
   agb_masked <- agb_ras %>% 
     terra::mask(msk, 
                 filename = masked_agb_fp, 

@@ -13,18 +13,18 @@
 # ------------------------------------------------------------------------------
 
 # Load libraries ----
-library(readr)
-library(BIOMASS)
-library(tidyverse)
-library(sf)
+library('BIOMASS')
+library('sf')
+library('tidyverse')
 
 # Filenames ----
-results_dir <- 'data/results'
-tidy_dir <- 'data/tidy'
-
-stems_fp_in <- "data/species_and_wds/haiti_data_wds2.csv"
-plots_fp_in <- "data/species_and_wds/mplots_geoms.csv"
-plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
+# results_dir <- 'data/results'
+# tidy_dir <- 'data/tidy'
+# 
+# stems_fp_in <- "data/species_and_wds/haiti_data_wds2.csv"
+# plots_fp_in <- "data/species_and_wds/mplots_geoms.csv"
+# plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
+source('src/R/initialize_vars.R')
 
 # Functions ----
 # Load and standardize polygons
@@ -80,7 +80,7 @@ interp_heights <- function(.data, method = 'log1'){
 agb_by_plot <- function(mstems, plot_polys) {
   # compute AGB(Mg) per plot
   AGBplot <- BIOMASS::summaryByPlot(
-    computeAGB(
+    BIOMASS::computeAGB(
       D = mstems$dbh_cm,
       WD = mstems$meanWD,
       H = mstems$H
@@ -102,8 +102,8 @@ mstems <- read_csv(stems_fp_in)
 mplots <- read_csv(plots_fp_in, col_types = cols(plot_no = col_integer()))
 
 # Prep mstems ----
-mstems <- mstems %>% 
-  filter(is.na(dbh_cm) | (dbh_cm >= 5 & dbh_cm < 300))
+mstems <- mstems %>% filter(is.na(dbh_cm) | (dbh_cm >= 5))
+# mstems <- mstems %>% filter(dbh_cm < 300)
 
 # Consolidate plot polygons ---- ######################################################
 # Extract plot values from stems
@@ -137,31 +137,22 @@ plot_polys <- st_read(plots_shp)
 mstems <- mstems %>% interp_heights('log1')
 
 # AGB, input: mstems[c(dbh_cm, meanWD, H, plot_no)]
-mstems$agb <- computeAGB(
+mstems$agb <- BIOMASS::computeAGB(
   D = mstems$dbh_cm,
   WD = mstems$meanWD,
   H = mstems$H
 )
 
 # Save
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb.rds')
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_noXtrms.rds')
 saveRDS(mstems, mstems_fp)
 mstems <- readRDS(mstems_fp)
 
 # Compute AGB per plot ---- 
-mstems <- mstems %>% 
-  filter(is.na(dbh_cm) | (dbh_cm >= 5 & dbh_cm < 300))
-
 # compute AGB(Mg) per plot
 plots_agb <- agb_by_plot(mstems, plot_polys)
+saveRDS(plots_agb, field_agb_fp)
 
-plots_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
-plots_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
-saveRDS(plots_agb, plots_agb_fp)
-
-plots_agb <- readRDS(plots_agb_fp)
+# plots_agb <- readRDS(field_agb_fp)
 
 
 # # Look at data 

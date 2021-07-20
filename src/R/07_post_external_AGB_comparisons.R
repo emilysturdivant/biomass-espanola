@@ -28,23 +28,25 @@ library('sf')
 library('terra')
 library('tidyverse')
 
+source('src/R/initialize_vars.R')
+
 # Set variables ----------------------------------------------------------------
-g0_variant <- 'med5'
-code <- 'HV_nu'
-year <- '2019'
-agb_input_level <- 'l2'
-agb_code <- 'l2_WU'
+# g0_variant <- 'med5'
+# code <- 'HV_nu'
+# year <- '2019'
+# agb_input_level <- 'l2'
+# agb_code <- 'l2_WU'
 
 # Input filepaths
-agb_dir <- file.path('data', 'modeling', code, g0_variant)
+# agb_dir <- file.path('data', 'modeling', code, g0_variant)
 (agb_fps <- list.files(agb_dir, str_c('agb_', agb_input_level, '.*[^(sd)]\\.tif'), 
                       full.names = TRUE))
 agb_fp <- agb_fps[[2]]
-hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
+# hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 
 # External map filepaths
-tidy_dir <- 'data/tidy'
-glob_fp <- file.path(tidy_dir, 'biomass_maps', "GlobBiomass/N40W100_agb_crop_hti.tif")
+# tidy_dir <- 'data/tidy'
+# glob_fp <- file.path(tidy_dir, 'biomass_maps', "GlobBiomass/N40W100_agb_crop_hti.tif")
 # esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
 # avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
 # bacc_fp <- file.path(tidy_dir, 'biomass_maps', "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
@@ -439,8 +441,8 @@ get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_input_level) {
 }
 
 # Run comparison and get graphics ----------------------------------------------
-bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
 glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
+bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
 esa_out <- perform_comparison(agb_fp, esa_fp, 'ESA', hti_poly_fp, agb_code)
 avit_out <- perform_comparison(agb_fp, avit_fp, 'Avitabile', hti_poly_fp, agb_code)
 

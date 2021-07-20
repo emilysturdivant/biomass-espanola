@@ -17,59 +17,40 @@ library("broom")
 library("patchwork")
 library("tidyverse")
 
-# Set variables ----
-year <- '2019'
-code <- 'HV_nu'
-suffix <- g0_variant <- 'med5'
-
-# raw_dir <- file.path('data/raw/ALOS', year)
-tidy_dir <- 'data/tidy'
-g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
-modeling_dir <- file.path('data/modeling', code)
-field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
-field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
+# # Set variables ----
+source('src/R/initialize_vars.R')
+# year <- '2019'
+# code <- 'HV_nu'
+# suffix <- g0_variant <- 'med5'
+# 
+# # raw_dir <- file.path('data/raw/ALOS', year)
+# tidy_dir <- 'data/tidy'
+# g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
+# modeling_dir <- file.path('data/modeling', code)
+# field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
+# field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
 (fps <- list.files(file.path(g0_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-g0_fp <- fps %>% str_subset(str_glue('{code}_{g0_variant}'))
-# (g0_fp <- fps %>% nth(16))
-
-# (dirs <- list.dirs(modeling_dir, recursive = FALSE))
-# mod_dir <- dirs[[4]]
-# (g0_fp <- list.files(mod_dir, 'tif$', full.names = TRUE))
-
-# Get variant code
-(g0_variant <- suffix <- str_extract(g0_fp, str_glue("(?<={code}_).*(?=\\.tif)")))
-if(is.na(suffix)) {
-  suffix <- ''
-  g0_variant <- 'simple'
-} else {
-  suffix <- str_c('_', suffix)
-}
-
-# code <- 'HV_nu_noXtrms'
-# modeling_dir <- file.path('data/modeling', code)
-# g0_fp <- file.path(g0_dir, str_glue("{code}{suffix}.tif"))
+(g0_fp <- ifelse(g0_variant == 'simple',
+                fps %>% str_subset(str_glue('{code}\\.tif')),
+                fps %>% str_subset(str_glue('{code}_{g0_variant}'))))
 
 # Get path for model outputs
 mod_dir <- file.path(modeling_dir, g0_variant, 'calibration')
 dir.create(mod_dir, recursive = TRUE)
 
 # extracted backscatter values
-ex_shp <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.gpkg'))
-ex_csv <- file.path(mod_dir, str_glue('plots_agb_g0{suffix}.csv'))
+ex_shp <- file.path(mod_dir, str_glue('plots_agb_g0_{g0_variant}.gpkg'))
+ex_csv <- file.path(mod_dir, str_glue('plots_agb_g0_{g0_variant}.csv'))
 
 # Linear regression
-ols_fp <- file.path(mod_dir, str_c("ols", suffix, ".rds"))
-ols_vals_fp <- file.path(mod_dir, str_c('ols_results', suffix, '.csv'))
-full_results_csv <- file.path(mod_dir, str_c('model_results', suffix, '.csv'))
-
-# AGB map
-agb_fp <- file.path(modeling_dir, g0_variant, str_c("agb_l0", suffix, ".tif"))
-
+ols_fp <- file.path(mod_dir, str_c("ols_", g0_variant, ".rds"))
+ols_vals_fp <- file.path(mod_dir, str_c('ols_results_', g0_variant, '.csv'))
+full_results_csv <- file.path(mod_dir, str_c('model_results_', g0_variant, '.csv'))
 
 # Functions ----
 #' Report OLS results
@@ -211,7 +192,7 @@ train_vals <- report_ols_results(ols, g0_agb)
 train_vals %>% write_csv(ols_vals_fp)
 
 # Plot error plots
-ols_error_png <- file.path(mod_dir, str_c('ols_plots', suffix, '.png'))
+ols_error_png <- file.path(mod_dir, str_c('ols_plots_', g0_variant, '.png'))
 png(ols_error_png)
 opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
 plot(ols, las = 1)
@@ -220,7 +201,7 @@ dev.off()
 # Repeated k-fold cross validation ---------------------------------------------
 repeats <- 1000 # number of complete sets of folds to compute
 cv_num <- 5 # number of folds
-cv_fp <- file.path(mod_dir, str_c("crossval_", repeats, "x", cv_num, suffix, ".rds"))
+cv_fp <- file.path(mod_dir, str_c("crossval_", repeats, "x", cv_num, '_', g0_variant, ".rds"))
 if(!file.exists(cv_fp)) {
   
   # Run cross-validation
@@ -270,7 +251,7 @@ g0_agb <- read_csv(ex_csv) %>%
   # geom_text(aes(label = plot_no), hjust = -.2, vjust = 1) +
   theme_minimal())
 
-ggsave(file.path(mod_dir, str_glue('scatter_agb_g0{suffix}.png')),
+ggsave(file.path(mod_dir, str_glue('scatter_agb_g0_{g0_variant}.png')),
        p, 
        width=14, height=12.5, units='cm')
 
@@ -339,30 +320,47 @@ ols <- readRDS(ols_fp)
 # Apply linear regression model to create AGB map
 agb.ras <- terra::predict(g0, ols, na.rm=TRUE)
 minmax(agb.ras)
-agb.ras %>% writeRaster(agb_fp, 
+agb.ras %>% writeRaster(agb_l0_fp, 
                         overwrite = TRUE,
                         wopt = list(datatype='INT2S', gdal='COMPRESS=LZW'))
 
 # Plot map ----
 # Load as terra rast 
-agb <- rast(agb_fp)
+agb <- rast(agb_l0_fp)
 
 # Aggregate
-agb_a <- terra::aggregate(agb, fact = 7)
+agb_a <- terra::aggregate(agb, fact = 8)
 agb_a_df <- as.data.frame(agb_a, xy = T) 
 
+# 
+urban <- st_read(lc_pols_fp) %>% 
+  filter(LC == 2) %>% 
+  st_simplify(dTolerance = 0.001) %>% 
+  st_union()
+
+# Palette options
+agb3_palette <- c('#8d4d00', '#f7e700', '#4ee43d', '#006016')
+agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')
+agb2_palette <- c('#4c006f', '#8d6639', '#f7e700', '#4ee43d', '#006016')
+bouvet_palette <- c('#9f4d28', '#b67633', '#cc9e45', 
+                 '#e7c754', '#feee5e', '#cbdc50', 
+                 '#9ac545', '#65b438', '#33a029', '#34782d')
+agb1b_palette <- c('#4c006f', '#9f4d28', '#f7e700', '#4ee43d', '#006016')
+bouvet_palette <- c('#9f4d28', '#cc9e45', '#feee5e', '#65b438', '#34782d')
+
 # Plot
-(agb_map <- ggplot(agb_a_df, aes(x = x, y = y, fill = backscatter)) +
-  # geom_raster() +
-    geom_tile() +
-  # geom_sf(data = mex, fill = "transparent", size = 0.2, color = "gray70") +
-  colormap::scale_fill_colormap(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
-                                na.value = "transparent", 
-                                colormap = colormap::colormaps$viridis,
-                                limits = c(0, 200), 
-                                oob = scales::squish
-                                ) +
-    coord_fixed() +
+(agb_map <- ggplot(agb_a_df) +
+  # geom_raster(aes(x = x, y = y, fill = backscatter)) +
+    geom_tile(aes(x = x, y = y, fill = backscatter)) +
+  geom_sf(data = urban, fill = "gray63", color = NA) +
+    scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
+                                  na.value = "transparent", 
+                                  colors = bouvet_palette,
+                                  limits = c(0, 120),
+                                  oob = scales::squish
+    ) +
+    # coord_fixed() +
+    # coord_sf() +
     # theme_minimal() +
     ggthemes::theme_map() +
   theme(legend.position=c(0.23, 0.9),
@@ -374,7 +372,7 @@ agb_a_df <- as.data.frame(agb_a, xy = T)
   )
 
 # Save
-map_fp <- file.path('figures/agb_maps', code, g0_variant, str_c("agb_l0", suffix, ".png"))
+map_fp <- file.path('figures/agb_maps', code, g0_variant, str_c("agb_l0_", g0_variant, ".png"))
 dir.create(dirname(map_fp), recursive = TRUE)
 
 ggsave(map_fp, agb_map, 

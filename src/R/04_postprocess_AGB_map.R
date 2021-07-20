@@ -16,32 +16,32 @@ library("terra")
 library("tidyverse")
 
 # Set variables ----
-year <- '2019'
-code <- 'HV_nu'
-saturation_pt <- 300
-modeling_dir <- file.path('data/modeling', code)
-
-masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
-landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
+source('src/R/initialize_vars.R')
+# year <- '2019'
+# code <- 'HV_nu'
+# saturation_pt <- 300
+# modeling_dir <- file.path('data/modeling', code)
+# 
+# masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
+# landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 
 # Get level 0 AGB
-(dirs <- list.dirs(modeling_dir, recursive = FALSE))
-mod_dir <- dirs[[1]]
-(agb_fp <- list.files(mod_dir, 'agb_l0.*\\.tif$', full.names = TRUE))
+# (dirs <- list.dirs(modeling_dir, recursive = FALSE))
+# (mod_dir <- dirs[[1]])
+# (agb_fp <- list.files(mod_dir, 'agb_l0.*\\.tif$', full.names = TRUE))
 
-# Get variant code
-(items <- str_split(dirname(agb_fp), '/') )
-g0_variant <- nth(items[[1]], -1)
-suffix <- if(g0_variant == 'simple') '' else str_c('_', g0_variant)
+# # Get variant code
+# (items <- str_split(dirname(agb_l0_fp), '/') )
+# g0_variant <- nth(items[[1]], -1)
 
 # Apply value cap to AGB -------------------------------------------------------
-agb_cap_fp <- file.path(dirname(agb_fp), 
+agb_cap_fp <- file.path(dirname(agb_l0_fp), 
                         str_c('agb_l1_cap', saturation_pt, '.tif'))
 
 # Apply saturation point to AGB and save
 if(!file.exists(agb_cap_fp)){
-  agb_dtype <- raster::dataType(raster::raster(agb_fp))
-  agb_sat <- terra::rast(agb_fp) %>% 
+  agb_dtype <- raster::dataType(raster::raster(agb_l0_fp))
+  agb_sat <- terra::rast(agb_l0_fp) %>% 
     terra::classify(rbind(c(saturation_pt, Inf, saturation_pt),
                           c(-Inf, 0, 0)), 
                     filename = agb_cap_fp, 
@@ -171,7 +171,7 @@ agb_l2 <- mask_agb(agb_fp = agb_cap_fp,
                    masks = c('L', 'U'), overwrite = FALSE)
 
 # Apply WU, wb, u20, p3 mask to L0 agb
-agb_masked <- mask_agb(agb_fp,
+agb_masked <- mask_agb(agb_l0_fp,
                        masks_dir, 
                        level_code = 'l1',
                        masks = c('WU', 'wb', 'u20'), overwrite = FALSE)
@@ -236,7 +236,7 @@ get_frequencies <- function(agb_ras, msk_name){
 }
 
 # Load
-agb_ras <- terra::rast(agb_fp)
+agb_ras <- terra::rast(agb_l0_fp)
 msk_land <- terra::rast(landmask_fp)
 agb_masked <- agb_l2
 # mask_name <- 'WUu20'
@@ -382,7 +382,7 @@ crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, retur
 
 # Filenames
 dir <- file.path(results_dir, 'tifs_by_R')
-agb_ras_fp <- file.path(dir, agb_fp) 
+agb_ras_fp <- file.path(dir, agb_l0_fp) 
 msk_land_fp <- file.path(results_dir, "masks/hti18_maskLand.tif")
 wb_fp <- file.path(results_dir, 'masks/vector/osm_water_buff25m.shp')
 mskinv_T_fp <- file.path(results_dir, "masks/mask_inv_TreeCover.tif")

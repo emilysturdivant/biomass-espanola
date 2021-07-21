@@ -11,7 +11,7 @@ code <- 'HV_nu'
 # suffix <- 'cappt2_conserv13'
 year <- '2019'
 agb_input_level <- 'l2'
-agb_code <- 'l2_WU'
+agb_code <- 'l2_maskU'
 saturation_pt <- 300
 g0_variant <- 'med5'
 if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
@@ -81,11 +81,20 @@ agb_dir <- file.path(modeling_dir, g0_variant)
 
 # 07 - External map filepaths
 glob_fp <- file.path(tidy_dir, 'biomass_maps', "GlobBiomass/N40W100_agb_crop_hti.tif")
-# esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
-# avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
-# bacc_fp <- file.path(tidy_dir, 'biomass_maps', "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
+esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
+avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
+bacc_fp <- file.path(tidy_dir, 'biomass_maps', "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
 
 # (agb_fps <- list.files(agb_dir, str_c('agb_', agb_input_level, '.*[^(sd)]\\.tif'), 
 #                        full.names = TRUE))
 # agb_fp <- agb_fps[[2]]
 
+# AGB palettes
+agb3_palette <- c('#8d4d00', '#f7e700', '#4ee43d', '#006016')
+agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')
+agb2_palette <- c('#4c006f', '#8d6639', '#f7e700', '#4ee43d', '#006016')
+bouvet_palette <- c('#9f4d28', '#b67633', '#cc9e45', 
+                    '#e7c754', '#feee5e', '#cbdc50', 
+                    '#9ac545', '#65b438', '#33a029', '#34782d')
+agb1b_palette <- c('#4c006f', '#9f4d28', '#f7e700', '#4ee43d', '#006016')
+bouvet_palette <- c('#9f4d28', '#cc9e45', '#feee5e', '#65b438', '#34782d')

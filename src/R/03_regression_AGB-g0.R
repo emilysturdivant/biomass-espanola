@@ -146,7 +146,8 @@ fxn.bias <- function(data, lev = NULL, model = NULL) {
   mse <- rss / n
   c(r.squared = summary(lm(pred ~ obs, data))$r.squared,
     adj.r.squared = summary(lm(pred ~ obs, data))$adj.r.squared,
-    Bias = abs(sum(resids) / n),
+    MBE = sum(resids) / n,
+    Bias = abs(MBE),
     RMSE = sqrt(mse),
     MAE = sum(abs(resids)) / n,
     MSE = mse,
@@ -337,16 +338,6 @@ urban <- st_read(lc_pols_fp) %>%
   filter(LC == 2) %>% 
   st_simplify(dTolerance = 0.001) %>% 
   st_union()
-
-# Palette options
-agb3_palette <- c('#8d4d00', '#f7e700', '#4ee43d', '#006016')
-agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')
-agb2_palette <- c('#4c006f', '#8d6639', '#f7e700', '#4ee43d', '#006016')
-bouvet_palette <- c('#9f4d28', '#b67633', '#cc9e45', 
-                 '#e7c754', '#feee5e', '#cbdc50', 
-                 '#9ac545', '#65b438', '#33a029', '#34782d')
-agb1b_palette <- c('#4c006f', '#9f4d28', '#f7e700', '#4ee43d', '#006016')
-bouvet_palette <- c('#9f4d28', '#cc9e45', '#feee5e', '#65b438', '#34782d')
 
 # Plot
 (agb_map <- ggplot(agb_a_df) +

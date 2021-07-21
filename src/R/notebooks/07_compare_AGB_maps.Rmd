@@ -25,66 +25,62 @@ When you save the notebook, an HTML file containing the code and output will be 
 
 The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
+### All four externals
+
 ```{r side-by-side maps}
-# Load internal AGB and GlobBiomass
-agb <- rast(agb_fp)
-glob <- rast(glob_fp)
-esa <- rast(esa_fp)
-bacc <- rast(bacc_fp)
-avit <- rast(avit_fp)
-
-# Aggregate
-res(agb)
-length(values(agb))
-res(glob)
-length(values(glob))
-res(avit)
-length(values(bacc)) %>% format()
-
-agb_a <- terra::aggregate(agb, fact =4) 
-res(agb_a)
-agb_a_df <- terra::aggregate(agb, fact = 4) %>% as.data.frame(xy = T) %>% rename(agb = 3)
-glob_a_df <- glob %>% as.data.frame(xy = T) %>% rename(agb = 3)
-
-
-plot_agb_map <- function(agb_fp) {
+plot_agb_map <- function(x, mask_poly = NULL, borders = NULL, resolution = 200) {
+  
+  lyr_name <- x$name
   
   # Load AGB
-  agb <- rast(agb_fp)
+  agb <- rast(x$fp)
   
   # Conditionally aggregate map based on resolution
-  resx <- res(agb) %>% nth(1) %>% signif(2)
-  if(resx == 0.00022) {
-    agb <- terra::aggregate(agb, fact = 4)
-  } else if (resx > 0.00089) {
-    print('NOTE: AGB map resolution is greater than 0.00089')
+  resx <- res(agb) %>% nth(1) #%>% signif(2)
+  fact <- resolution/resx/113000
+  agg_factor <- ifelse(fact >= 1.5, round(fact, 0), 1)
+  if (agg_factor > 1) {
+    agb <- terra::aggregate(agb, fact = agg_factor, fun = 'mean', na.rm = TRUE)
+  } else if(fact < 1) {
+    print('WARNING: input map resolution is greater than target')
   }
+  
+  # if(resx == 0.00022) {
+  #   agg_fact = resolution/25
+  #   agb <- terra::aggregate(agb, fact = 4)
+  # } else if (resx > 0.00089) {
+  #   print('NOTE: AGB map resolution is greater than 0.00089')
+  # }
   
   # Convert raster to dataframe
   agb_a_df <- agb %>% as.data.frame(xy = T) %>% rename(agb = 3)
 
-  # Urban polygons
-  tol <- 0.001
-  urb_poly_fp <- file.path(tidy_dir, 'landcover', str_glue('lc2_urban_tol{tol}.gpkg'))
-  if(!file.exists(urb_poly_fp)) {
-    urban <- st_read(lc_pols_fp) %>% 
-      filter(LC == 2) %>% 
-      st_simplify(dTolerance = tol) %>% 
-      st_union()
-    urban %>% st_write(urb_poly_fp)
-  } else {
-    urban <- st_read(urb_poly_fp)
+  if(is.null(mask_poly)){
+      # Urban polygons
+      tol <- 0.001
+      urb_poly_fp <- file.path(tidy_dir, 'landcover', str_glue('lc2_urban_tol{tol}.gpkg'))
+      if(!file.exists(urb_poly_fp)) {
+        mask_poly <- st_read(lc_pols_fp) %>% 
+          filter(LC == 2) %>% 
+          st_simplify(dTolerance = tol) %>% 
+          st_union()
+        mask_poly %>% st_write(urb_poly_fp)
+      } else {
+        mask_poly <- st_read(urb_poly_fp)
+      }
+  }
+
+  if(is.null(mask_poly)){
+    # Haiti administrative boundaries
+    borders <- st_read(file.path(tidy_dir, 'contextual_data', 'HTI_adm', 'HTI_adm1.shp'))
   }
   
-  # Haiti administrative boundaries
-  hti_adm1 <- st_read(file.path(tidy_dir, 'contextual_data', 'HTI_adm', 'HTI_adm1.shp'))
-
   # Plot
   agb_map <- ggplot(agb_a_df) +
     # geom_raster(aes(x = x, y = y, fill = agb)) +
     geom_tile(aes(x = x, y = y, fill = agb)) +
-    geom_sf(data = urban, fill = "gray63", color = NA) +
-    geom_sf(data = hti_adm1, fill = NA, color = "gray39", size = 0.3) +
+    geom_sf(data = mask_poly, fill = "gray63", color = NA) +
+    geom_sf(data = borders, fill = NA, color = "gray39", size = 0.3) +
     scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
                          na.value = "transparent", 
                          colors = bouvet_palette,
@@ -92,186 +88,96 @@ plot_agb_map <- function(agb_fp) {
                          oob = scales::squish
     ) +
     ggthemes::theme_map() +
+    ggtitle(lyr_name) +
     theme(legend.position=c(0.23, 0.9),
           legend.title.align=0,
           legend.justification = c(1,1),
           legend.box.background = element_blank(),
           panel.grid.minor = element_blank(),
-          axis.title = element_blank()) 
+          axis.title = element_blank(), 
+          plot.title = element_text(vjust = -8, hjust = 0.048)) 
 }
 
-agb_map <- plot_agb_map(agb_fp)
-
-# Plot
-(agb_map <- ggplot(agb_a_df) +
-    # geom_raster(aes(x = x, y = y, fill = agb)) +
-    geom_tile(aes(x = x, y = y, fill = agb)) +
-    geom_sf(data = urban, fill = "gray63", color = NA) +
-    geom_sf(data = hti_adm1, fill = NA, color = "gray39", size = 0.3) +
-    scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
-                         na.value = "transparent", 
-                         colors = bouvet_palette,
-                         limits = c(0, 120),
-                         oob = scales::squish
-    ) +
-    ggthemes::theme_map() +
-    theme(legend.position=c(0.23, 0.9),
-          legend.title.align=0,
-          legend.justification = c(1,1),
-          legend.box.background = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.title = element_blank()) 
-)
-
-# Plot
-(glob_map <- ggplot(glob_a_df) +
-    # geom_raster(aes(x = x, y = y, fill = backscatter)) +
-    geom_tile(aes(x = x, y = y, fill = agb)) +
-    geom_sf(data = urban, fill = "gray63", color = NA) +
-    geom_sf(data = hti_adm1, fill = NA, color = "gray39", size = 0.3) +
-    scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
-                         na.value = "transparent", 
-                         colors = bouvet_palette,
-                         limits = c(0, 120),
-                         oob = scales::squish
-    ) +
-    ggthemes::theme_map() +
-    theme(legend.position=c(0.23, 0.9),
-          legend.title.align=0,
-          legend.justification = c(1,1),
-          legend.box.background = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.title = element_blank()) 
-)
-
-agb_map + glob_map +
-  plot_layout(guides = 'collect')
-
-# Save
-out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
-map_fp <- file.path(out_dir, str_glue("sidebyside_{agb_code}_GlobB_fact5.png"))
-dir.create(dirname(map_fp), recursive = TRUE)
-
-ggsave(map_fp, 
-       width=12,
-       height=5,
-       dpi=120)
-
-# Layout maps
-layout <- '
-  AAABBB
-  AAABBB
-  CDEGGG
-  CDEGGG
-  '
-maps <- wrap_plots(A = likelihood_plot, B = like_plot, 
-                   C = stat_grob, D = thresh_grob, E = acc_grob, G = binned_map, 
-                   design = layout) +
-  plot_annotation(
-    title = title,
-    caption = 'Top row shows relative likelihood of species presence. Red points are observations. 
-      Bottom right are areas with likelihood greater than the spec_sens threshold. 
-      Right table shows accuracy metrics for the binary map.'
-  )
-
-# Save
-ggsave(plot_fp, maps, width=12, height=8, dpi=120)
-
-```
-
-### All four externals
-
-```{r side-by-side maps}
-# Load internal AGB and GlobBiomass
-agb <- rast(agb_fp)
-glob <- rast(glob_fp)
-
-# Aggregate
-agb_a_df <- terra::aggregate(agb, fact = 8) %>% as.data.frame(xy = T) %>% rename(agb = 3)
-glob_a_df <- terra::aggregate(glob) %>% as.data.frame(xy = T) %>% rename(agb = 3)
-
 # Urban polygons
-urban <- st_read(lc_pols_fp) %>% 
-  filter(LC == 2) %>% 
-  st_simplify(dTolerance = 0.001) %>% 
-  st_union()
+tol <- 0.001
+urb_poly_fp <- file.path(tidy_dir, 'landcover', str_glue('lc2_urban_tol{tol}.gpkg'))
+if(!file.exists(urb_poly_fp)) {
+  urban <- st_read(lc_pols_fp) %>% 
+    filter(LC == 2) %>% 
+    st_simplify(dTolerance = tol) %>% 
+    st_union()
+  urban %>% st_write(urb_poly_fp)
+} else {
+  urban <- st_read(urb_poly_fp)
+}
 
 # Haiti administrative boundaries
 hti_adm1 <- st_read(file.path(tidy_dir, 'contextual_data', 'HTI_adm', 'HTI_adm1.shp'))
 
-# Plot
-(agb_map <- ggplot(agb_a_df) +
-    # geom_raster(aes(x = x, y = y, fill = agb)) +
-    geom_tile(aes(x = x, y = y, fill = agb)) +
-    geom_sf(data = urban, fill = "gray63", color = NA) +
-    geom_sf(data = hti_adm1, fill = NA, color = "gray39", size = 0.3) +
-    scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
-                         na.value = "transparent", 
-                         colors = bouvet_palette,
-                         limits = c(0, 120),
-                         oob = scales::squish
-    ) +
-    ggthemes::theme_map() +
-    theme(legend.position=c(0.23, 0.9),
-          legend.title.align=0,
-          legend.justification = c(1,1),
-          legend.box.background = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.title = element_blank()) 
-)
+# List of AGB maps
+agb_fps <- list(internal = list(name = 'This study',
+                     fp = agb_fp),
+                glob = list(name = 'GlobBiomass',
+                     fp = glob_fp), 
+                esa = list(name = 'CCI', 
+                     fp = esa_fp), 
+                avit = list(name = 'Avitabile',
+                     fp = avit_fp), 
+                bacc = list(name = 'Baccini',
+                     fp = bacc_fp))
 
-# Plot
-(glob_map <- ggplot(glob_a_df) +
-    # geom_raster(aes(x = x, y = y, fill = backscatter)) +
-    geom_tile(aes(x = x, y = y, fill = agb)) +
-    geom_sf(data = urban, fill = "gray63", color = NA) +
-    geom_sf(data = hti_adm1, fill = NA, color = "gray39", size = 0.3) +
-    scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
-                         na.value = "transparent", 
-                         colors = bouvet_palette,
-                         limits = c(0, 120),
-                         oob = scales::squish
-    ) +
-    ggthemes::theme_map() +
-    theme(legend.position=c(0.23, 0.9),
-          legend.title.align=0,
-          legend.justification = c(1,1),
-          legend.box.background = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.title = element_blank()) 
-)
+# Extract plot means for all AGB maps
+maps <- agb_fps %>% 
+  purrr::map(plot_agb_map, urban, hti_adm1, resolution = 400) 
 
-agb_map + glob_map +
-  plot_layout(guides = 'collect')
+# Set output dir for side-by-side maps
+out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code, 'sidebyside')
+dir.create(out_dir)
 
-# Save
-out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
-map_fp <- file.path(out_dir, str_glue("sidebyside_{agb_code}_GlobB.png"))
-dir.create(dirname(map_fp), recursive = TRUE)
+# Ours, with GlobBiomass, ESA, and Baccini
+(all_maps <- maps[c(1,2,3,5)] %>% 
+  wrap_plots(nrow = 2, guides = 'collect'))
+map_fp <- file.path(out_dir, str_glue("sidebyside_Us_GlobB_ESA_Bacc_400m.png"))
+ggsave(map_fp, width=12, height=10, dpi=120)
 
-ggsave(map_fp, 
-       width=11,
-       height=5,
-       dpi=120)
+# 4 external maps
+(all_maps <- maps[c(4,2,3,5)] %>% 
+  wrap_plots(nrow = 2, guides = 'collect'))
+map_fp <- file.path(out_dir, str_glue("sidebyside_Avit_GlobB_ESA_Bacc_400m.png"))
+ggsave(map_fp, width=12, height=10, dpi=120)
+
+# All 5, with ours bigger
+four <- ((maps$bacc + maps$avit) / (maps$glob + maps$esa)) &
+  theme(legend.position = 'none')
+(all_maps <- (maps$internal + plot_layout(guides = 'keep')) / four)
+map_fp <- file.path(out_dir, str_glue("all5_400m.png"))
+ggsave(map_fp, width=5, height=8, dpi=120)
+
+
 
 # Layout maps
-layout <- '
-  AAABBB
-  AAABBB
-  CDEGGG
-  CDEGGG
-  '
-maps <- wrap_plots(A = likelihood_plot, B = like_plot, 
-                   C = stat_grob, D = thresh_grob, E = acc_grob, G = binned_map, 
-                   design = layout) +
-  plot_annotation(
-    title = title,
-    caption = 'Top row shows relative likelihood of species presence. Red points are observations. 
-      Bottom right are areas with likelihood greater than the spec_sens threshold. 
-      Right table shows accuracy metrics for the binary map.'
-  )
+maps$avit + maps$glob +
+  plot_layout(nrow = 2, guides = 'collect')
 
-# Save
-ggsave(plot_fp, maps, width=12, height=8, dpi=120)
+map_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
+                    str_glue("sidebyside_GlobB_ESA.png"))
+ggsave(map_fp, width=12, height=5, dpi=120)
 
+# GlobBiomass v. ESA
+maps$GlobBiomass + maps$ESA + plot_layout(guides = 'collect')
+map_fp <- file.path(out_dir, str_glue("sidebyside_GlobB_ESA.png"))
+ggsave(map_fp, width=12, height=5, dpi=120)
+
+# Our AGB and ESA
+maps$internal + maps$ESA + plot_layout(guides = 'collect')
+
+maps_subset <- maps[c(1, 3)]
+maps_subset %>% wrap_plots(guides = 'collect') +
+  plot_annotation(tag_levels = list(names(maps_subset)))
+map_fp <- file.path(out_dir, str_glue("sidebyside_{agb_code}_ESA.png"))
+ggsave(map_fp, width=12, height=5, dpi=120)
+
+# Separately
+agb_map <- plot_agb_map(list(name = 'Internal', fp = agb_fp), urban, hti_adm1)
 ```
+

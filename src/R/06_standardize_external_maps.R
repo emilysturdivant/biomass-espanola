@@ -18,26 +18,21 @@ library('terra')
 library('tidyverse')
 
 # Set variables ----
-g0_variant <- 'med5'
-year <- '2019'
-input_level <- 'l3'
+source('src/R/initialize_vars.R')
 
-# Input filepaths
-agb_dir <- file.path('data', 'modeling', g0_variant)
-(agb_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*[^(sd)]\\.tif'), 
-                     full.names = TRUE))
-
-hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
+# g0_variant <- 'med5'
+# year <- '2019'
+# input_level <- 'l3'
+input_level <- agb_input_level
 
 # External map filepaths -------------------------------------------------------
-# results_dir <- 'data/results'
-raw_maps_dir <- 'data/raw/biomass_maps'
-
 tidy_maps_dir <- 'data/tidy/biomass_maps'
 glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_crop_hti.tif")
 esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_crop_hti.tif")
 avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop_hti.tif")
 bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif")
+
+agb_fps
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 crop_and_set_NA <- function(in_fp, crop_fp, out_fp = NA, bb){
@@ -274,27 +269,27 @@ land_poly <- terra::vect(hti_poly_fp)
 
 # Land cover from zipped file ------
 # **File too big to unzip and haven't been able to access without unzipping.**
-# in_fp <- "~/Downloads/dataset-satellite-land-cover-9bc57a16-b204-4a4a-a478-6c4a3d5510cc.zip/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.nc"
-# crop_fp <- file.path(raw_maps_dir, "Landcover/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.tif")
-# r <- terra::rast(in_fp)
-# gdalwarp(srcfile = in_fp, dstfile = crop_fp, te = bb, 
-#          tr=c(xres(r), yres(r)), tap=T, overwrite=T)
-# r <- read_stars(crop_fp)
-# r[r == 0] <- NA
-# r %>% as("Raster") %>%
-#   writeRaster("", 
-#               options=c("dstnodata=-99999"), overwrite=T)
-# lc_fp <- ""
+in_fp <- "~/Downloads/dataset-satellite-land-cover-9bc57a16-b204-4a4a-a478-6c4a3d5510cc.zip/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.nc"
+crop_fp <- file.path(raw_ext_maps_dir, "Landcover/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.tif")
+r <- terra::rast(in_fp)
+gdalwarp(srcfile = in_fp, dstfile = crop_fp, te = bb,
+         tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+r <- read_stars(crop_fp)
+r[r == 0] <- NA
+r %>% as("Raster") %>%
+  writeRaster("",
+              options=c("dstnodata=-99999"), overwrite=T)
+lc_fp <- ""
 
 # GlobBiomass ------
 # Crop GlobBiomass to our Hispaniola extent and convert 0s to NA
-in_fp <- file.path(raw_maps_dir, "GlobBiomass/N40W100_agb.tif")
+in_fp <- file.path(raw_ext_maps_dir, "GlobBiomass/N40W100_agb.tif")
 crop_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_crop.tif")
 crop_and_set_NA(in_fp, crop_fp, glob_fp, bb)
 crop_and_mask_to_polygon(in_fp, land_poly, glob_fp, na = 0)
 
 # Do the same for error (per-pixel uncertainty expressed as standard error in m3/ha)
-in_fp <- file.path(raw_maps_dir, "GlobBiomass/N40W100_agb_err.tif")
+in_fp <- file.path(raw_ext_maps_dir, "GlobBiomass/N40W100_agb_err.tif")
 crop_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_err_crop.tif")
 out_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_err_crop_hti.tif")
 # crop_and_set_NA(in_fp, crop_fp, out_fp, bb)
@@ -317,7 +312,7 @@ r %>%
 # http://data.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/2017/v1.0/geotiff
 # ftp://anon-ftp.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/2017/v1.0/geotiff/
 # Crop ESA to our Hispaniola extent and convert 0s to NA
-in_fp <- file.path(raw_maps_dir, "ESA_CCI/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif")
+in_fp <- file.path(raw_ext_maps_dir, "ESA_CCI/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif")
 crop_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_crop.tif")
 # out_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_cropNA.tif")
 # crop_and_set_NA(in_fp, esa_fp, out_fp, bb)
@@ -339,7 +334,7 @@ r %>%
               datatype = in_dtype) 
 
 # Avitabile  ------
-in_fp <- file.path(raw_maps_dir, "Avitabile/Avitabile_AGB_Map.tif")
+in_fp <- file.path(raw_ext_maps_dir, "Avitabile/Avitabile_AGB_Map.tif")
 # avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop.tif")
 # crop_and_set_NA(in_fp, avit_fp, bb=bb)
 
@@ -347,7 +342,7 @@ avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop_hti.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, avit_fp, na = NA)
 
 # Baccini -----
-in_fp <- file.path(raw_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000.tif")
+in_fp <- file.path(raw_ext_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000.tif")
 bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif")
 # crop_and_set_NA(in_fp, bacc_fp, bb=bb)
 
@@ -355,6 +350,6 @@ bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2
 crop_and_mask_to_polygon(in_fp, land_poly, bacc_fp, na = NA)
 
 # Biomass loss from Baccini ------
-in_fp <- file.path(raw_maps_dir, "Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000_crop.tif")
+in_fp <- file.path(raw_ext_maps_dir, "Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000_crop.tif")
 bmloss_fp <- file.path(tidy_maps_dir, "Baccini/AGLB_Deforested_Tropical_America_2000_crop.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, bmloss_fp, na = NA)

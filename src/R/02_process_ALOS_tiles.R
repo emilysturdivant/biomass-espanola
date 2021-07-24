@@ -64,7 +64,7 @@ mask_raster <- function(code, suffix, g0_dir, landmask_fp) {
   out_fp <- file.path(g0_dir, str_glue('{code}{suffix}.tif'))
   
   # Mask
-  dtype <- if(code == 'mask' | code == 'linci') 'INT1U' else 'INT2U'
+  dtype <- ifelse((code == 'mask' | code == 'linci'), 'INT1U', 'INT2U')
   lnd_msk <- terra::rast(landmask_fp)
   r <- terra::rast(out_fp)
   r %>% terra::mask(lnd_msk, 

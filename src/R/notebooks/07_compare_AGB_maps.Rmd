@@ -83,7 +83,7 @@ plot_agb_map <- function(x, mask_poly = NULL, borders = NULL, resolution = 200) 
     geom_sf(data = borders, fill = NA, color = "gray39", size = 0.3) +
     scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
                          na.value = "transparent", 
-                         colors = bouvet_palette,
+                         colors = agb1_palette,
                          limits = c(0, 120),
                          oob = scales::squish
     ) +
@@ -125,7 +125,15 @@ agb_fps <- list(internal = list(name = 'This study',
                      fp = avit_fp), 
                 bacc = list(name = 'Baccini',
                      fp = bacc_fp))
+```
 
+
+```{r individual maps}
+bacc_map <- plot_agb_map(agb_fps$bacc, urban, hti_adm1, 100)
+```
+
+
+```{r side-by-side maps}
 # Extract plot means for all AGB maps
 maps <- agb_fps %>% 
   purrr::map(plot_agb_map, urban, hti_adm1, resolution = 400) 

@@ -32,11 +32,10 @@ source('src/R/initialize_vars.R')
 
 # Set variables ----------------------------------------------------------------
 # Input filepaths
-(agb_fps <- list.files(agb_dir, str_c('agb_', agb_input_level, '.*[^(sd)]\\.tif'),
-                      full.names = TRUE))
-(agb_fp <- agb_fps[[2]])
-(agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif')))
-
+# (agb_fps <- list.files(agb_dir, str_c('agb_', agb_input_level, '.*[^(sd)]\\.tif'),
+#                       full.names = TRUE))
+# (agb_fp <- agb_fps[[2]])
+# (agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif')))
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_value=NA, overwrite=F){
@@ -264,20 +263,26 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
   return(p)
 }
 
-scatter_AGB_differences_from_DF <- function(df, ext_name, prefix, filename = NA){
+scatter_AGB_differences_from_DF <- function(df, ext_name, prefix, filename = NA,
+                                            sample_size = 5000000){
   
   # Sample
-  if (length(df[[1]]) > 100000) {
+  if (length(df[[1]]) > 500000) {
     print("Sampling...")
-    df <- df %>% sample_n(100000)
+    df <- df %>% sample_n(sample_size)
   }
   
   # Plot
   p <- ggplot(df, aes(x=external, y=internal)) + 
-    geom_point(alpha=0.1, size=0.1, fill="royalblue", color="royalblue") +
+    # geom_point(alpha=0.1, size=0.1, fill="royalblue", color="royalblue") +
+    # stat_density_2d(aes(fill = ..level..), geom = "polygon") +
+    geom_bin2d(bins = 75) +
+    # geom_hex(bins = 150) +
+    scale_fill_viridis_c(option = 'magma', direction = -1) +
+    # scale_fill_viridis_c(option = 'magma', direction = -1, trans = 'log') +
     labs(y = expression(paste("Internal AGB estimate")), 
          x = expression(paste("External AGB estimate"))) +
-    coord_fixed(ratio = 1, xlim=c(0, 320), ylim=c(0, 320)) +
+    coord_fixed(ratio = 1, xlim=c(0, 300), ylim=c(0, 300)) +
     theme_minimal() + 
     geom_smooth(method="lm", #formula=y~0+x, 
                 se=TRUE, fullrange=TRUE, level=0.95, col='black', size=.25)
@@ -440,10 +445,11 @@ get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_code) {
 }
 
 # Extract AGB means at survey sites
-extract_mean <- function(ras, vec, touches = FALSE, method='simple'){
+extract_mean <- function(x, vec, touches = FALSE, method='simple'){
   
   # Load data in terra format
-  if(is.character(ras)) ras <- terra::rast(ras)
+  lyr_name <- x$name
+  ras <- terra::rast(x$fp)
   vec <- terra::vect(vec)
   
   # Convert to SpatVector and extract AGB values
@@ -460,14 +466,47 @@ extract_mean <- function(ras, vec, touches = FALSE, method='simple'){
     deframe()
 }
 
-# Comparison for GlobBiomass only ----
-# Compare maps ----
-glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
+get_pcts <- function(x) {
+  
+  lyr_name <- x$name
+  
+  # Load and reclassify
+  ras_clas <- terra::rast(x$fp) %>% 
+    terra::classify(rbind(c(-Inf, Inf, 1),
+                          c(NA, NA, 0)))
+  
+  # Crop
+  msk_poly <- terra::vect(hti_poly_fp)
+  ras_msk <- ras_clas %>% 
+    terra::crop(msk_poly) %>% 
+    terra::mask(msk_poly, 
+                inverse = FALSE)
+  
+  # Get values
+  rvals <- terra::values(ras_msk)
+  
+  # Count pixels in each category and convert to percentage
+  df <- tibble(group = c("value", "NA"), 
+               count = c(sum(rvals == 1, na.rm = TRUE), 
+                         sum(rvals == 0, na.rm = TRUE)))
+  
+  # Convert counts to percentage of all land pixels
+  landct <- sum(df$count)
+  df <- df %>%
+    dplyr::add_row(group = 'land', count = landct) %>% 
+    dplyr::mutate(pct = count / landct)
+  
+  df %>% 
+    pivot_wider(names_from = group, values_from = count:pct) %>% 
+    select(count_land, pct_value, pct_NA)
+}
 
 # Run comparison and get graphics ----------------------------------------------
 glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
 bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
+rm(bacc_out)
 esa_out <- perform_comparison(agb_fp, esa_fp, 'ESA', hti_poly_fp, agb_code)
+rm(esa_out)
 avit_out <- perform_comparison(agb_fp, avit_fp, 'Avitabile', hti_poly_fp, agb_code)
 
 # Summary table ----
@@ -502,16 +541,8 @@ summary_df %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
 rm(bacc_out, esa_out, avit_out, glob_out)
 
 # Get RMSE of external maps against our field data -----------------------------
-
 # Get plot backscatter mean to polygons
 plots_agb <- readRDS(field_agb_fp) %>% arrange(plot_no)
-
-# List of AGB maps
-agb_fps <- list(internal = agb_fp,
-                GlobB = glob_fp, 
-                ESA = esa_fp, 
-                Avitabile = avit_fp, 
-                Baccini = bacc_fp)
 
 # Extract plot means for all AGB maps
 plots2 <- agb_fps %>% 
@@ -524,24 +555,71 @@ plot_means <- plots_agb %>%
   mutate(AGB_ha = round(AGB_ha, 2)) %>% 
   bind_cols(plots2) 
 
-# Get differences
 df <- plot_means %>% 
-  transmute(
-    across(internal:Baccini, ~ .x - AGB_ha))
+  pivot_longer(cols = internal:bacc, values_to = 'est') %>% 
+  mutate(diff = est - AGB_ha) 
 
 diff_stats <- df %>% 
-  pivot_longer(everything()) %>% 
   group_by(name) %>% 
   summarize(
-    n = sum(!is.na(value)), 
-    mse = mean(value^2, na.rm=T),
-    rmse = sqrt(mse),
-    bias = abs(sum(value, na.rm=T) / sum(!is.na(value))),
-    mean_diff = mean(value))
+    r.squared = summary(lm(est ~ AGB_ha))$r.squared,
+    adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
+    N = sum(!is.na(diff)), 
+    RMSD = sqrt(mean(diff^2, na.rm=T)),
+    bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
+    MBD = mean(diff)
+    ) %>% 
+  mutate(across(where(is.numeric), ~ signif(.x, 4)))
 
+# Save
 tbl_csv <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
-                     str_c('comparison_rmse_', agb_code, '.csv'))
+                     str_c('07_comparison_rmse_', agb_code, '.csv'))
 diff_stats %>% write_csv(tbl_csv)
+
+# Percent of land area included in map ----
+ext_pcts <- agb_fps %>% purrr::map_dfr(get_pcts) %>% 
+  mutate(map = names(agb_fps),
+         map_name = map_chr(agb_fps, "name"))
+
+# Save as CSV
+ext_pcts_csv <- file.path('data/reports', str_glue('07_external_pcts_masked.csv'))
+ext_pcts %>% write_csv(ext_pcts_csv)
+
+# Combine ----
+ext_metrics <- diff_stats %>% 
+  left_join(ext_pcts, by = c(name = 'map')) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+# Save as CSV
+ext_report_csv <- file.path('data/reports', str_glue('07_ext_comparison_metrics.csv'))
+ext_metrics %>% write_csv(ext_report_csv)
+
+# Pie chart ----
+ext_pcts <- read_csv(ext_pcts_csv)
+df <- ext_pcts %>% 
+  pivot_longer(cols = starts_with('pct'), 
+               names_prefix = 'pct_', 
+               names_to = 'group', 
+               values_to = 'pct') %>% 
+  filter(map != 'internal')
+
+(bp <- ggplot(df, 
+              aes(x=pct, y=map_name, fill=group)) +
+    geom_bar(stat = "identity", position = 'fill') +
+    theme_minimal() + 
+    labs(fill="",x=NULL,y=NULL,title="",caption=""))
+
+# Table
+(d2 <- df %>% 
+    mutate(pct_coverage = str_c(round(pct*100, digits = 1), '%')) %>% 
+    arrange(desc(pct)) %>% 
+    filter(!group %in% c('NA')) %>% 
+    select(map_name, pct_coverage))
+
+tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Map', 'Percent of land'))
+
+# Display side-by-side
+wrap_plots(tab, bp)
 
 # Scatterplot - AGB against backscatter ----------------------------------------
 plot_scatter_ext <- function(plot_means, y_var, name){
@@ -574,3 +652,90 @@ ggsave(plot_fp, width=20, height=20, units='cm')
 plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
                      str_c('comparison_scatter_', agb_code, '_ourAGB.png'))
 ggsave(plot_fp, p0, width=10, height=10, units='cm')
+
+# Histogram of external map ----
+plot_agb_hist_density <- function(x, agb_pal, bwidth=5, sample_size=1000000, 
+                                  xlim = c(min=0, max=300)) {
+  
+  # Get values
+  lyr_name <- x$name
+  ras <- terra::rast(x$fp)
+  df <- terra::values(ras, dataframe = TRUE) %>% 
+    rename(value = 1) %>% 
+    drop_na()
+
+  # Get statistics
+  mu <- mean(df$value, na.rm=T)
+  sd1 <- sd(df$value, na.rm=T)
+  mn <- min(df$value, na.rm=T)
+  mx <- max(df$value, na.rm=T)
+  
+  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
+  cuts_pts <- data.frame(x = c(mn, mx), 
+                         y = c(0, 0))
+  
+  # Sample
+  if (nrow(df) > sample_size) {
+    print("Sampling...")
+    df <- df %>% sample_n(sample_size)
+  }
+  
+  # Plot
+  p <- ggplot(df, aes(x=value)) + 
+    geom_histogram(aes(y=..density.., fill = ..x..), binwidth = bwidth,
+                   show.legend = FALSE)+
+    scale_fill_gradientn(colors = agb_pal$colors, 
+                         # breaks = c(-60, -30, 0, 30, 60),
+                         # labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
+                         name = expression(paste("AGB (Mg ha"^"-1", ")")),
+                         # na.value='lightgray', 
+                         limits = c(agb_pal$min, agb_pal$max),
+                         oob = scales::squish,
+                         guide = guide_colorbar(barheight = 2)
+    ) + 
+    geom_density(alpha=.2,
+                 show.legend = FALSE) + 
+    scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
+                       # breaks = seq(min, max, 100),
+                       # limits = c(min, max)
+    ) +
+    coord_cartesian(xlim = xlim) +
+    geom_vline(mapping = aes(xintercept = value,
+                             colour = ref),
+               data = cuts,
+               color="black", 
+               # linetype="solid", 
+               linetype="dashed", 
+               size=.5,
+               show.legend = FALSE) +
+    geom_text(mapping = aes(x = value,
+                            y = Inf,
+                            label = ref,
+                            hjust = -.1,
+                            vjust = 1),
+              data = cuts) +
+    ggtitle(lyr_name) +
+    theme_minimal() +
+    theme(axis.title.y = element_blank(),
+          axis.text.y = element_blank(), 
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank())
+}
+
+bacc_hist <- plot_agb_hist_density(agb_fps$bacc, agb_pal)
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Baccini.png'))
+dir.create(dirname(hist_fp))
+ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+
+(esa_hist <- plot_agb_hist_density(agb_fps$esa, agb_pal))
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_ESA.png'))
+ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+
+(glob_hist <- plot_agb_hist_density(agb_fps$glob, agb_pal, xlim=NULL))
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_GlobB.png'))
+ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+
+(avit_hist <- plot_agb_hist_density(agb_fps$avit, agb_pal, xlim=NULL))
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Avit.png'))
+ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+

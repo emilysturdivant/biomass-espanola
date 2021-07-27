@@ -142,7 +142,7 @@ tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Map', 'Percent of land'))
 wrap_plots(tab, bp)
 ```
 
-```{r}
+```{r scatterplot}
 # Scatterplot - AGB against backscatter ----------------------------------------
 plot_scatter_ext <- function(plot_means, y_var, name){
   
@@ -182,6 +182,45 @@ plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
                      str_c('comparison_scatter_', agb_code, '.png'))
 ggsave(plot_fp, width=20, height=20, units='cm')
 
+```
+
+```{r pixel-comparison-metrics}
+# Load
+smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+                           str_c('summary_diffs_BaccGlobCCI.csv'))
+sum_tbl <- read_csv(smmry_diff_fp)
+
+# Experiment with views
+sum_tbl %>% select(MBD, name, mask) %>% 
+  ggplot(aes(x=mask, y = MBD, color = name)) +
+  geom_point() 
+
+long_tbl <- sum_tbl %>% 
+  rename(product = name) %>% 
+  pivot_longer(r.squared:med_diff, names_repair = 'unique')
+
+long_tbl %>% 
+  filter(mask == 'Total',
+         name %in% c('r.squared', 'RMSD', 'MBD', 'bias')) %>% 
+  ggplot(aes(x = product, y = value, color = product)) +
+  geom_point() +
+  facet_wrap(vars(name), scales = 'free_y') +
+  theme(axis.title = element_blank())
+
+long_tbl %>% 
+  filter(name %in% c('r.squared', 'RMSD', 'MBD', 'bias')) %>% 
+  ggplot(aes(x = product, y = value, color = product)) +
+  geom_point() +
+  facet_grid(rows = vars(name), cols = vars(mask), scales = 'free_y') +
+  theme(axis.title = element_blank())
+
+long_tbl %>% 
+  filter(name %in% c('r.squared', 'RMSD', 'MBD', 'bias'), 
+         mask %in% c('TC', 'BGS')) %>% 
+  ggplot(aes(x = mask, y = value, color = product)) +
+  geom_point() +
+  facet_wrap(vars(name), scales = 'free_y') +
+  theme(axis.title = element_blank())
 ```
 
 

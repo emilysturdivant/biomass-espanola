@@ -85,10 +85,11 @@ agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_l
 agb_dir <- file.path(modeling_dir, g0_variant)
 
 # 07 - External map filepaths ----
-glob_fp <- file.path(tidy_dir, 'biomass_maps', "GlobBiomass/N40W100_agb_crop_hti.tif")
-esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
-avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
-bacc_fp <- file.path(tidy_dir, 'biomass_maps', "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
+glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/Glob_agb10_hti.tif")
+esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_hti.tif")
+avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_hti.tif")
+bacc_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti.tif")
+bacc_res_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti_resCCI.tif")
 
 agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
 
@@ -102,7 +103,7 @@ agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
                 avit = list(name = 'Avitabile',
                             fp = avit_fp), 
                 bacc = list(name = 'Baccini',
-                            fp = bacc_fp))
+                            fp = bacc_res_fp))
 
 comparison_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
 plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
@@ -121,3 +122,25 @@ bouvet_palette <- c('#9f4d28', '#cc9e45', '#feee5e', '#65b438', '#34782d')
 agb_pal <- list(colors = agb1_palette,
                 min = 0, 
                 max = 120)
+
+# Functions ----
+resample_to_raster <- function(agb_fp, ext_fp, agb_res_fp, method = 'bilinear') {
+  
+  in_dtype <- raster::dataType(raster::raster(agb_fp))
+  
+  # Crop to intersection of the two extents
+  out <- crop_to_intersecting_extents(terra::rast(agb_fp), terra::rast(ext_fp))
+  agb_ras <- out[[1]]
+  agb_ext <- out[[2]]
+  
+  # Resample our AGB to external resolution
+  agb_res <- agb_ras %>% terra::resample(agb_ext, method=method)
+  
+  # Crop internal again
+  agb_res <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r2=F)
+  
+  # Save resampled AGB
+  agb_res %>% terra::writeRaster(filename = agb_res_fp, 
+                                 overwrite = TRUE, 
+                                 datatype = in_dtype)
+}

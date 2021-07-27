@@ -51,7 +51,7 @@ crop_and_set_NA <- function(in_fp, crop_fp, out_fp = NA, bb){
   }
 }
 
-crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp, na = NA){
+crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp, na = NA, dtype = 'INT2S'){
   # Function to crop and mask raster to polygon
   
   # Filepath for temp file
@@ -79,13 +79,13 @@ crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp, na = NA){
   }
   
   # Mask
-  in_dtype <- raster::dataType(raster::raster(tmp_fp))
+  if (is.na(dtype)) dtype <- raster::dataType(raster::raster(tmp_fp))
   r %>% 
     terra::mask(msk_poly, 
                 inverse=FALSE,
                 filename = out_fp, 
                 overwrite = TRUE, 
-                datatype = in_dtype) 
+                datatype = dtype) 
 }
 
 # crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_value=NA, overwrite=F){
@@ -264,12 +264,11 @@ bb <- c(e$xmin, e$ymin, e$xmax, e$ymax)
 
 land_poly <- terra::vect(hti_poly_fp)
 
-# Download CCI LC 2015 v.2.0.7 using FileZilla ----
+# CCI Landcover ----
+# Download CCI LC 2015 v.2.0.7 using FileZilla 
 # Crop to our Haiti extent and convert 0s to NA
 in_fp <- file.path(raw_lc_dir, "ESA_CCI/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif")
-crop_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2015_v207_crop.tif")
 lc_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2015_v207_hti.tif")
-crop_and_set_NA(in_fp, crop_fp, lc_fp, bb)
 crop_and_mask_to_polygon(in_fp, land_poly, lc_fp, na = 0)
 
 # Download CCI LC v2.1.1 using CDS API in Python ----
@@ -298,73 +297,54 @@ r %>%
   writeRaster(crop_fp, options=c("dstnodata=-99999"), overwrite=T)
 crop_and_mask_to_polygon(crop_fp, land_poly, lc_fp, na = 0)
 
+# Resample LC to ESA grid ----
+in_fp <- lc_fps$haiti
+lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
+resample_to_raster(in_fp, agb_fps$esa$fp, lc_res_fp)
+
+# Resample our AGB to ESA grid for comparison ----
+agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fps$internal$fp),
+                    '_resCCI.tif')
+resample_to_raster(agb_fps$internal$fp, agb_fps$esa$fp, agb_res_fp)
+
 # GlobBiomass ------
 # Crop GlobBiomass to our Hispaniola extent and convert 0s to NA
 in_fp <- file.path(raw_ext_maps_dir, "GlobBiomass/N40W100_agb.tif")
-crop_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_crop.tif")
-crop_and_set_NA(in_fp, crop_fp, glob_fp, bb)
+glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/Glob_agb10_hti.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, glob_fp, na = 0)
 
 # Do the same for error (per-pixel uncertainty expressed as standard error in m3/ha)
 in_fp <- file.path(raw_ext_maps_dir, "GlobBiomass/N40W100_agb_err.tif")
-crop_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_err_crop.tif")
-out_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_err_crop_hti.tif")
-# crop_and_set_NA(in_fp, crop_fp, out_fp, bb)
-# crop_and_mask_to_polygon(in_fp, land_poly, out_fp, na = 0)
-
-# Set 0 to NA
-r <- terra::rast(crop_fp)
-terra::NAflag(r) <- 0
-
-# Mask
-in_dtype <- raster::dataType(raster::raster(crop_fp))
-r %>% 
-  terra::mask(land_poly, 
-              inverse=FALSE,
-              filename = out_fp, 
-              overwrite = TRUE, 
-              datatype = in_dtype) 
+glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/Glob_agb10_err_hti.tif")
+crop_and_mask_to_polygon(in_fp, land_poly, glob_fp, na = 0)
 
 # ESA ------
 # http://data.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/2017/v1.0/geotiff
 # ftp://anon-ftp.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/2017/v1.0/geotiff/
 # Crop ESA to our Hispaniola extent and convert 0s to NA
 in_fp <- file.path(raw_ext_maps_dir, "ESA_CCI/N40W100_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2017-fv1.0.tif")
-crop_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_crop.tif")
-# out_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_cropNA.tif")
-# crop_and_set_NA(in_fp, esa_fp, out_fp, bb)
-
+esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_hti.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, esa_fp, na = 0)
 
-# Set 0 to NA
-in_dtype <- raster::dataType(raster::raster(crop_fp))
-r <- terra::rast(crop_fp)
-terra::NAflag(r) <- 0
-
-# Mask
-in_dtype <- raster::dataType(raster::raster(crop_fp))
-r %>% 
-  terra::mask(land_poly, 
-              inverse=FALSE,
-              filename = esa_fp, 
-              overwrite = TRUE, 
-              datatype = in_dtype) 
+# Do the same for SD
+in_fp <- file.path(raw_ext_maps_dir, "ESA_CCI/N40W100_ESACCI-BIOMASS-L4-AGB_SD-MERGED-100m-2017-fv1.0.tif")
+esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_SD_hti.tif")
+crop_and_mask_to_polygon(in_fp, land_poly, esa_fp, na = 0)
 
 # Avitabile  ------
 in_fp <- file.path(raw_ext_maps_dir, "Avitabile/Avitabile_AGB_Map.tif")
-# avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop.tif")
-# crop_and_set_NA(in_fp, avit_fp, bb=bb)
-
-avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop_hti.tif")
+avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_hti.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, avit_fp, na = NA)
 
 # Baccini -----
+# https://data.globalforestwatch.org/datasets/8f93a6f94a414f9588ce4657a39c59ff_1
+# http://gfw-data.s3.amazonaws.com/climate/WHRC_biomass/WHRC_V4/Processed/20N_080W_t_aboveground_biomass_ha_2000.tif
 in_fp <- file.path(raw_ext_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000.tif")
-bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif")
-# crop_and_set_NA(in_fp, bacc_fp, bb=bb)
-
-bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop_hti.tif")
+bacc_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, bacc_fp, na = NA)
+
+bacc_res_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti_resCCI.tif")
+resample_to_raster(bacc_fp, agb_fps$esa$fp, bacc_res_fp)
 
 # Biomass loss from Baccini ------
 in_fp <- file.path(raw_ext_maps_dir, "Baccini/Forest_Biomass_Loss/AGLB_Deforested_Tropical_America_2000_crop.tif")

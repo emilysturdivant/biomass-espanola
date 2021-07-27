@@ -19,6 +19,10 @@ if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 # Filepaths
 results_dir <- 'data/results'
 tidy_dir <- 'data/tidy'
+raw_ext_maps_dir <- 'data/raw/biomass_maps'
+raw_lc_dir <- "data/raw/landcover"
+tidy_maps_dir <- 'data/tidy/biomass_maps'
+tidy_lc_dir <- 'data/tidy/landcover'
 
 # 01
 stems_fp_in <- "data/species_and_wds/haiti_data_wds2.csv"
@@ -36,7 +40,8 @@ raw_dir <- file.path('data/raw/ALOS', year)
 g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
 masks_dir <- file.path(g0_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-lc_pols_fp <- file.path(tidy_dir, "landcover/Haiti2017_Clip_polys.gpkg")
+lc_pols_fp <- file.path(tidy_dir, "landcover/Lemoiner/Haiti2017_Clip_polys.gpkg")
+lc_res_fp <- file.path(tidy_dir, 'landcover', 'Lemoiner', 'Haiti2017_agbres.tif')
 
 # 03
 g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
@@ -48,8 +53,8 @@ agb_l0_fp <- file.path(modeling_dir, g0_variant, str_c("agb_l0_", g0_variant, ".
 masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 
-# 05
-# Set variables ----
+# 05 ----
+# Set variables 
 rmse_cv <- 21.2
 lc_stat <-  'median'
 input_level <- 'l2_mask'
@@ -61,8 +66,8 @@ agb_dir <- file.path('data', 'modeling', code, g0_variant)
 (agb_masked_fp <- list.files(agb_dir, str_glue('agb_l2.*{mask_level}\\.tif'), 
                              full.names = TRUE))
 
-lc_fps <- c("data/raw/landcover/Lemoiner/Haiti2017_Clip.tif", 
-            "data/raw/landcover/Lemoiner/DR_2017_clip.tif")
+lc_fps <- list(haiti = file.path(raw_lc_dir, "Lemoiner/Haiti2017_Clip.tif"), 
+               dr = file.path(raw_lc_dir, "Lemoiner/DR_2017_clip.tif"))
 
 # Output filepaths
 agb_by_lc_prefix <- file.path(agb_dir, 'agb_by_landcover', 
@@ -75,12 +80,11 @@ agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_leve
 agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}_sd.tif'))
 
 # 06
-raw_ext_maps_dir <- 'data/raw/biomass_maps'
 
 # 07
 agb_dir <- file.path(modeling_dir, g0_variant)
 
-# 07 - External map filepaths
+# 07 - External map filepaths ----
 glob_fp <- file.path(tidy_dir, 'biomass_maps', "GlobBiomass/N40W100_agb_crop_hti.tif")
 esa_fp <- file.path(tidy_dir, 'biomass_maps', "ESA_CCI/ESA_agb17_crop_hti.tif")
 avit_fp <- file.path(tidy_dir, 'biomass_maps', "Avitabile/Avitabile_AGB_crop_hti.tif")
@@ -99,6 +103,10 @@ agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
                             fp = avit_fp), 
                 bacc = list(name = 'Baccini',
                             fp = bacc_fp))
+
+comparison_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
+plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
+ext_report_csv <- file.path('data/reports', str_glue('07_ext_comparison_metrics_{agb_code}.csv'))
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')

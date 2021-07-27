@@ -26,13 +26,10 @@ source('src/R/initialize_vars.R')
 input_level <- agb_input_level
 
 # External map filepaths -------------------------------------------------------
-tidy_maps_dir <- 'data/tidy/biomass_maps'
 glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_crop_hti.tif")
 esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_crop_hti.tif")
 avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop_hti.tif")
 bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif")
-
-agb_fps
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 crop_and_set_NA <- function(in_fp, crop_fp, out_fp = NA, bb){
@@ -267,19 +264,39 @@ bb <- c(e$xmin, e$ymin, e$xmax, e$ymax)
 
 land_poly <- terra::vect(hti_poly_fp)
 
-# Land cover from zipped file ------
-# **File too big to unzip and haven't been able to access without unzipping.**
-in_fp <- "~/Downloads/dataset-satellite-land-cover-9bc57a16-b204-4a4a-a478-6c4a3d5510cc.zip/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.nc"
-crop_fp <- file.path(raw_ext_maps_dir, "Landcover/C3S-LC-L4-LCCS-Map-300m-P1Y-2018-v2.1.1.tif")
-r <- terra::rast(in_fp)
-gdalwarp(srcfile = in_fp, dstfile = crop_fp, te = bb,
-         tr=c(xres(r), yres(r)), tap=T, overwrite=T)
-r <- read_stars(crop_fp)
-r[r == 0] <- NA
-r %>% as("Raster") %>%
-  writeRaster("",
-              options=c("dstnodata=-99999"), overwrite=T)
-lc_fp <- ""
+# Download CCI LC 2015 v.2.0.7 using FileZilla ----
+# Crop to our Haiti extent and convert 0s to NA
+in_fp <- file.path(raw_lc_dir, "ESA_CCI/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif")
+crop_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2015_v207_crop.tif")
+lc_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2015_v207_hti.tif")
+crop_and_set_NA(in_fp, crop_fp, lc_fp, bb)
+crop_and_mask_to_polygon(in_fp, land_poly, lc_fp, na = 0)
+
+# Download CCI LC v2.1.1 using CDS API in Python ----
+library('reticulate')
+py_run_file('src/python/download_esa_landcover.py')
+
+# Land cover v2.1.1 from netCDF file 
+in_fp <- file.path(raw_lc_dir, "ESA_CCI/C3S-LC-L4-LCCS-Map-300m-P1Y-2019-v2.1.1.nc")
+crop_fp <- file.path(tidy_lc_dir, "ESA_CCI/C3S-LC-L4-LCCS-Map-300m-P1Y-2019-v2.1.1_crop.tif")
+lc_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2019_v211_hti.tif")
+r <- terra::rast(str_glue('NETCDF:"{in_fp}":lccs_class'))
+r %>% 
+  terra::crop(agb_ras) %>% 
+  as("Raster") %>%
+  writeRaster(crop_fp, options=c("dstnodata=-99999"), overwrite=T)
+crop_and_mask_to_polygon(crop_fp, land_poly, lc_fp, na = 0)
+
+# Land cover v2.1.1 from netCDF file 
+in_fp <- file.path(raw_lc_dir, "ESA_CCI/C3S-LC-L4-LCCS-Map-300m-P1Y-2017-v2.1.1.nc")
+crop_fp <- file.path(tidy_lc_dir, "ESA_CCI/C3S-LC-L4-LCCS-Map-300m-P1Y-2017-v2.1.1_crop.tif")
+lc_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2017_v211_hti.tif")
+r <- terra::rast(str_glue('NETCDF:"{in_fp}":lccs_class'))
+r %>% 
+  terra::crop(agb_ras) %>% 
+  as("Raster") %>%
+  writeRaster(crop_fp, options=c("dstnodata=-99999"), overwrite=T)
+crop_and_mask_to_polygon(crop_fp, land_poly, lc_fp, na = 0)
 
 # GlobBiomass ------
 # Crop GlobBiomass to our Hispaniola extent and convert 0s to NA

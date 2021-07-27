@@ -14,20 +14,178 @@ editor_options:
 library('sf')
 library('terra')
 library('tidyverse')
+library('patchwork')
 
 source('src/R/initialize_vars.R')
-agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
 ```
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
 ### All four externals
 
-```{r side-by-side maps}
+
+```{r external-histograms}
+# Histogram of external map ----
+plot_agb_hist_density <- function(x, agb_pal, bwidth=5, sample_size=100000, 
+                                  xlim = c(min=0, max=300)) {
+  
+  # Get values
+  lyr_name <- x$name
+  ras <- terra::rast(x$fp)
+  df <- terra::values(ras, dataframe = TRUE) %>% 
+    rename(value = 1) %>% 
+    drop_na()
+
+  # Get statistics
+  mu <- mean(df$value, na.rm=T)
+  sd1 <- sd(df$value, na.rm=T)
+  mn <- min(df$value, na.rm=T)
+  mx <- max(df$value, na.rm=T)
+  
+  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
+  cuts_pts <- data.frame(x = c(mn, mx), 
+                         y = c(0, 0))
+  
+  # Sample
+  if (nrow(df) > sample_size) {
+    print("Sampling...")
+    df <- df %>% sample_n(sample_size)
+  }
+  
+  # Plot
+  p <- ggplot(df, aes(x=value)) + 
+    geom_histogram(aes(y=..density.., fill = ..x..), binwidth = bwidth,
+                   show.legend = FALSE)+
+    scale_fill_gradientn(colors = agb_pal$colors, 
+                         # breaks = c(-60, -30, 0, 30, 60),
+                         # labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
+                         name = expression(paste("AGB (Mg ha"^"-1", ")")),
+                         # na.value='lightgray', 
+                         limits = c(agb_pal$min, agb_pal$max),
+                         oob = scales::squish,
+                         guide = guide_colorbar(barheight = 2)
+    ) + 
+    geom_density(alpha=.2,
+                 show.legend = FALSE) + 
+    scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
+                       # breaks = seq(min, max, 100),
+                       # limits = c(min, max)
+    ) +
+    coord_cartesian(xlim = xlim) +
+    geom_vline(mapping = aes(xintercept = value,
+                             colour = ref),
+               data = cuts,
+               color="black", 
+               # linetype="solid", 
+               linetype="dashed", 
+               size=.5,
+               show.legend = FALSE) +
+    geom_text(mapping = aes(x = value,
+                            y = Inf,
+                            label = ref,
+                            hjust = -.1,
+                            vjust = 1),
+              data = cuts) +
+    ggtitle(lyr_name) +
+    theme_minimal() +
+    theme(axis.title.y = element_blank(),
+          axis.text.y = element_blank(), 
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank())
+}
+
+bacc_hist <- plot_agb_hist_density(agb_fps$bacc, agb_pal)
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Baccini.png'))
+dir.create(dirname(hist_fp))
+# ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+
+(esa_hist <- plot_agb_hist_density(agb_fps$esa, agb_pal))
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_ESA.png'))
+# ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+
+(glob_hist <- plot_agb_hist_density(agb_fps$glob, agb_pal, xlim=NULL))
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_GlobB.png'))
+# ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+
+(avit_hist <- plot_agb_hist_density(agb_fps$avit, agb_pal, xlim=NULL))
+hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Avit.png'))
+# ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+```
+
+
+```{r external-pct-na}
+ext_metrics <- read_csv(ext_report_csv)
+df <- ext_metrics %>% 
+  pivot_longer(cols = starts_with('pct'), 
+               names_prefix = 'pct_', 
+               names_to = 'group', 
+               values_to = 'pct') %>% 
+  filter(name != 'internal')
+
+(bp <- ggplot(df, 
+              aes(x=pct, y=map_name, fill=group)) +
+    geom_bar(stat = "identity", position = 'fill') +
+    theme_minimal() + 
+    labs(fill="",x=NULL,y=NULL,title="",caption=""))
+
+# ggsave(file.path('data/reports/external_agb', '07_external_pcts_masked.png'),
+#        width = 4, height = 2, dpi = 120)
+
+# Table
+(d2 <- df %>% 
+    mutate(pct_coverage = str_c(round(pct*100, digits = 1), '%')) %>% 
+    arrange(desc(pct)) %>% 
+    filter(!group %in% c('NA')) %>% 
+    select(map_name, pct_coverage))
+
+tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Map', 'Percent of land'))
+
+# Display side-by-side
+wrap_plots(tab, bp)
+```
+
+```{r}
+# Scatterplot - AGB against backscatter ----------------------------------------
+plot_scatter_ext <- function(plot_means, y_var, name){
+  
+  df <- plot_means %>% transmute(diff = .data[[y_var]] - AGB_ha) %>% deframe
+  
+  ggplot(plot_means, aes(x=AGB_ha, y=.data[[y_var]])) + 
+    geom_point() +
+    labs(x = expression(paste("Observed AGB (Mg ha"^"-1", ")")), 
+         y = expression(paste("Estimated AGB (Mg ha"^"-1", ")")), 
+         subtitle = str_c(name, ", mean difference: ", 
+                          round(mean(df, na.rm=T), 1), " +/- ", 
+                          round(sd(df, na.rm=T), 1), " t/ha")) +
+    coord_cartesian(xlim=c(0,160), ylim=c(0,160)) +
+    geom_abline(intercept = 0, slope = 1, linetype='dashed', alpha=.5) +
+    geom_text(label=rownames(plot_means), hjust=0, vjust=0, size=3.5) + 
+    theme_minimal()
+  
+}
+
+# Load data
+plot_means <- write_csv(plot_ext_csv)
+
+# Extract just AGB and backscatter as dataframe
+p0 <- plot_scatter_ext(plot_means, 'internal', name='Our AGB')
+p1 <- plot_scatter_ext(plot_means, 'glob', name='GlobBiomass')
+p2 <- plot_scatter_ext(plot_means, 'esa', name='ESA')
+p3 <- plot_scatter_ext(plot_means, 'avit', name='Avitabile')
+p4 <- plot_scatter_ext(plot_means, 'bacc', name='Baccini')
+
+# Save
+plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
+                     str_c('comparison_scatter_', agb_code, '_ourAGB.png'))
+ggsave(plot_fp, p0, width=10, height=10, units='cm')
+
+(p1 | p2 )/ (p3 | p4)
+plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
+                     str_c('comparison_scatter_', agb_code, '.png'))
+ggsave(plot_fp, width=20, height=20, units='cm')
+
+```
+
+
+```{r side-by-side maps1}
 plot_agb_map <- function(x, mask_poly = NULL, borders = NULL, resolution = 200) {
   
   lyr_name <- x$name
@@ -44,14 +202,7 @@ plot_agb_map <- function(x, mask_poly = NULL, borders = NULL, resolution = 200) 
   } else if(fact < 1) {
     print('WARNING: input map resolution is greater than target')
   }
-  
-  # if(resx == 0.00022) {
-  #   agg_fact = resolution/25
-  #   agb <- terra::aggregate(agb, fact = 4)
-  # } else if (resx > 0.00089) {
-  #   print('NOTE: AGB map resolution is greater than 0.00089')
-  # }
-  
+
   # Convert raster to dataframe
   agb_a_df <- agb %>% as.data.frame(xy = T) %>% rename(agb = 3)
 
@@ -113,30 +264,20 @@ if(!file.exists(urb_poly_fp)) {
 
 # Haiti administrative boundaries
 hti_adm1 <- st_read(file.path(tidy_dir, 'contextual_data', 'HTI_adm', 'HTI_adm1.shp'))
-
-# List of AGB maps
-agb_fps <- list(internal = list(name = 'This study',
-                     fp = agb_fp),
-                glob = list(name = 'GlobBiomass',
-                     fp = glob_fp), 
-                esa = list(name = 'CCI', 
-                     fp = esa_fp), 
-                avit = list(name = 'Avitabile',
-                     fp = avit_fp), 
-                bacc = list(name = 'Baccini',
-                     fp = bacc_fp))
 ```
 
 
 ```{r individual maps}
-bacc_map <- plot_agb_map(agb_fps$bacc, urban, hti_adm1, 100)
+(agb_map <- plot_agb_map(agb_fps$internal, urban, hti_adm1, 400))
 ```
 
 
 ```{r side-by-side maps}
+resolution <- 400
+
 # Extract plot means for all AGB maps
 maps <- agb_fps %>% 
-  purrr::map(plot_agb_map, urban, hti_adm1, resolution = 400) 
+  purrr::map(plot_agb_map, urban, hti_adm1, resolution = resolution) 
 
 # Set output dir for side-by-side maps
 out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code, 'sidebyside')
@@ -145,47 +286,48 @@ dir.create(out_dir)
 # Ours, with GlobBiomass, ESA, and Baccini
 (all_maps <- maps[c(1,2,3,5)] %>% 
   wrap_plots(nrow = 2, guides = 'collect'))
-map_fp <- file.path(out_dir, str_glue("sidebyside_Us_GlobB_ESA_Bacc_400m.png"))
-ggsave(map_fp, width=12, height=10, dpi=120)
+map_fp <- file.path(out_dir, str_glue("sidebyside_Us_GlobB_ESA_Bacc_{resolution}m.png"))
+# ggsave(map_fp, width=12, height=10, dpi=120)
 
 # 4 external maps
 (all_maps <- maps[c(4,2,3,5)] %>% 
   wrap_plots(nrow = 2, guides = 'collect'))
-map_fp <- file.path(out_dir, str_glue("sidebyside_Avit_GlobB_ESA_Bacc_400m.png"))
-ggsave(map_fp, width=12, height=10, dpi=120)
+map_fp <- file.path(out_dir, str_glue("sidebyside_Avit_GlobB_ESA_Bacc_{resolution}m.png"))
+# ggsave(map_fp, width=12, height=10, dpi=120)
 
 # All 5, with ours bigger
-four <- ((maps$bacc + maps$avit) / (maps$glob + maps$esa)) &
-  theme(legend.position = 'none')
-(all_maps <- (maps$internal + plot_layout(guides = 'keep')) / four)
-map_fp <- file.path(out_dir, str_glue("all5_400m.png"))
-ggsave(map_fp, width=5, height=8, dpi=120)
+# four <- ((maps$bacc + maps$avit) / (maps$glob + maps$esa)) &
+#   theme(legend.position = 'none')
+# all_maps <- (maps$internal + plot_layout(guides = 'keep')) / four
+# map_fp <- file.path(out_dir, str_glue("all5_{resolution}m.png"))
+# ggsave(map_fp, all_maps, width=5, height=8, dpi=120)
 
 
 
-# Layout maps
-maps$avit + maps$glob +
-  plot_layout(nrow = 2, guides = 'collect')
-
-map_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
-                    str_glue("sidebyside_GlobB_ESA.png"))
-ggsave(map_fp, width=12, height=5, dpi=120)
-
-# GlobBiomass v. ESA
-maps$GlobBiomass + maps$ESA + plot_layout(guides = 'collect')
-map_fp <- file.path(out_dir, str_glue("sidebyside_GlobB_ESA.png"))
-ggsave(map_fp, width=12, height=5, dpi=120)
-
-# Our AGB and ESA
-maps$internal + maps$ESA + plot_layout(guides = 'collect')
-
-maps_subset <- maps[c(1, 3)]
-maps_subset %>% wrap_plots(guides = 'collect') +
-  plot_annotation(tag_levels = list(names(maps_subset)))
-map_fp <- file.path(out_dir, str_glue("sidebyside_{agb_code}_ESA.png"))
-ggsave(map_fp, width=12, height=5, dpi=120)
-
-# Separately
-agb_map <- plot_agb_map(list(name = 'Internal', fp = agb_fp), urban, hti_adm1)
+# # Layout maps
+# maps$avit + maps$glob +
+#   plot_layout(nrow = 2, guides = 'collect')
+# 
+# map_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
+#                     str_glue("sidebyside_GlobB_ESA.png"))
+# ggsave(map_fp, width=12, height=5, dpi=120)
+# 
+# # GlobBiomass v. ESA
+# maps$GlobBiomass + maps$ESA + plot_layout(guides = 'collect')
+# map_fp <- file.path(out_dir, str_glue("sidebyside_GlobB_ESA.png"))
+# ggsave(map_fp, width=12, height=5, dpi=120)
+# 
+# # Our AGB and ESA
+# maps$internal + maps$ESA + plot_layout(guides = 'collect')
+# 
+# maps_subset <- maps[c(1, 3)]
+# maps_subset %>% wrap_plots(guides = 'collect') +
+#   plot_annotation(tag_levels = list(names(maps_subset)))
+# map_fp <- file.path(out_dir, str_glue("sidebyside_{agb_code}_ESA.png"))
+# ggsave(map_fp, width=12, height=5, dpi=120)
+# 
+# # Separately
+# agb_map <- plot_agb_map(list(name = 'Internal', fp = agb_fp), urban, hti_adm1)
 ```
+
 

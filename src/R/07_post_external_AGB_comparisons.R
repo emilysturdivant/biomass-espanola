@@ -27,6 +27,7 @@
 library('sf')
 library('terra')
 library('tidyverse')
+library('patchwork')
 
 source('src/R/initialize_vars.R')
 
@@ -183,12 +184,68 @@ summarize_raster_differences <- function(int_r, ext_r, out_fp = NULL){
             dim(df)[1]))
   s_tbl <- bind_rows(s, cs)
   
+  diff_stats <- df %>% 
+    group_by(name) %>% 
+    summarize(
+      r.squared = summary(lm(est ~ AGB_ha))$r.squared,
+      adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
+      N = sum(!is.na(diff)), 
+      RMSD = sqrt(mean(diff^2, na.rm=T)),
+      bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
+      MBD = mean(diff)
+    ) %>% 
+    mutate(across(where(is.numeric), ~ signif(.x, 4)))
+  
+  
   if(is.character(out_fp)){
     s_tbl %>% write_csv(out_fp)
   }
   
   # Return
   return(list(diffs=df, summary=s_tbl))
+}
+
+summarize_raster_differences <- function(ext_r, ext_name, int_r, out_fp = NULL){
+  
+  # Make DF
+  r_stack <- rast(list(internal = int_r, external = ext_r))
+  names(r_stack) <- c('internal', 'external')
+  df <- terra::as.data.frame(r_stack, na.rm = TRUE)
+  df <- df %>% mutate(value = internal - external)
+  
+  # Distribution of external values
+  dist_ext <- summary(df$external) %>% 
+    tibble(names=names(.), value=.) %>% 
+    mutate(value = as.numeric(value))
+  
+  # Get metrics for differences
+  diff_stats <- df %>% 
+    # group_by(name) %>% 
+    summarize(
+      r.squared = summary(lm(external ~ internal))$r.squared,
+      adj.r.squared = summary(lm(external ~ internal))$adj.r.squared,
+      N = sum(!is.na(value)), 
+      RMSD = sqrt(mean(value^2, na.rm=T)),
+      bias = abs(sum(value, na.rm=T) / sum(!is.na(value))),
+      MBD = mean(value), 
+      IQR = IQR(value), 
+      SD = sd(value), 
+      MAD = mean(abs(value)),
+      cor.coef = cor.test(x=internal, y=external, method = 'pearson')$estimate,
+      min_diff = min(value),
+      max_diff = max(value),
+      med_diff = median(value)
+    ) %>% 
+    mutate(across(where(is.numeric), ~ signif(.x, 4)),
+           name = ext_name)
+  
+  # Save
+  if(is.character(out_fp)){
+    diff_stats %>% write_csv(out_fp)
+  }
+  
+  # Return
+  return(list(diffs=df, summary=diff_stats))
 }
 
 plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=10000, 
@@ -199,9 +256,7 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
   sd1 <- sd(df$value, na.rm=T)
   mn <- min(df$value, na.rm=T)
   mx <- max(df$value, na.rm=T)
-  # cuts <- data.frame(ref = c('mean', 'SD', 'SD'), 
-  #                    value = c(mu, mu-sd1, mu+sd1),
-  #                    stringsAsFactors = F)
+
   cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
   cuts_pts <- data.frame(x = c(mn, mx), 
                          y = c(0, 0))
@@ -263,29 +318,41 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
   return(p)
 }
 
-scatter_AGB_differences_from_DF <- function(df, ext_name, prefix, filename = NA,
-                                            sample_size = 5000000){
+scatter_differences <- function(df, ext_name, prefix, filename = NA,
+                                            sample_size = 5000000, xlim = c(0, 300)){
   
   # Sample
-  if (length(df[[1]]) > 500000) {
+  if (length(df[[1]]) > sample_size) {
     print("Sampling...")
     df <- df %>% sample_n(sample_size)
   }
   
   # Plot
-  p <- ggplot(df, aes(x=external, y=internal)) + 
-    # geom_point(alpha=0.1, size=0.1, fill="royalblue", color="royalblue") +
-    # stat_density_2d(aes(fill = ..level..), geom = "polygon") +
-    geom_bin2d(bins = 75) +
+  p <- ggplot(df, aes(x=internal, y=external)) + 
+    stat_density2d(geom="tile", 
+                   aes(fill = after_stat(density),
+                       alpha = after_stat(density)^0.1), 
+                   contour_var = 'count',
+                   contour=FALSE) + 
+    # geom_bin2d(bins = 75) +
     # geom_hex(bins = 150) +
     scale_fill_viridis_c(option = 'magma', direction = -1) +
-    # scale_fill_viridis_c(option = 'magma', direction = -1, trans = 'log') +
-    labs(y = expression(paste("Internal AGB estimate")), 
-         x = expression(paste("External AGB estimate"))) +
-    coord_fixed(ratio = 1, xlim=c(0, 300), ylim=c(0, 300)) +
+    scale_alpha('alpha') +
+    scale_y_continuous(name = str_c("External AGB estimate (t/ha)"),
+                       breaks = seq(xlim[[1]], xlim[[2]], 100), 
+                       limits = xlim,
+                       expand = expansion()
+    ) +
+    scale_x_continuous(name = str_c("Internal AGB estimate (t/ha)"),
+                       breaks = seq(xlim[[1]], xlim[[2]], 100), 
+                       limits = xlim,
+                       expand = expansion()
+    ) +
+    coord_fixed(ratio = 1, xlim = xlim) +
     theme_minimal() + 
-    geom_smooth(method="lm", #formula=y~0+x, 
-                se=TRUE, fullrange=TRUE, level=0.95, col='black', size=.25)
+    geom_abline(intercept = 0, slope = 1, col='black', size=.25) +
+    geom_smooth(method="lm", se=FALSE, fullrange=TRUE, level=0.95, 
+                col='black', size=.25, linetype = 'dashed')
   
   # Save/Return
   if(!is.na(filename)) {
@@ -353,7 +420,7 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_code =
   # Input datatype
   in_dtype <- raster::dataType(raster::raster(agb_fp))
   
-  # Resample AGB to External
+  # Resample AGB to External ----
   if(!file.exists(agb_res_fp)){
     
     # Crop to intersection of the two extents
@@ -373,7 +440,7 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_code =
                                    datatype = in_dtype)
   } 
   
-  # Difference map
+  # Difference map ----
   if(file.exists(diff_fp)){
     
     diff_ras <- terra::rast(diff_fp)
@@ -391,26 +458,26 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_code =
                                     datatype = in_dtype)
   }
   
-  # Get summary stats of differences and Pearson correlation
+  # Summarize differences ----
   # Crop external to intersection of the two extents
   agb_res <- terra::rast(agb_res_fp)
   agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
   
   # Summary of differences
   smmry_diff_fp <- file.path(out_dir, str_c('summary_diff_', ext_name, '_v_', agb_code, '.csv'))
-  df <- summarize_raster_differences(agb_res, agb_ext, smmry_diff_fp)
+  df <- summarize_raster_differences(agb_ext, ext_name, agb_res, smmry_diff_fp)
 
-  # Histogram
+  # Histogram ----
   hist_diff_fp <- file.path(out_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '.png'))
   p_hist <- plot_hist_density(df$diffs, -300, 300, bwidth=10, sample_size=500000,
                               ext_name, agb_code, filename = hist_diff_fp)
   
-  # Scatterplot
+  # Scatterplot ----
   scatter_diff_fp <- file.path(out_dir, str_c('scatter_diff_', ext_name, '_v_', agb_code, '.png'))
-  p_scatt <- scatter_AGB_differences_from_DF(df$diffs, ext_name, agb_code, 
+  p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
                                              filename = scatter_diff_fp)
   
-  # Spatial map of differences
+  # Spatial map of differences ----
   N <- df$summary %>% filter(names=='N') %>% dplyr::select(value) %>% deframe
   if (N < 3000000) {
     
@@ -440,7 +507,7 @@ get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_code) {
   agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
   
   # Summarize differences
-  out <- summarize_raster_differences(agb_res, agb_ext)
+  out <- summarize_raster_differences(agb_ext, ext_name, agb_res)
   
 }
 
@@ -501,7 +568,58 @@ get_pcts <- function(x) {
     select(count_land, pct_value, pct_NA)
 }
 
-# Run comparison and get graphics ----------------------------------------------
+# r2, RMSE, bias for external maps against our field data -----------------------------
+# Get plot backscatter mean to polygons
+plots_agb <- readRDS(field_agb_fp) %>% arrange(plot_no)
+
+# Extract plot means for all AGB maps
+plots2 <- agb_fps %>% 
+  purrr::map_dfc(extract_mean, plots_agb, TRUE) %>% 
+  mutate(across(everything(), ~ replace_na(.x, 0)))
+
+plot_means <- plots_agb %>% 
+  st_drop_geometry() %>% 
+  select(plot_no, AGB_ha) %>% 
+  mutate(AGB_ha = round(AGB_ha, 2)) %>% 
+  bind_cols(plots2) 
+
+# Save
+plot_ext_csv <- file.path(comparison_dir,
+                     str_c('field_plot_means_', agb_code, '.csv'))
+plot_means %>% write_csv(plot_ext_csv)
+
+# Get differences
+df <- plot_means %>% 
+  pivot_longer(cols = internal:bacc, values_to = 'est') %>% 
+  mutate(diff = est - AGB_ha) 
+
+diff_stats <- df %>% 
+  group_by(name) %>% 
+  summarize(
+    r.squared = summary(lm(est ~ AGB_ha))$r.squared,
+    adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
+    N = sum(!is.na(diff)), 
+    RMSD = sqrt(mean(diff^2, na.rm=T)),
+    bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
+    MBD = mean(diff)
+    ) %>% 
+  mutate(across(where(is.numeric), ~ signif(.x, 4)))
+
+# Percent of land area included in map ----
+ext_pcts <- agb_fps %>% purrr::map_dfr(get_pcts) %>% 
+  mutate(name = names(agb_fps),
+         map_name = map_chr(agb_fps, "name"))
+
+# Combine ----
+ext_metrics <- diff_stats %>% 
+  left_join(ext_pcts, by = c(name = 'name')) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+# Save as CSV
+ext_metrics %>% write_csv(ext_report_csv)
+
+# Compare pixel-to-pixel and get graphics ----------------------------------------------
+# Difference map, histogram, scatterplot, difference statistics
 glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
 bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
 rm(bacc_out)
@@ -519,8 +637,7 @@ avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
 avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
 
 ext_name <- 'Avitabile'
-out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
-hist_diff_fp <- file.path(out_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '_2.png'))
+hist_diff_fp <- file.path(comparison_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '_2.png'))
 p_hist <- plot_hist_density(avit_out$diffs, -300, 300, bwidth=5, sample_size=500000,
                             ext_name, agb_code, filename = hist_diff_fp)
 
@@ -536,206 +653,166 @@ summary_df <- plyr::join_all(
 summary_csv <- file.path(dirname(agb_fp), 'external_comparison', 
                          str_c('comparison_summaries_', agb_code, '.csv'))
 summary_df %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% 
-                        write_csv(summary_csv)
+  write_csv(summary_csv)
 
 rm(bacc_out, esa_out, avit_out, glob_out)
 
-# Get RMSE of external maps against our field data -----------------------------
-# Get plot backscatter mean to polygons
-plots_agb <- readRDS(field_agb_fp) %>% arrange(plot_no)
+# Comparison metrics by landcover ----------------------------------------------
+# lc <- terra::rast(lc_res_fp)
+# 
+# # Percentages of pix in each LC class ----
+# rvals <- values(lc)
+# df <- 
+#   tibble(group = c("Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs"), 
+#          count = c(sum(rvals==1, na.rm=TRUE), 
+#                    sum(rvals==2, na.rm=TRUE),
+#                    sum(rvals==3, na.rm=TRUE),
+#                    sum(rvals==4, na.rm=TRUE), 
+#                    sum(rvals==5, na.rm=TRUE),
+#                    sum(rvals==6, na.rm=TRUE))) %>% 
+#   mutate(pct = count / sum(count))
+# 
+# df %>% write_csv(file.path('data/reports', '07_lc_pixel_counts_ALOSres.csv'))
 
-# Extract plot means for all AGB maps
-plots2 <- agb_fps %>% 
-  purrr::map_dfc(extract_mean, plots_agb, TRUE) %>% 
-  mutate(across(everything(), ~ replace_na(.x, 0)))
-
-plot_means <- plots_agb %>% 
-  st_drop_geometry() %>% 
-  select(plot_no, AGB_ha) %>% 
-  mutate(AGB_ha = round(AGB_ha, 2)) %>% 
-  bind_cols(plots2) 
-
-df <- plot_means %>% 
-  pivot_longer(cols = internal:bacc, values_to = 'est') %>% 
-  mutate(diff = est - AGB_ha) 
-
-diff_stats <- df %>% 
-  group_by(name) %>% 
-  summarize(
-    r.squared = summary(lm(est ~ AGB_ha))$r.squared,
-    adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
-    N = sum(!is.na(diff)), 
-    RMSD = sqrt(mean(diff^2, na.rm=T)),
-    bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
-    MBD = mean(diff)
-    ) %>% 
-  mutate(across(where(is.numeric), ~ signif(.x, 4)))
-
-# Save
-tbl_csv <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
-                     str_c('07_comparison_rmse_', agb_code, '.csv'))
-diff_stats %>% write_csv(tbl_csv)
-
-# Percent of land area included in map ----
-ext_pcts <- agb_fps %>% purrr::map_dfr(get_pcts) %>% 
-  mutate(map = names(agb_fps),
-         map_name = map_chr(agb_fps, "name"))
-
-# Save as CSV
-ext_pcts_csv <- file.path('data/reports', str_glue('07_external_pcts_masked.csv'))
-ext_pcts %>% write_csv(ext_pcts_csv)
-
-# Combine ----
-ext_metrics <- diff_stats %>% 
-  left_join(ext_pcts, by = c(name = 'map')) %>% 
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
-
-# Save as CSV
-ext_report_csv <- file.path('data/reports', str_glue('07_ext_comparison_metrics.csv'))
-ext_metrics %>% write_csv(ext_report_csv)
-
-# Pie chart ----
-ext_pcts <- read_csv(ext_pcts_csv)
-df <- ext_pcts %>% 
-  pivot_longer(cols = starts_with('pct'), 
-               names_prefix = 'pct_', 
-               names_to = 'group', 
-               values_to = 'pct') %>% 
-  filter(map != 'internal')
-
-(bp <- ggplot(df, 
-              aes(x=pct, y=map_name, fill=group)) +
-    geom_bar(stat = "identity", position = 'fill') +
-    theme_minimal() + 
-    labs(fill="",x=NULL,y=NULL,title="",caption=""))
-
-# Table
-(d2 <- df %>% 
-    mutate(pct_coverage = str_c(round(pct*100, digits = 1), '%')) %>% 
-    arrange(desc(pct)) %>% 
-    filter(!group %in% c('NA')) %>% 
-    select(map_name, pct_coverage))
-
-tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Map', 'Percent of land'))
-
-# Display side-by-side
-wrap_plots(tab, bp)
-
-# Scatterplot - AGB against backscatter ----------------------------------------
-plot_scatter_ext <- function(plot_means, y_var, name){
+# Perform comparison ----
+resample_to_raster2 <- function(agb_fp, ext_fp, agb_res_fp, method = 'bilinear') {
   
-  ggplot(plot_means, aes(x=AGB_ha, y=.data[[y_var]])) + geom_point() +
-    labs(x = expression(paste("Observed AGB (Mg ha"^"-1", ")")), 
-         y = expression(paste("Estimated AGB (Mg ha"^"-1", ")")), 
-         subtitle = str_c(name, ", mean difference: ", 
-                          round(mean(df[[y_var]], na.rm=T), 1), " +/- ", 
-                          round(sd(df[[y_var]], na.rm=T), 1), " t/ha")) +
-    coord_cartesian(xlim=c(0,160), ylim=c(0,160)) +
-    geom_abline(intercept = 0, slope = 1, linetype='dashed', alpha=.5) +
-    geom_text(label=rownames(plot_means), hjust=0, vjust=0, size=3.5) + 
-    theme_minimal()
+  in_dtype <- raster::dataType(raster::raster(agb_fp))
   
+  # Crop to intersection of the two extents
+  out <- crop_to_intersecting_extents(terra::rast(agb_fp), terra::rast(ext_fp))
+  agb_ras <- out[[1]]
+  agb_ext <- out[[2]]
+  
+  # Resample our AGB to external resolution
+  agb_res <- agb_ras %>% terra::resample(agb_ext, method=method)
+  
+  # Crop internal again
+  agb_res <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r2=F)
+  
+  # Save resampled AGB
+  agb_res %>% terra::writeRaster(filename = agb_res_fp, 
+                                 overwrite = TRUE, 
+                                 datatype = in_dtype)
 }
 
-p0 <- plot_scatter_ext(plot_means, 'internal', name='Our AGB')
-p1 <- plot_scatter_ext(plot_means, 'GlobB', name='GlobBiomass')
-p2 <- plot_scatter_ext(plot_means, 'ESA', name='ESA')
-p3 <- plot_scatter_ext(plot_means, 'Avitabile', name='Avitabile')
-p4 <- plot_scatter_ext(plot_means, 'Baccini', name='Baccini')
-
-library('patchwork')
-(p1 | p2 )/ (p3 | p4)
-plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
-                     str_c('comparison_scatter_', agb_code, '.png'))
-ggsave(plot_fp, width=20, height=20, units='cm')
-
-plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
-                     str_c('comparison_scatter_', agb_code, '_ourAGB.png'))
-ggsave(plot_fp, p0, width=10, height=10, units='cm')
-
-# Histogram of external map ----
-plot_agb_hist_density <- function(x, agb_pal, bwidth=5, sample_size=1000000, 
-                                  xlim = c(min=0, max=300)) {
+x <- agb_fps$bacc
+ext_name <- x$name
+ext_fp <- x$fp
+agb_fp
+agb_code
+lc_fp <- lc_fps$haiti
+comparison_dir
   
-  # Get values
-  lyr_name <- x$name
-  ras <- terra::rast(x$fp)
-  df <- terra::values(ras, dataframe = TRUE) %>% 
-    rename(value = 1) %>% 
-    drop_na()
+compare_by_given_lc <- function(agb_x, agb_fp, agb_code, lc_fp,
+                                mskvals = 4, mask_code = 'TC', comparison_dir,
+                                return_obj = 'summary') {
+  
+  ext_name <- agb_x$name
+  ext_fp <- agb_x$fp
+  
+  # Mask AGB to given LC class
+  int_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(agb_code, '_resamp', ext_name, '_', mask_code, 'mask.tif'))
+  ext_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(ext_name, '_', mask_code, 'mask.tif'))
+  dir.create(dirname(ext_masked_fp), recursive = TRUE) 
+  
+  # Get intermediate filenames
+  tif_dir <- file.path(comparison_dir, 'diff_tifs')
+  dir.create(tif_dir, recursive = TRUE) 
+  
+  agb_res_fp <- file.path(tif_dir, str_c(agb_code, '_resamp_to', ext_name, '.tif'))
+  lc_res_fp <- file.path(tif_dir, str_c('LC_resamp_to', ext_name, '.tif'))
+  
+  # Mask internal AGB to given LC class
+  if (!file.exists(int_masked_fp)) {
 
-  # Get statistics
-  mu <- mean(df$value, na.rm=T)
-  sd1 <- sd(df$value, na.rm=T)
-  mn <- min(df$value, na.rm=T)
-  mx <- max(df$value, na.rm=T)
-  
-  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
-  cuts_pts <- data.frame(x = c(mn, mx), 
-                         y = c(0, 0))
-  
-  # Sample
-  if (nrow(df) > sample_size) {
-    print("Sampling...")
-    df <- df %>% sample_n(sample_size)
+    # Resample LC and internal to external AGB res 
+    if(!file.exists(agb_res_fp)) resample_to_raster2(agb_fp, ext_fp, agb_res_fp)
+    if(!file.exists(lc_res_fp)) resample_to_raster2(lc_fp, ext_fp, lc_res_fp, method = 'near')
+    
+    # Load and pre-process layers
+    # agb_res <- terra::rast(agb_res_fp)
+    # lc <- terra::rast(lc_res_fp)
+    out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(agb_res_fp))
+    lc <- out$r1
+    agb_res <- out$r2
+
+    agb_T <- mskvals %>% 
+      purrr::map(~ mask(agb_res, lc, inverse = TRUE, maskvalues = .x)) %>% 
+      rast() %>% 
+      app(sum, na.rm = TRUE, filename = int_masked_fp, overwrite = TRUE)
+    
+  } else {
+    
+    agb_T <- terra::rast(int_masked_fp)
   }
   
-  # Plot
-  p <- ggplot(df, aes(x=value)) + 
-    geom_histogram(aes(y=..density.., fill = ..x..), binwidth = bwidth,
-                   show.legend = FALSE)+
-    scale_fill_gradientn(colors = agb_pal$colors, 
-                         # breaks = c(-60, -30, 0, 30, 60),
-                         # labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
-                         name = expression(paste("AGB (Mg ha"^"-1", ")")),
-                         # na.value='lightgray', 
-                         limits = c(agb_pal$min, agb_pal$max),
-                         oob = scales::squish,
-                         guide = guide_colorbar(barheight = 2)
-    ) + 
-    geom_density(alpha=.2,
-                 show.legend = FALSE) + 
-    scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
-                       # breaks = seq(min, max, 100),
-                       # limits = c(min, max)
-    ) +
-    coord_cartesian(xlim = xlim) +
-    geom_vline(mapping = aes(xintercept = value,
-                             colour = ref),
-               data = cuts,
-               color="black", 
-               # linetype="solid", 
-               linetype="dashed", 
-               size=.5,
-               show.legend = FALSE) +
-    geom_text(mapping = aes(x = value,
-                            y = Inf,
-                            label = ref,
-                            hjust = -.1,
-                            vjust = 1),
-              data = cuts) +
-    ggtitle(lyr_name) +
-    theme_minimal() +
-    theme(axis.title.y = element_blank(),
-          axis.text.y = element_blank(), 
-          panel.grid.major.y = element_blank(),
-          panel.grid.minor.y = element_blank())
+  # Mask external AGB to given LC class
+  if (!file.exists(ext_masked_fp)) {
+
+    # Resample LC and internal to external AGB res 
+    if(!file.exists(agb_res_fp)) resample_to_raster2(agb_fp, ext_fp, agb_res_fp)
+    if(!file.exists(lc_res_fp)) resample_to_raster2(lc_fp, ext_fp, lc_res_fp, method = 'near')
+    
+    # Load and pre-process layers
+    # agb_res <- terra::rast(agb_res_fp)
+    # lc <- terra::rast(lc_res_fp)
+    out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(agb_res_fp))
+    lc <- out$r1
+    agb_res <- out$r2
+    agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
+    
+    ext_T <- mskvals %>% 
+      purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>% 
+      rast() %>% 
+      app(sum, na.rm = TRUE, filename = ext_masked_fp, overwrite = TRUE)
+    
+  } else {
+    
+    ext_T <- terra::rast(ext_masked_fp)
+  }
+
+  # Calculate metrics for landcover class ----
+  # Summary of differences
+  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+                             str_c(mask_code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
+  df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
+  
+  # Scatterplot 
+  if (return_obj == 'plot') {
+    scatter_diff_fp <- file.path(comparison_dir, 'by_LC', 
+                                 str_c(mask_code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
+    p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
+                                   filename = scatter_diff_fp,
+                                   sample_size = 500000)
+  }
+
+  if (return_obj == 'plot') {
+    return(p_scatt)
+  } else if (return_obj == 'diffs') {
+    return(df$diffs)
+  } else if (return_obj == 'summary') {
+    return(df$summary)
+  } else {
+    return()
+  }
 }
 
-bacc_hist <- plot_agb_hist_density(agb_fps$bacc, agb_pal)
-hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Baccini.png'))
-dir.create(dirname(hist_fp))
-ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+compare_by_given_lc(agb_fps$avit, agb_fp, agb_code, lc_fps$haiti,
+                    mskvals = c(3, 5, 6), mask_code = 'BGS', comparison_dir)
+compare_by_given_lc(agb_fps$esa, agb_fp, agb_code, lc_fps$haiti,
+                    mskvals = c(3, 5, 6), mask_code = 'BGS', comparison_dir)
 
-(esa_hist <- plot_agb_hist_density(agb_fps$esa, agb_pal))
-hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_ESA.png'))
-ggsave(hist_fp, width = 5, height = 3, dpi = 120)
+sum_tbl <- compare_by_given_lc(agb_fps$esa, agb_fp, agb_code, lc_fps$haiti,
+                    mskvals = c(3, 5, 6), mask_code = 'BGS', comparison_dir,
+                    return_obj = 'summary')
 
-(glob_hist <- plot_agb_hist_density(agb_fps$glob, agb_pal, xlim=NULL))
-hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_GlobB.png'))
-ggsave(hist_fp, width = 5, height = 3, dpi = 120)
-
-(avit_hist <- plot_agb_hist_density(agb_fps$avit, agb_pal, xlim=NULL))
-hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Avit.png'))
-ggsave(hist_fp, width = 5, height = 3, dpi = 120)
-
+mask_code <- 'BGS'
+sum_tbl <- agb_fps %>% purrr::map_dfr(compare_by_given_lc, agb_fp, agb_code, lc_fps$haiti,
+                               mskvals = c(3, 5, 6), mask_code = mask_code, comparison_dir,
+                               return_obj = 'summary')
+smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+                           str_c(mask_code, '_summary_diffs.csv'))
+sum_tbl %>% 
+  mutate(mask = mask_code) %>% 
+  write_csv(smmry_diff_fp)

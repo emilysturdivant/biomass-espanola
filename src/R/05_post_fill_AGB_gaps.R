@@ -178,8 +178,6 @@ plot(agb_by_lcpatch_sd)
 
 # Pre-process land cover -------------------------------------------------------
 lc_fp_out <- "data/tidy/landcover/Hisp_2017_resALOS_terra.tif"
-lc_out <- "data/tidy/landcover/Hisp_2017_resALOS_mskLand.tif"
-lc_fp <- "data/tidy/landcover/Haiti2017_agbres.tif"
 
 if(!file.exists(lc_fp_out)){
   # Resample Haiti and DR land cover to AGB res 

@@ -18,6 +18,8 @@ library('whitebox')
 library('tidyverse')
 
 # Initialize ----
+source('src/R/initialize_vars.R')
+
 # polarization <- 'HV'
 # units <- 'nu'
 # code <- str_c(polarization, '_', units)
@@ -59,7 +61,7 @@ merge_tiles <- function(code, suffix, g0_dir, hti_bb, raw_dir) {
   return(out_fp)
 }
 
-mask_raster <- function(code, suffix, g0_dir, landmask_fp) { 
+mask_to_poly <- function(code, suffix, g0_dir, landmask_fp) { 
   # Set output filename
   out_fp <- file.path(g0_dir, str_glue('{code}{suffix}.tif'))
   
@@ -73,19 +75,19 @@ mask_raster <- function(code, suffix, g0_dir, landmask_fp) {
                     wopt = list(datatype = dtype, gdal = 'COMPRESS=LZW'))
 }
 
-mask_g0 <- function(g0_fp, masks_dir, code = 'HV_nu', 
+mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu', 
                     masks = c('L', 'WU', 'wb'), overwrite = TRUE,
-                    masked_g0_fp) {
+                    masked_fp) {
   
   # Get output filenames
   masks_str <- masks %>% str_c(collapse = '')
-  masked_g0_fp <- file.path(dirname(g0_fp), 
+  masked_fp <- file.path(dirname(g0_fp), 
                             str_c(code, '_mask', masks_str, '.tif'))
   msk_all_fp <- file.path(masks_dir, str_c('mask', masks_str, '.tif'))
   
   # Stop if file already exists
-  if(file.exists(masked_g0_fp) & !overwrite) {
-    return(terra::rast(masked_g0_fp))
+  if(file.exists(masked_fp) & !overwrite) {
+    return(terra::rast(masked_fp))
   }
   
   # Use mask file if it already exists
@@ -94,13 +96,13 @@ mask_g0 <- function(g0_fp, masks_dir, code = 'HV_nu',
     msk <- terra::rast(msk_all_fp)
     
     # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-    agb_dtype <- raster::dataType(raster::raster(g0_fp))
-    agb_masked <- ras %>% 
-      terra::mask(msk, filename = masked_g0_fp, overwrite = T, 
-                  wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
+    r_dtype <- raster::dataType(raster::raster(g0_fp))
+    r_masked <- ras %>% 
+      terra::mask(msk, filename = masked_fp, overwrite = T, 
+                  wopt = list(datatype = r_dtype, gdal = 'COMPRESS=LZW'))
     
     # Return
-    return(agb_masked)
+    return(r_masked)
   }
   
   # Load AGB
@@ -108,6 +110,13 @@ mask_g0 <- function(g0_fp, masks_dir, code = 'HV_nu',
   
   # Initialize mask raster (all 1's)
   msk <- ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
+  
+  # AGB <20 mask
+  if('u20' %in% masks){
+    msk_u20 <- ras %>% terra::classify(rbind(c(-Inf, 20, NA),
+                                                 c(20, Inf, 1)))
+    msk <- msk %>% terra::mask(msk_u20)
+  }
   
   # LC17 Water and Urban, and OSM water with 25 m buffer ----
   if('WU' %in% masks & 'wb' %in% masks){
@@ -169,7 +178,7 @@ mask_g0 <- function(g0_fp, masks_dir, code = 'HV_nu',
   r_dtype <- raster::dataType(raster::raster(g0_fp))
   r_masked <- ras %>% 
     terra::mask(msk, 
-                filename = masked_g0_fp, 
+                filename = masked_fp, 
                 overwrite = T, 
                 datatype = r_dtype, 
                 gdal = 'COMPRESS=LZW')
@@ -178,7 +187,9 @@ mask_g0 <- function(g0_fp, masks_dir, code = 'HV_nu',
   return(r_masked)
 }
 
-filter_g0 <- function(in_fp, filter, params=list(filtsize=5), cap=NA) {
+filter_g0 <- function(in_fp, filter = 'median', params=list(filtsize=5), cap=NA) {
+  
+  r_dtype <- raster::dataType(raster::raster(in_fp))
   
   # cap <- 0.3
   if(!is.na(cap)) {
@@ -188,7 +199,7 @@ filter_g0 <- function(in_fp, filter, params=list(filtsize=5), cap=NA) {
       terra::classify(rbind(c(cap, Inf, cap)), 
                       filename = out_fp, 
                       overwrite = TRUE,
-                      datatype = 'FLT4S', 
+                      datatype = r_dtype, 
                       gdal = 'COMPRESS = DEFLATE')
     
     in_fp <- out_fp
@@ -221,7 +232,7 @@ filter_g0 <- function(in_fp, filter, params=list(filtsize=5), cap=NA) {
                    na.rm = TRUE, 
                    filename = out_fp, 
                    overwrite = TRUE,
-                   datatype = 'FLT4S', 
+                   datatype = r_dtype, 
                    gdal = 'COMPRESS = DEFLATE')
     
     in_fp <- out_fp
@@ -252,7 +263,7 @@ filter_g0 <- function(in_fp, filter, params=list(filtsize=5), cap=NA) {
                          na.rm = TRUE,
                          filename = out_fp,
                          overwrite = TRUE,
-                         datatype = 'FLT4S', 
+                         datatype = r_dtype, 
                          gdal = 'COMPRESS = DEFLATE')
     }
   }
@@ -260,7 +271,8 @@ filter_g0 <- function(in_fp, filter, params=list(filtsize=5), cap=NA) {
   return(out_fp)
 }
 
-fill_gaps_from_polygons <- function(filt_ras, masked_fp, summary_pols_fp, out_fp, lc_stat = 'median') {
+fill_gaps_from_polygons <- function(filt_ras, masked_fp, summary_pols_fp, out_fp, 
+                                    lc_stat = 'median') {
   
   # Stop if file already exists
   if(file.exists(out_fp)) return(terra::rast(out_fp))
@@ -367,7 +379,7 @@ if(perform_merge) {
   code_list %>% purrr::walk(merge_tiles, suffix, g0_dir, hti_bb, raw_dir)
   
   # Mask mosaics with the land mask created above
-  code_list %>% purrr::walk(mask_raster, suffix, g0_dir, landmask_fp)
+  code_list %>% purrr::walk(mask_to_poly, suffix, g0_dir, landmask_fp)
 }
 
 # Convert to g0 dB -------------------------------------------------------------
@@ -375,7 +387,7 @@ if(perform_merge) {
 #   𝛾0 = 10log10〈𝐷𝑁2〉+ 𝐶𝐹
 # where, CF is a calibration factor, and <> is the ensemble averaging. 
 # The CF value is “-83.0 dB”for the PALSAR-2/PALSAR mosaic
-g0_fp <- file.path(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
+
 if(!file.exists(g0_fp)) {
 
   # Load raw DN  
@@ -396,25 +408,28 @@ if(!file.exists(g0_fp)) {
 }
 
 # Mask ----
-g0_masked_fp <- file.path(dirname(g0_fp), str_c(code, '_maskLU.tif'))
-g0_masked <- mask_g0(g0_fp, masks_dir, code = 'HV_nu', 
-                     masks = c('L', 'U'), overwrite = FALSE)
+masks_str <- g0_mask %>% str_c(collapse = '')
+g0_masked_fp <- file.path(dirname(g0_fp), str_c(code, '_mask', masks_str, '.tif'))
+g0_masked <- mask_with_options(g0_fp, masks_dir, code = code, 
+                     masks = g0_mask, overwrite = FALSE)
 
 # De-noise filter -----
 filt_fp <- filter_g0(g0_masked_fp, 'lee', params = list(filtsize = 11, sigma = 10))
 
+if(go_variant == 'med5') {
+  filt_fp <- filter_g0(g0_masked_fp, 'median', params = list(filtsize = 5))
+}
+
 # Interpolate by landcover ----
 lc_stat <-  'median'
 fn_prefix <- tools::file_path_sans_ext(filt_fp) %>% basename()
-g0_variant <- fn_prefix %>% 
-  str_extract(str_glue('(?<={code}_).*')) %>% 
-  str_c('_LCinterp')
+# g0_filled_fp <- file.path(mod_dir, str_c(fn_prefix, '_LCinterp.tif'))
+g0_filled_fp <- str_c(tools::file_path_sans_ext(filt_fp), '_LCinterp.tif')
+g0_variant <- g0_filled_fp %>% str_extract(str_glue('(?<={code}_).*(?=\\.tif)'))
 mod_dir <- file.path('data', 'modeling', code, g0_variant)
-g0_filled_fp <- file.path(mod_dir, str_c(fn_prefix, '_LCinterp.tif'))
 
-by_lc_prefix <- file.path(mod_dir, 'by_landcover', str_glue('{fn_prefix}_{lc_stat}'))
-summary_pols_fp <- str_c(by_lc_prefix, '.gpkg')
-dir.create(dirname(by_lc_prefix), recursive = TRUE)
+summary_pols_fp <- file.path(mod_dir, 'by_landcover', str_glue('{fn_prefix}_{lc_stat}.gpkg'))
+dir.create(dirname(summary_pols_fp), recursive = TRUE)
 
 # Load g0 raster (filtered)
 filt_ras <- terra::rast(filt_fp)
@@ -426,32 +441,7 @@ summarize_raster_by_polygons(lc_pols_fp, filt_ras, summary_pols_fp)
 fill_gaps_from_polygons(filt_ras, filt_fp, summary_pols_fp, g0_filled_fp)
 
 
-# Mean filter ----
-# Mean filters are finicky. Using terra seems to superimpose the offset of the same image and using wbt sometimes doesn't work. 
-# With terra
-filtsize <- 3
-out_fp <- str_c(tools::file_path_sans_ext(cap_fp), 
-                str_glue('_mean{filtsize}.tif'))
-g0_filt <- terra::rast(cap_fp) %>% 
-  terra::focal(w = filtsize, 
-               fun = 'mean',
-               na.rm = TRUE, 
-               filename = out_fp, 
-               overwrite = TRUE,
-               datatype = 'FLT4S', 
-               gdal = c('COMPRESS = DEFLATE'))
-
-# with wbt 
-filtsize <- 5
-out_fp <- str_c(tools::file_path_sans_ext(out_fp2), 
-                 str_glue('_mean{filtsize}.tif'))
-wbt_mean_filter(out_fp2, 
-                  out_fp, 
-                  filterx = filtsize, filtery = filtsize,
-                  verbose_mode = FALSE, 
-                  compress_rasters = TRUE)
-
-# ~ Create masks (which are used by mask_g0()) ----
+# ~ Create masks (which are used by mask_with_options()) ----
 # Masks: ALOS ----
 # Replicate ALOS normal 
 msk_norm_fp <- file.path(masks_dir, str_glue("mask_palsar_normal_{year}.tif"))

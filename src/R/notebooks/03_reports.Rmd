@@ -132,7 +132,7 @@ p
 ```
 
 ### Test statistics
-We want to see high correlation (adjusted R2) and low Bias, RMSE, and MAE. 
+We want to see high coefficient of determination (adjusted R2) and low Bias, RMSE, and MAE. 
 
 ```{r model summaries table, eval=TRUE, echo=FALSE, message=FALSE, fig.height=3, fig.width=5}
 summarize_results <- function(full_results_csv, digits = 3) {

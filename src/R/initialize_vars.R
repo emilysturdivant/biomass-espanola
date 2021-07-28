@@ -12,6 +12,7 @@ code <- 'HV_nu'
 year <- '2019'
 agb_input_level <- 'l2'
 agb_code <- 'l2_maskWUwb'
+g0_mask <- c('L', 'U', 'W', 'wb')
 saturation_pt <- 300
 g0_variant <- 'med5'
 if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
@@ -24,7 +25,7 @@ raw_lc_dir <- "data/raw/landcover"
 tidy_maps_dir <- 'data/tidy/biomass_maps'
 tidy_lc_dir <- 'data/tidy/landcover'
 
-# 01
+# 01 ----
 stems_fp_in <- "data/species_and_wds/haiti_data_wds2.csv"
 plots_fp_in <- "data/species_and_wds/mplots_geoms.csv"
 plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
@@ -34,7 +35,7 @@ mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb.rds')
 # field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
 field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
-# 02
+# 02 ----
 hti_poly_fp <- file.path(tidy_dir, "contextual_data/HTI_adm/HTI_adm0_fix.shp")
 raw_dir <- file.path('data/raw/ALOS', year)
 g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
@@ -42,6 +43,7 @@ masks_dir <- file.path(g0_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 lc_pols_fp <- file.path(tidy_dir, "landcover/Lemoiner/Haiti2017_Clip_polys.gpkg")
 lc_res_fp <- file.path(tidy_dir, 'landcover', 'Lemoiner', 'Haiti2017_agbres.tif')
+g0_fp <- file.path(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
 
 # 03
 g0_dir <- file.path(tidy_dir, str_c('palsar_', year))

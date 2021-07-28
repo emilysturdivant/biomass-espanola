@@ -194,7 +194,7 @@ summarize_raster_differences <- function(ext_r, ext_name, int_r, out_fp = NULL){
       max_diff = max(value),
       med_diff = median(value)
     ) %>% 
-    mutate(across(where(is.numeric), ~ signif(.x, 4)),
+    mutate(across(where(is.numeric), ~ round(.x, 3)),
            name = ext_name)
   
   # Save
@@ -286,6 +286,18 @@ scatter_differences <- function(df, ext_name, prefix, filename = NA,
   }
   
   ols <- lm(external ~ internal, data=df)
+
+  # Table with slope and intercept
+  rep1 <- coef(ols) %>%
+    as_tibble() %>% 
+    mutate(value = round(value, 2), 
+           name = c('intercept', 'slope')) %>% 
+    column_to_rownames('name')
+  
+  tab <- gridExtra::tableGrob(rep1, 
+                              cols = NULL,
+                              theme = gridExtra::ttheme_minimal(base_size = 9,
+                                                                padding = unit(c(2,2), 'mm')))
   
   # Plot
   p <- ggplot(df, aes(x=internal, y=external)) + 
@@ -313,16 +325,21 @@ scatter_differences <- function(df, ext_name, prefix, filename = NA,
     theme_minimal() + 
     geom_abline(intercept = 0, slope = 1, col='black', size=.25) +
     geom_abline(intercept = coef(ols)[1], slope = coef(ols)[2], 
-                col='black', size=.25, linetype = 'dashed')
+                col='black', size=.25, linetype = 'dashed') +
+    theme_minimal()
 
+  # Overlay plot with regression table
+  p <- p + inset_element(tab, 
+                  left = 0, bottom = 0.8,
+                  right = 0.2, top = 1, 
+                  on_top = TRUE) +
+    theme(plot.background = NULL)
+  
   # Save/Return
-  if(!is.na(filename)) {
-    
-    ggsave(filename, plot=p, width=6, height=6)
-    # Return
-    return(p)
-    
-  } 
+  if(!is.na(filename)) ggsave(filename, plot=p, width=6, height=6)
+ 
+  # Return
+  return(p)
 
 }
 
@@ -564,7 +581,7 @@ diff_stats <- df %>%
     bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
     MBD = mean(diff)
     ) %>% 
-  mutate(across(where(is.numeric), ~ signif(.x, 4)))
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
 
 # Percent of land area included in map ----
 ext_pcts <- agb_fps %>% purrr::map_dfr(get_pcts) %>% 
@@ -786,7 +803,10 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   ext_fp <- agb_x$fp
   ext_masked_fp <- str_c(tools::file_path_sans_ext(ext_fp), '_', mskvals$code, 'mask.tif')
 
-  if (res(terra::rast(ext_fp))[[1]] != res(terra::rast(agb_fp))[[1]]) {
+  res1 <- round(res(terra::rast(ext_fp))[[1]], 10)
+  res2 <- round(res(terra::rast(agb_fp))[[1]], 10)
+  
+  if (res1 != res2) {
     # agb_fp <- agb_res_fp
     agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
     lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
@@ -802,8 +822,8 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   
   # Internal names
   agb_code <- str_remove(tools::file_path_sans_ext(agb_res_fp), '.*agb_')
-  int_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(agb_code, '_', mskvals$code, 'mask.tif'))
-  
+  int_masked_fp <- str_c(tools::file_path_sans_ext(agb_res_fp), '_', mskvals$code, 'mask.tif')
+
   # Mask internal AGB to given LC class
   if (!file.exists(int_masked_fp)) {
     
@@ -865,16 +885,26 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   }
 }
 
-# agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fps$internal$fp), '_resCCI.tif')
+agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fps$internal$fp), '_resCCI.tif')
 lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
 
 # testing ----
-agb_x <- agb_fps[[4]]
 mskvals <-  list(values = 4, code = 'TC')
-compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fps$haiti,
+
+agb_x <- agb_fps$avit
+df <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fps$haiti,
                     mskvals = mskvals, comparison_dir,
                     return_obj = 'plot')
 
+agb_x <- agb_fps$esa
+compare_by_given_lc(agb_x, agb_res_fp, lc_fp = lc_res_fp,
+                          mskvals = mskvals, comparison_dir,
+                          return_obj = 'plot')
+
+p_scatt <- scatter_differences(df, ext_name, agb_code, 
+                               sample_size = 500000)
+
+# Run with purrr ----
 # TC
 mask_code <- 'TC'
 mskvals <- list(values = 4, code = 'TC')

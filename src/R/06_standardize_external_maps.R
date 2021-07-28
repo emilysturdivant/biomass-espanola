@@ -300,7 +300,7 @@ crop_and_mask_to_polygon(crop_fp, land_poly, lc_fp, na = 0)
 # Resample LC to ESA grid ----
 in_fp <- lc_fps$haiti
 lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
-resample_to_raster(in_fp, agb_fps$esa$fp, lc_res_fp)
+resample_to_raster(in_fp, agb_fps$esa$fp, lc_res_fp, method = 'near')
 
 # Resample our AGB to ESA grid for comparison ----
 agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fps$internal$fp),

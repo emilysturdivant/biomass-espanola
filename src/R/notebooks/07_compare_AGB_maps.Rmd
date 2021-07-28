@@ -163,7 +163,7 @@ plot_scatter_ext <- function(plot_means, y_var, name){
 }
 
 # Load data
-plot_means <- write_csv(plot_ext_csv)
+plot_means <- read_csv(plot_ext_csv)
 
 # Extract just AGB and backscatter as dataframe
 p0 <- plot_scatter_ext(plot_means, 'internal', name='Our AGB')

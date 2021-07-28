@@ -163,48 +163,6 @@ crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, retur
   }
 }
 
-summarize_raster_differences <- function(int_r, ext_r, out_fp = NULL){
-  # Make DF
-  df <- bind_cols(external=as.vector(ext_r[[1]]), 
-                  internal=as.vector(int_r[[1]])) %>% 
-    filter(!is.na(external), !is.na(internal)) %>% 
-    mutate(value=internal-external)
-  
-  # Get summary stats
-  pe <- cor.test(x=df$external, y=df$internal, method = 'pearson') 
-  s <- summary(df$value) %>% 
-    tibble(names=names(.), value=.) %>% 
-    mutate(value = as.numeric(value))
-  cs <- tibble(
-    names=c('IQR', 'SD', 'MAD', 'cor', 'N'), 
-    value=c(IQR(df$value), 
-            sd(df$value), 
-            mean(abs(df$value)),
-            pe$estimate, 
-            dim(df)[1]))
-  s_tbl <- bind_rows(s, cs)
-  
-  diff_stats <- df %>% 
-    group_by(name) %>% 
-    summarize(
-      r.squared = summary(lm(est ~ AGB_ha))$r.squared,
-      adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
-      N = sum(!is.na(diff)), 
-      RMSD = sqrt(mean(diff^2, na.rm=T)),
-      bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
-      MBD = mean(diff)
-    ) %>% 
-    mutate(across(where(is.numeric), ~ signif(.x, 4)))
-  
-  
-  if(is.character(out_fp)){
-    s_tbl %>% write_csv(out_fp)
-  }
-  
-  # Return
-  return(list(diffs=df, summary=s_tbl))
-}
-
 summarize_raster_differences <- function(ext_r, ext_name, int_r, out_fp = NULL){
   
   # Make DF
@@ -319,7 +277,7 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
 }
 
 scatter_differences <- function(df, ext_name, prefix, filename = NA,
-                                            sample_size = 5000000, xlim = c(0, 300)){
+                                sample_size = 5000000, xlim = c(0, 300)){
   
   # Sample
   if (length(df[[1]]) > sample_size) {
@@ -327,13 +285,16 @@ scatter_differences <- function(df, ext_name, prefix, filename = NA,
     df <- df %>% sample_n(sample_size)
   }
   
+  ols <- lm(external ~ internal, data=df)
+  
   # Plot
   p <- ggplot(df, aes(x=internal, y=external)) + 
-    stat_density2d(geom="tile", 
+    # geom_point() +
+    stat_density2d(geom="tile",
                    aes(fill = after_stat(density),
-                       alpha = after_stat(density)^0.1), 
+                       alpha = after_stat(density)^0.1),
                    contour_var = 'count',
-                   contour=FALSE) + 
+                   contour=FALSE) +
     # geom_bin2d(bins = 75) +
     # geom_hex(bins = 150) +
     scale_fill_viridis_c(option = 'magma', direction = -1) +
@@ -351,9 +312,9 @@ scatter_differences <- function(df, ext_name, prefix, filename = NA,
     coord_fixed(ratio = 1, xlim = xlim) +
     theme_minimal() + 
     geom_abline(intercept = 0, slope = 1, col='black', size=.25) +
-    geom_smooth(method="lm", se=FALSE, fullrange=TRUE, level=0.95, 
+    geom_abline(intercept = coef(ols)[1], slope = coef(ols)[2], 
                 col='black', size=.25, linetype = 'dashed')
-  
+
   # Save/Return
   if(!is.na(filename)) {
     
@@ -678,29 +639,29 @@ rm(bacc_out, esa_out, avit_out, glob_out)
 compare_by_given_lc <- function(agb_x, agb_fp, agb_code, lc_fp,
                                 mskvals = 4, mask_code = 'TC', comparison_dir,
                                 return_obj = 'summary') {
-  
+
   ext_name <- agb_x$name
   ext_fp <- agb_x$fp
-  
+
   # Mask AGB to given LC class
   int_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(agb_code, '_resamp', ext_name, '_', mask_code, 'mask.tif'))
   ext_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(ext_name, '_', mask_code, 'mask.tif'))
-  dir.create(dirname(ext_masked_fp), recursive = TRUE) 
-  
+  dir.create(dirname(ext_masked_fp), recursive = TRUE)
+
   # Get intermediate filenames
   tif_dir <- file.path(comparison_dir, 'diff_tifs')
-  dir.create(tif_dir, recursive = TRUE) 
-  
+  dir.create(tif_dir, recursive = TRUE)
+
   agb_res_fp <- file.path(tif_dir, str_c(agb_code, '_resamp_to', ext_name, '.tif'))
   lc_res_fp <- file.path(tif_dir, str_c('LC_resamp_to', ext_name, '.tif'))
-  
+
   # Mask internal AGB to given LC class
   if (!file.exists(int_masked_fp)) {
 
-    # Resample LC and internal to external AGB res 
+    # Resample LC and internal to external AGB res
     if(!file.exists(agb_res_fp)) resample_to_raster(agb_fp, ext_fp, agb_res_fp)
     if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
-    
+
     # Load and pre-process layers
     # agb_res <- terra::rast(agb_res_fp)
     # lc <- terra::rast(lc_res_fp)
@@ -708,23 +669,23 @@ compare_by_given_lc <- function(agb_x, agb_fp, agb_code, lc_fp,
     lc <- out$r1
     agb_res <- out$r2
 
-    agb_T <- mskvals %>% 
-      purrr::map(~ mask(agb_res, lc, inverse = TRUE, maskvalues = .x)) %>% 
-      rast() %>% 
+    agb_T <- mskvals %>%
+      purrr::map(~ mask(agb_res, lc, inverse = TRUE, maskvalues = .x)) %>%
+      rast() %>%
       app(sum, na.rm = TRUE, filename = int_masked_fp, overwrite = TRUE)
-    
+
   } else {
-    
+
     agb_T <- terra::rast(int_masked_fp)
   }
-  
+
   # Mask external AGB to given LC class
   if (!file.exists(ext_masked_fp)) {
 
-    # Resample LC and internal to external AGB res 
+    # Resample LC and internal to external AGB res
     if(!file.exists(agb_res_fp)) resample_to_raster2(agb_fp, ext_fp, agb_res_fp)
     if(!file.exists(lc_res_fp)) resample_to_raster2(lc_fp, ext_fp, lc_res_fp, method = 'near')
-    
+
     # Load and pre-process layers
     # agb_res <- terra::rast(agb_res_fp)
     # lc <- terra::rast(lc_res_fp)
@@ -732,28 +693,28 @@ compare_by_given_lc <- function(agb_x, agb_fp, agb_code, lc_fp,
     lc <- out$r1
     agb_res <- out$r2
     agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
-    
-    ext_T <- mskvals %>% 
-      purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>% 
-      rast() %>% 
+
+    ext_T <- mskvals %>%
+      purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>%
+      rast() %>%
       app(sum, na.rm = TRUE, filename = ext_masked_fp, overwrite = TRUE)
-    
+
   } else {
-    
+
     ext_T <- terra::rast(ext_masked_fp)
   }
 
   # Calculate metrics for landcover class ----
   # Summary of differences
-  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+  smmry_diff_fp <- file.path(comparison_dir, 'by_LC',
                              str_c(mask_code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
   df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
-  
-  # Scatterplot 
+
+  # Scatterplot
   if (return_obj == 'plot') {
-    scatter_diff_fp <- file.path(comparison_dir, 'by_LC', 
+    scatter_diff_fp <- file.path(comparison_dir, 'by_LC',
                                  str_c(mask_code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
-    p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
+    p_scatt <- scatter_differences(df$diffs, ext_name, agb_code,
                                    filename = scatter_diff_fp,
                                    sample_size = 500000)
   }

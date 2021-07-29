@@ -75,15 +75,15 @@ mask_to_poly <- function(code, suffix, g0_dir, landmask_fp) {
                     wopt = list(datatype = dtype, gdal = 'COMPRESS=LZW'))
 }
 
-mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu', 
+mask_with_options <- function(in_fp, masks_dir, code = 'HV_nu', 
                     masks = c('L', 'WU', 'wb'), overwrite = TRUE,
-                    masked_fp) {
+                    out_mask_dir) {
   
   # Get output filenames
   masks_str <- masks %>% str_c(collapse = '')
-  masked_fp <- file.path(dirname(g0_fp), 
+  masked_fp <- file.path(dirname(in_fp), 
                             str_c(code, '_mask', masks_str, '.tif'))
-  msk_all_fp <- file.path(masks_dir, str_c('mask', masks_str, '.tif'))
+  msk_all_fp <- file.path(out_mask_dir, str_c('mask', masks_str, '.tif'))
   
   # Stop if file already exists
   if(file.exists(masked_fp) & !overwrite) {
@@ -92,11 +92,11 @@ mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu',
   
   # Use mask file if it already exists
   if(file.exists(msk_all_fp) & !overwrite) {
-    ras <- terra::rast(g0_fp)
+    ras <- terra::rast(in_fp)
     msk <- terra::rast(msk_all_fp)
     
     # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-    r_dtype <- raster::dataType(raster::raster(g0_fp))
+    r_dtype <- raster::dataType(raster::raster(in_fp))
     r_masked <- ras %>% 
       terra::mask(msk, filename = masked_fp, overwrite = T, 
                   wopt = list(datatype = r_dtype, gdal = 'COMPRESS=LZW'))
@@ -106,7 +106,7 @@ mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu',
   }
   
   # Load AGB
-  ras <- terra::rast(g0_fp)
+  ras <- terra::rast(in_fp)
   
   # Initialize mask raster (all 1's)
   msk <- ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
@@ -118,7 +118,7 @@ mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu',
     msk <- msk %>% terra::mask(msk_u20)
   }
   
-  # LC17 Water and Urban, and OSM water with 25 m buffer ----
+  # LC17 Water and Urban, and OSM water with 25 m buffer 
   if('WU' %in% masks & 'wb' %in% masks){
     msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
     msk_WUwb <- terra::rast(msk_WUwb_fp) %>% terra::crop(ras)
@@ -154,7 +154,7 @@ mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu',
     
   }
   
-  # ALOS mask ----
+  # ALOS mask 
   if('A' %in% masks){
     msk_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
     msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
@@ -175,7 +175,7 @@ mask_with_options <- function(g0_fp, masks_dir, code = 'HV_nu',
                              gdal = 'COMPRESS=LZW')
   
   # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-  r_dtype <- raster::dataType(raster::raster(g0_fp))
+  r_dtype <- raster::dataType(raster::raster(in_fp))
   r_masked <- ras %>% 
     terra::mask(msk, 
                 filename = masked_fp, 

@@ -200,12 +200,25 @@ agb_l2 <- mask_agb(agb_fp = agb_cap_fp,
                        level_code = 'l2',
                        masks = c('U'), overwrite = FALSE)
 
-# Apply WU, wb, u20 mask to L1 capped AGB
+# Apply L, WU, wb mask to L1 capped AGB
 agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
                    masks_dir, 
                    level_code = 'l2',
                    masks = c('L', 'WU', 'wb'), overwrite = FALSE)
 
+# Apply L, WU, wb mask to L1 capped AGB
+agb_l2 <- mask_with_options(in_fp = agb_cap_fp, 
+                            masks_dir, 
+                            code = 'agb_l2',
+                            masks = c('L', 'WU', 'wb'), overwrite = FALSE, 
+                            dirname(agb_cap_fp))
+
+# Apply WU, wb mask to L1 capped AGB
+agb_l2 <- mask_with_options(in_fp = agb_cap_fp, 
+                            masks_dir, 
+                            code = 'agb_l2',
+                            masks = c('WU', 'wb'), overwrite = FALSE, 
+                            dirname(agb_cap_fp))
 
 # Report (incomplete update): Get value frequencies within masks ---------------
 get_frequencies <- function(agb_ras, msk_name){
@@ -245,8 +258,12 @@ agb_ras <- terra::rast(agb_l0_fp)
 msk_land <- terra::rast(landmask_fp)
 agb_masked <- agb_l2
 # mask_name <- 'WUu20'
+
 # Get name of mask
-mask_name <- agb_ras@ptr$filenames %>% str_extract("(?<=mask).*(?=\\.tif)")
+mask_name <- agb_ras@ptr$filenames %>% basename() %>% 
+  str_extract("(?<=mask).*(?=\\.tif)")
+mask_name <- agb_masked@ptr$filenames %>% basename() %>% 
+  str_extract("(?<=mask).*(?=\\.tif)")
 mask_name <- ifelse(mask_name == '', 'none', mask_name)
 
 # Tree cover 
@@ -299,19 +316,26 @@ tc_wb_cts <- total_tc_wb %>%
 
 combo_df <- bind_rows(cts, tc_mskd_cts, tc_wb_cts)
 
+combo_df %>% write_csv(file.path(dirname(agb_cap_fp), '04_pcts_masked.csv'))
+combo_df %>% write_csv(file.path('data/reports', '04_pcts_masked.csv'))
+
 combo <- combo_df %>% 
   mutate(
     name = str_replace_all(name, 
                            "20 to 132|132 to 200|200 to 250|250 to 300|300 to 310|310 to Inf", 
-                           'over20'))
-
-combo %>% 
+                           'over20')) %>% 
   dplyr::group_by(name, mask) %>% 
   dplyr::summarize(pct = sum(pct), 
                    pct_land = sum(pct_land), 
                    count = sum(count)) %>% 
   mutate(area_ha = count * (25*25*0.0001),
          area_from_pct = pct_land * 2710675)
+
+combo %>% write_csv(file.path(dirname(agb_cap_fp), '04_pcts_masked_agg_w_areas.csv'))
+combo %>% write_csv(file.path('data/reports', '04_pcts_masked_agg_w_areas.csv'))
+
+
+
 
 hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 sf::st_area(st_read(hti_poly_fp))
@@ -325,159 +349,77 @@ ct_valid_pixels <- global(!is.na(agb_masked), 'sum', na.rm=T)
 
 
 
-
-
-
-# Get counts for v3l3 outside of function ----
-crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, return_bb=F) {
-  # Get intersection of the bounding boxes of the two rasters
-  bb <- st_intersection(terra::ext(r1) %>% as.vector %>% st_bbox %>% st_as_sfc, 
-                        terra::ext(r2) %>% as.vector %>% st_bbox %>% st_as_sfc) %>% 
-    st_bbox %>% as.vector 
+# Histogram ----
+# Function from 07...Rmd
+plot_agb_hist_density <- function(x, agb_pal, bwidth=5, sample_size=100000, 
+                                  xlim = c(min=0, max=300)) {
   
-  # Convert to terra extent object
-  bbex <- terra::ext(bb[c(1, 3, 2, 4)])
+  # Get values
+  lyr_name <- x$name
+  ras <- terra::rast(x$fp)
+  df <- terra::values(ras, dataframe = TRUE) %>% 
+    rename(value = 1) %>% 
+    drop_na()
   
-  if(return_bb){
-    
-    if(!return_r1 & !return_r2){
-      return(bbex)
-      
-    } else if(return_r1 & !return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      return(list(r1=r1, bb=bbex))
-      
-    } else if(!return_r1 & return_r2) {
-      # Crop each raster
-      r2 <- r2 %>% terra::crop(bbex)
-      return(list(r2=r2, bb=bbex))
-      
-    } else if(return_r1 & return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      r2 <- r2 %>% terra::crop(bbex)
-      return(list(r1=r1, r2=r2, bb=bbex))
-      
-    }
-  } else {
-    
-    if(!return_r1 & !return_r2){
-      return()
-      
-    } else if(return_r1 & !return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      return(r1)
-      
-    } else if(!return_r1 & return_r2) {
-      # Crop each raster
-      r2 <- r2 %>% terra::crop(bbex)
-      return(r2)
-      
-    } else if(return_r1 & return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      r2 <- r2 %>% terra::crop(bbex)
-      return(list(r1=r1, r2=r2))
-      
-    }
+  # Get statistics
+  mu <- mean(df$value, na.rm=T)
+  sd1 <- sd(df$value, na.rm=T)
+  mn <- min(df$value, na.rm=T)
+  mx <- max(df$value, na.rm=T)
+  
+  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
+  cuts_pts <- data.frame(x = c(mn, mx), 
+                         y = c(0, 0))
+  
+  # Sample
+  if (nrow(df) > sample_size) {
+    print("Sampling...")
+    df <- df %>% sample_n(sample_size)
   }
+  
+  # Plot
+  p <- ggplot(df, aes(x=value)) + 
+    geom_histogram(aes(y=..density.., fill = ..x..), binwidth = bwidth,
+                   show.legend = FALSE)+
+    scale_fill_gradientn(colors = agb_pal$colors, 
+                         # breaks = c(-60, -30, 0, 30, 60),
+                         # labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
+                         name = expression(paste("AGB (Mg ha"^"-1", ")")),
+                         # na.value='lightgray', 
+                         limits = c(agb_pal$min, agb_pal$max),
+                         oob = scales::squish,
+                         guide = guide_colorbar(barheight = 2)
+    ) + 
+    geom_density(alpha=.2,
+                 show.legend = FALSE) + 
+    scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
+                       # breaks = seq(min, max, 100),
+                       # limits = c(min, max)
+    ) +
+    coord_cartesian(xlim = xlim) +
+    geom_vline(mapping = aes(xintercept = value,
+                             colour = ref),
+               data = cuts,
+               color="black", 
+               # linetype="solid", 
+               linetype="dashed", 
+               size=.5,
+               show.legend = FALSE) +
+    geom_text(mapping = aes(x = value,
+                            y = Inf,
+                            label = ref,
+                            hjust = -.1,
+                            vjust = 1),
+              data = cuts) +
+    ggtitle(lyr_name) +
+    theme_minimal() +
+    theme(axis.title.y = element_blank(),
+          axis.text.y = element_blank(), 
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank())
 }
 
-# Filenames
-dir <- file.path(results_dir, 'tifs_by_R')
-agb_ras_fp <- file.path(dir, agb_l0_fp) 
-msk_land_fp <- file.path(results_dir, "masks/hti18_maskLand.tif")
-wb_fp <- file.path(results_dir, 'masks/vector/osm_water_buff25m.shp')
-mskinv_T_fp <- file.path(results_dir, "masks/mask_inv_TreeCover.tif")
-
-# Crop to intersecting extents of AGB and land 
-out <- crop_to_intersecting_extents(
-  terra::rast(agb_ras_fp), 
-  terra::rast(msk_land_fp), 
-  return_r1=T, return_r2=T, return_bb=T)
-
-# Get rasters
-bbex <- out$bb
-msk_land <- out$r2
-agb.ras <- out$r1 %>% 
-  terra::mask(msk_land)
-mskinv_T <- terra::rast(mskinv_T_fp) %>% # 1== LC17 tree cover
-  terra::crop(bbex)
-mskinv_T_wb <- mskinv_T %>% 
-  terra::mask(terra::vect(wb_fp))
-
-plot(agb.ras)
-plot(msk_land)
-
-# Get mean and count
-mn <- global(agb.ras, 'mean', na.rm=T)
-sum_agb <- global(agb.ras, 'sum', na.rm=T)
-ct_valid_pixels <- global(!is.na(agb.ras), 'sum')
-est_area_ha <- (25*25*0.0001) * ct_valid_pixels
-est_total_AGB <- mn * est_area_ha
-ct_land_pixels <- global(!is.na(msk_land), 'sum')
-est_area_ha_land <- (25*25*0.0001) * ct_land_pixels
-
-# Convert to DF
-df <- tibble(land = as.vector(msk_land), 
-             agb = as.vector(agb.ras) %>% round(2), 
-             zone = as.vector(mskinv_T),
-             water_in_tc = as.vector(mskinv_T_wb)) %>% 
-  filter(!is.na(land))
-
-
-
-total <- nrow(df)
-
-tc_df <- df %>% filter(zone == 1)
-total_TC <- tc_df %>% nrow
-
-# Tree cover class
-(ct_TC_u20 <- tc_df %>% filter(agb < 20) %>% nrow)
-ct_TC_o132 <- tc_df %>% filter(agb > 132) %>% nrow
-ct_TC_o132 / total_TC
-ct_TC_o300 <- tc_df %>% filter(agb > 300) %>% nrow
-ct_TC_o300 / total_TC
-ct_TC_o200 <- tc_df %>% filter(agb > 200) %>% nrow
-ct_TC_o200 / total_TC
-ct_TC_na <- tc_df %>% filter(is.na(agb)) %>% nrow
-ct_TC_na / total_TC
-ct_TC_wb <- tc_df %>% filter(water_in_tc == 1) %>% nrow
-ct_TC_wb / total_TC
-
-
-ct_na <- df %>% filter(is.na(agb)) %>% nrow
-ct_na / total
-ct_o132 <- df %>% filter(agb > 132) %>% nrow
-ct_o132 / total
-ct_o200 <- df %>% filter(agb > 200) %>% nrow
-ct_o200 / total
-ct_o250 <- df %>% filter(agb > 250) %>% nrow
-ct_o250 / total
-ct_o300 <- df %>% filter(agb > 300) %>% nrow
-ct_o300 / total
-ct_o310 <- df %>% filter(agb > 310) %>% nrow
-ct_o310 / total
-ct_u20 <- df %>% filter(agb < 20) %>% nrow
-ct_u20 / total
-
-ct_o20 <- df %>% filter(!is.na(agb), agb > 20) %>% nrow
-ct_o20 / total
-
-# Get pct of TC class that intersects water buffer
-
-ct_TC_pixels_wb <- global(!is.na(mskinv_T_wb), 'sum')
-TC_wb <- ct_TC_pixels_wb / ct_TC_pixels
-
-
-# Visualize
-ggplot(df, aes(x=agb)) +
-  geom_histogram()
-
-ggplot(df, aes(x=zone, y=agb)) +
-  geom_bar(stat="identity")
-
-
-
+p_hist <- plot_agb_hist_density(agb_fps$internal, agb_pal)
+hist_fp <- file.path(agb_dir, 'reports', str_c('agb_', agb_code, '_hist.png'))
+dir.create(dirname(hist_fp))
+ggsave(hist_fp, p_hist, width = 5, height = 3, dpi = 120)

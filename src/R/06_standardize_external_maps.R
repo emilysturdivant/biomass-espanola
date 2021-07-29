@@ -25,11 +25,12 @@ source('src/R/initialize_vars.R')
 # input_level <- 'l3'
 input_level <- agb_input_level
 
-# External map filepaths -------------------------------------------------------
-glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/N40W100_agb_crop_hti.tif")
-esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_crop_hti.tif")
-avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_crop_hti.tif")
-bacc_fp <- file.path(tidy_maps_dir, "Baccini/20N_080W_t_aboveground_biomass_ha_2000_crop.tif")
+# Load AGB map ----
+agb_ras <- terra::rast(agb_fp)
+e <- ext(agb_ras)
+bb <- c(e$xmin, e$ymin, e$xmax, e$ymax)
+
+land_poly <- terra::vect(hti_poly_fp)
 
 # FUNCTIONS -----------------------------------------------------------------------------------
 crop_and_set_NA <- function(in_fp, crop_fp, out_fp = NA, bb){
@@ -256,13 +257,6 @@ crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp, na = NA, dtype = '
 # }
 # 
 
-# Standardize external maps ----------------------------------------------------
-# Load AGB map
-agb_ras <- terra::rast(agb_fp)
-e <- ext(agb_ras)
-bb <- c(e$xmin, e$ymin, e$xmax, e$ymax)
-
-land_poly <- terra::vect(hti_poly_fp)
 
 # CCI Landcover ----
 # Download CCI LC 2015 v.2.0.7 using FileZilla 
@@ -271,7 +265,7 @@ in_fp <- file.path(raw_lc_dir, "ESA_CCI/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0
 lc_fp <- file.path(tidy_lc_dir, "ESA_CCI/CCI_LC_L4_2015_v207_hti.tif")
 crop_and_mask_to_polygon(in_fp, land_poly, lc_fp, na = 0)
 
-# Download CCI LC v2.1.1 using CDS API in Python ----
+# Download CCI LC v2.1.1 using CDS API in Python
 library('reticulate')
 py_run_file('src/python/download_esa_landcover.py')
 

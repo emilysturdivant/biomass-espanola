@@ -1,4 +1,5 @@
 # ******************************************************************************
+# Likely superseded by 02_process_ALOS_tiles.R summarize_raster_by_polygons and fill_gaps_from_polygons
 # Script to:
 #     * Fill gaps in AGB map by interpolating by land cover class 
 # Proceeds:

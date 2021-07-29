@@ -546,7 +546,7 @@ get_pcts <- function(x) {
     select(count_land, pct_value, pct_NA)
 }
 
-# r2, RMSE, bias for external maps against our field data -----------------------------
+# Compare to field data: r2, RMSE, bias for external maps -----------------------------
 # Get plot backscatter mean to polygons
 plots_agb <- readRDS(field_agb_fp) %>% arrange(plot_no)
 
@@ -564,6 +564,7 @@ plot_means <- plots_agb %>%
 # Save
 plot_ext_csv <- file.path(comparison_dir,
                      str_c('field_plot_means_', agb_code, '.csv'))
+dir.create(comparison_dir, recursive = TRUE)
 plot_means %>% write_csv(plot_ext_csv)
 
 # Get differences
@@ -653,149 +654,9 @@ rm(bacc_out, esa_out, avit_out, glob_out)
 # df %>% write_csv(file.path('data/reports', '07_lc_pixel_counts_ALOSres.csv'))
 
 # Perform comparison ----
-compare_by_given_lc <- function(agb_x, agb_fp, agb_code, lc_fp,
-                                mskvals = 4, mask_code = 'TC', comparison_dir,
-                                return_obj = 'summary') {
-
-  ext_name <- agb_x$name
-  ext_fp <- agb_x$fp
-
-  # Mask AGB to given LC class
-  int_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(agb_code, '_resamp', ext_name, '_', mask_code, 'mask.tif'))
-  ext_masked_fp <- file.path(comparison_dir, 'by_LC', str_c(ext_name, '_', mask_code, 'mask.tif'))
-  dir.create(dirname(ext_masked_fp), recursive = TRUE)
-
-  # Get intermediate filenames
-  tif_dir <- file.path(comparison_dir, 'diff_tifs')
-  dir.create(tif_dir, recursive = TRUE)
-
-  agb_res_fp <- file.path(tif_dir, str_c(agb_code, '_resamp_to', ext_name, '.tif'))
-  lc_res_fp <- file.path(tif_dir, str_c('LC_resamp_to', ext_name, '.tif'))
-
-  # Mask internal AGB to given LC class
-  if (!file.exists(int_masked_fp)) {
-
-    # Resample LC and internal to external AGB res
-    if(!file.exists(agb_res_fp)) resample_to_raster(agb_fp, ext_fp, agb_res_fp)
-    if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
-
-    # Load and pre-process layers
-    # agb_res <- terra::rast(agb_res_fp)
-    # lc <- terra::rast(lc_res_fp)
-    out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(agb_res_fp))
-    lc <- out$r1
-    agb_res <- out$r2
-
-    agb_T <- mskvals %>%
-      purrr::map(~ mask(agb_res, lc, inverse = TRUE, maskvalues = .x)) %>%
-      rast() %>%
-      app(sum, na.rm = TRUE, filename = int_masked_fp, overwrite = TRUE)
-
-  } else {
-
-    agb_T <- terra::rast(int_masked_fp)
-  }
-
-  # Mask external AGB to given LC class
-  if (!file.exists(ext_masked_fp)) {
-
-    # Resample LC and internal to external AGB res
-    if(!file.exists(agb_res_fp)) resample_to_raster2(agb_fp, ext_fp, agb_res_fp)
-    if(!file.exists(lc_res_fp)) resample_to_raster2(lc_fp, ext_fp, lc_res_fp, method = 'near')
-
-    # Load and pre-process layers
-    # agb_res <- terra::rast(agb_res_fp)
-    # lc <- terra::rast(lc_res_fp)
-    out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(agb_res_fp))
-    lc <- out$r1
-    agb_res <- out$r2
-    agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
-
-    ext_T <- mskvals %>%
-      purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>%
-      rast() %>%
-      app(sum, na.rm = TRUE, filename = ext_masked_fp, overwrite = TRUE)
-
-  } else {
-
-    ext_T <- terra::rast(ext_masked_fp)
-  }
-
-  # Calculate metrics for landcover class ----
-  # Summary of differences
-  smmry_diff_fp <- file.path(comparison_dir, 'by_LC',
-                             str_c(mask_code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
-  df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
-
-  # Scatterplot
-  if (return_obj == 'plot') {
-    scatter_diff_fp <- file.path(comparison_dir, 'by_LC',
-                                 str_c(mask_code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
-    p_scatt <- scatter_differences(df$diffs, ext_name, agb_code,
-                                   filename = scatter_diff_fp,
-                                   sample_size = 500000)
-  }
-
-  if (return_obj == 'plot') {
-    return(p_scatt)
-  } else if (return_obj == 'diffs') {
-    return(df$diffs)
-  } else if (return_obj == 'summary') {
-    return(df$summary)
-  } else {
-    return()
-  }
-}
-
-compare_by_given_lc(agb_fps$avit, agb_fp, agb_code, lc_fps$haiti,
-                    mskvals = c(3, 5, 6), mask_code = 'BGS', comparison_dir)
-compare_by_given_lc(agb_fps$esa, agb_fp, agb_code, lc_fps$haiti,
-                    mskvals = c(3, 5, 6), mask_code = 'BGS', comparison_dir)
-
-sum_tbl <- compare_by_given_lc(agb_fps$esa, agb_fp, agb_code, lc_fps$haiti,
-                    mskvals = c(3, 5, 6), mask_code = 'BGS', comparison_dir,
-                    return_obj = 'summary')
-
-# non-TC
-mask_code <- 'BGS'
-sum_tbl <- agb_fps %>% purrr::map_dfr(compare_by_given_lc, agb_fp, agb_code, lc_fps$haiti,
-                               mskvals = c(3, 5, 6), mask_code = mask_code, comparison_dir,
-                               return_obj = 'summary')
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC',
-                           str_c('summary_diffs_', mask_code, '.csv'))
-sum_tbl %>%
-  mutate(mask = mask_code) %>%
-  write_csv(smmry_diff_fp)
-
-# TC
-mask_code <- 'TC'
-sum_tbl <- agb_fps %>% purrr::map_dfr(compare_by_given_lc, agb_fp, agb_code, lc_fps$haiti,
-                                      mskvals = 4, mask_code = mask_code, comparison_dir,
-                                      return_obj = 'summary')
-
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC',
-                           str_c('summary_diffs_', mask_code, '.csv'))
-sum_tbl %>%
-  mutate(mask = mask_code) %>%
-  write_csv(smmry_diff_fp)
-
-# All
-mask_code <- 'Total'
-sum_tbl <- agb_fps[1:4] %>% purrr::map_dfr(compare_by_given_lc, agb_fp, agb_code, lc_fps$haiti,
-                                      mskvals = c(1,2,3,4,5,6), mask_code = mask_code, comparison_dir,
-                                      return_obj = 'summary')
-
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC',
-                           str_c('summary_diffs_', mask_code, '.csv'))
-sum_tbl %>%
-  mutate(mask = mask_code) %>%
-  write_csv(smmry_diff_fp)
-
-
-
-# New version ----
 compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
-                                mskvals = list(values = 4, code = 'TC'), comparison_dir,
+                                mskvals = list(values = 4, code = 'TC'), 
+                                comparison_dir,
                                 return_obj = 'summary') {
   
   # External names
@@ -803,22 +664,36 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   ext_fp <- agb_x$fp
   ext_masked_fp <- str_c(tools::file_path_sans_ext(ext_fp), '_', mskvals$code, 'mask.tif')
 
-  res1 <- round(res(terra::rast(ext_fp))[[1]], 10)
-  res2 <- round(res(terra::rast(agb_fp))[[1]], 10)
-  
-  if (res1 != res2) {
-    # agb_fp <- agb_res_fp
+  if (ext_name == 'Avitabile') {    
     agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
     lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
     
     # Resample LC and internal to external AGB res
     if(!file.exists(agb_res_fp)) resample_to_raster(agb_fp, ext_fp, agb_res_fp)
     if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
-  
+    
   } else {
-    agb_res_fp <- agb_fp
-    lc_res_fp <- lc_fps
+    agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
+    lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
+    
   }
+  
+  # res1 <- round(res(terra::rast(ext_fp))[[1]], 10)
+  # res2 <- round(res(terra::rast(agb_fp))[[1]], 10)
+  # 
+  # if (res1 != res2) {
+  #   # agb_fp <- agb_res_fp
+  #   agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
+  #   lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
+  #   
+  #   # Resample LC and internal to external AGB res
+  #   if(!file.exists(agb_res_fp)) resample_to_raster(agb_fp, ext_fp, agb_res_fp)
+  #   if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
+  # 
+  # } else {
+  #   agb_res_fp <- agb_fp
+  #   lc_res_fp <- lc_fp
+  # }
   
   # Internal names
   agb_code <- str_remove(tools::file_path_sans_ext(agb_res_fp), '.*agb_')
@@ -860,13 +735,13 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   ext_T <- out$r2
   
   # Summary of differences
-  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
                              str_c(mskvals$code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
-  dir.create(dirname(smmry_diff_fp), recursive = TRUE) 
+  dir.create(dirname(smmry_diff_fp), recursive = TRUE, showWarnings = FALSE) 
   df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
   
   # Scatterplot 
-  if (return_obj == 'plot') {
+  if (return_obj == 'plot' | return_obj == 'all') {
     scatter_diff_fp <- file.path(comparison_dir, 'by_LC', 
                                  str_c(mskvals$code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
     p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
@@ -876,25 +751,57 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   
   if (return_obj == 'plot') {
     return(p_scatt)
+    
   } else if (return_obj == 'diffs') {
     return(df$diffs)
+    
   } else if (return_obj == 'summary') {
     return(df$summary)
+    
+  } else if (return_obj == 'all') {
+    return(list(plot = p_scatt,
+           diffs = df$diffs,
+           summary = df$summary))
+    
   } else {
     return()
+    
   }
 }
 
-agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fps$internal$fp), '_resCCI.tif')
-lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
+iterate_compare_by_lc <- function(mskvals = list(values = 4, code = 'TC'),
+                                  agb_fps, lc_fp, comparison_dir){
+  
+  agb_fp <- agb_fps$internal$fp
+  
+  # Get summary table for all externals and row bind
+  sum_tbl <- agb_fps[c(2,3,4,5)] %>% 
+    purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
+                   mskvals = mskvals, comparison_dir,
+                   return_obj = 'summary') %>% 
+    mutate(mask = mskvals$code) 
+  
+  # Save table
+  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
+                             str_c('summary_diffs_', mskvals$code, '.csv'))
+  sum_tbl %>% write_csv(smmry_diff_fp)
+  
+  # Plots
+  agb_fps[c(2,3,4,5)] %>% 
+    purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
+                mskvals = mskvals, comparison_dir,
+                return_obj = 'plot')
+}
+
+
+lc_fp <- lc_fps$haiti
 
 # testing ----
 mskvals <-  list(values = 4, code = 'TC')
-
 agb_x <- agb_fps$avit
 df <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fps$haiti,
                     mskvals = mskvals, comparison_dir,
-                    return_obj = 'plot')
+                    return_obj = 'all')
 
 agb_x <- agb_fps$esa
 compare_by_given_lc(agb_x, agb_res_fp, lc_fp = lc_res_fp,
@@ -904,70 +811,44 @@ compare_by_given_lc(agb_x, agb_res_fp, lc_fp = lc_res_fp,
 p_scatt <- scatter_differences(df, ext_name, agb_code, 
                                sample_size = 500000)
 
-# Run with purrr ----
 # TC
-mask_code <- 'TC'
 mskvals <- list(values = 4, code = 'TC')
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_', mskvals$code, '.csv'))
-
-tc_sum_tbl <- agb_fps[c(2,3,5)] %>% 
-  purrr::map_dfr(compare_by_given_lc, agb_res_fp, lc_res_fp,
+tc_sum_tbl <- agb_fps[c(2,3,4,5)] %>% 
+  purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
                  mskvals = mskvals, comparison_dir,
                  return_obj = 'summary') %>% 
-  mutate(mask = mask_code) 
+  mutate(mask = mskvals$code) 
 
-tc_sum_tbl %>% 
-  write_csv(smmry_diff_fp)
+smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+                           str_c('summary_diffs_', mskvals$code, '.csv'))
+tc_sum_tbl %>% write_csv(smmry_diff_fp)
 
-# All
+# Plots
+agb_fps[c(2,3,4,5)] %>% 
+  purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
+              mskvals = mskvals, comparison_dir,
+              return_obj = 'plot')
+
+# Run with purrr ----
+mskvals <- list(values = 4, code = 'TC')
+iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
+
 mskvals <- list(values = c(1,2,3,4,5,6), code = 'Total')
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_', mskvals$code, '.csv'))
+iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
 
-total_sum_tbl <- agb_fps[c(2,3,5)] %>% 
-  purrr::map_dfr(compare_by_given_lc, agb_res_fp, lc_res_fp,
-                 mskvals = mskvals, comparison_dir,
-                 return_obj = 'summary') %>% 
-  mutate(mask = mask_code) 
-
-total_sum_tbl %>% 
-  write_csv(smmry_diff_fp)
-
-# BGS
 mskvals <- list(values = c(3,5,6), code = 'BGS')
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_', mskvals$code, '.csv'))
+iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
 
-bgs_sum_tbl <- agb_fps[c(2,3,5)] %>% 
-  purrr::map_dfr(compare_by_given_lc, agb_res_fp, lc_res_fp,
-                 mskvals = mskvals, comparison_dir,
-                 return_obj = 'summary') %>% 
-  mutate(mask = mask_code) 
-
-bgs_sum_tbl %>% 
-  write_csv(smmry_diff_fp)
-
-# non-TC
 mskvals <- list(values = c(1,2,3, 5, 6), code = 'WUBGS')
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_', mskvals$code, '.csv'))
+iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
 
-wubgs_sum_tbl <- agb_fps[c(2,3,5)] %>% 
-  purrr::map_dfr(compare_by_given_lc, agb_res_fp, lc_res_fp,
-                 mskvals = mskvals, comparison_dir,
-                 return_obj = 'summary') %>% 
-  mutate(mask = mask_code) 
-
-wubgs_sum_tbl %>% write_csv(smmry_diff_fp)
-
-# Combine
-sum_tbl <- list.files(file.path(comparison_dir, 'by_LC'), 
+# Combine ----
+sum_tbl <- list.files(file.path(comparison_dir, 'by_LC', 'temp'), 
                       pattern = 'summary_diffs.*\\.csv',
                       full.names = TRUE) %>% 
   purrr::map_dfr(read_csv)
 
 # Save
 smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_BaccGlobCCI.csv'))
+                           str_c('summary_diffs_BaccAvitGlobCCI.csv'))
 sum_tbl %>% write_csv(smmry_diff_fp)

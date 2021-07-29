@@ -75,7 +75,6 @@ mask_to_poly <- function(code, suffix, g0_dir, landmask_fp) {
                     wopt = list(datatype = dtype, gdal = 'COMPRESS=LZW'))
 }
 
-
 filter_g0 <- function(in_fp, filter = 'median', params=list(filtsize=5), cap=NA) {
   
   r_dtype <- raster::dataType(raster::raster(in_fp))

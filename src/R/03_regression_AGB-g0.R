@@ -144,10 +144,11 @@ fxn.bias <- function(data, lev = NULL, model = NULL) {
   n <- length(resids)
   df <- n-2
   mse <- rss / n
+  mbe = sum(resids) / n
   c(r.squared = summary(lm(pred ~ obs, data))$r.squared,
     adj.r.squared = summary(lm(pred ~ obs, data))$adj.r.squared,
-    MBE = sum(resids) / n,
-    Bias = abs(MBE),
+    MBE = mbe,
+    Bias = abs(mbe),
     RMSE = sqrt(mse),
     MAE = sum(abs(resids)) / n,
     MSE = mse,

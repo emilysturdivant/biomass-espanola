@@ -15,6 +15,7 @@ agb_code <- 'l2_maskWUwb'
 g0_mask <- c('L', 'U', 'W', 'wb')
 saturation_pt <- 300
 g0_variant <- 'med5'
+g0_variant <- 'maskLUWwb_med5_LCinterp'
 if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 
 # Filepaths
@@ -145,4 +146,117 @@ resample_to_raster <- function(agb_fp, ext_fp, agb_res_fp, method = 'bilinear') 
   agb_res %>% terra::writeRaster(filename = agb_res_fp, 
                                  overwrite = TRUE, 
                                  datatype = in_dtype)
+}
+
+
+mask_with_options <- function(in_fp, masks_dir, code = 'HV_nu', 
+                              masks = c('L', 'WU', 'wb'), overwrite = TRUE,
+                              out_mask_dir) {
+  
+  # Get output filenames
+  masks_str <- masks %>% str_c(collapse = '')
+  masked_fp <- file.path(dirname(in_fp), 
+                         str_c(code, '_mask', masks_str, '.tif'))
+  msk_all_fp <- file.path(out_mask_dir, str_c('mask', masks_str, '.tif'))
+  
+  # Stop if file already exists
+  if(file.exists(masked_fp) & !overwrite) {
+    return(terra::rast(masked_fp))
+  }
+  
+  # Use mask file if it already exists
+  if(file.exists(msk_all_fp) & !overwrite) {
+    ras <- terra::rast(in_fp)
+    msk <- terra::rast(msk_all_fp)
+    
+    # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+    r_dtype <- raster::dataType(raster::raster(in_fp))
+    r_masked <- ras %>% 
+      terra::mask(msk, filename = masked_fp, overwrite = T, 
+                  wopt = list(datatype = r_dtype, gdal = 'COMPRESS=LZW'))
+    
+    # Return
+    return(r_masked)
+  }
+  
+  # Load AGB
+  ras <- terra::rast(in_fp)
+  
+  # Initialize mask raster (all 1's)
+  msk <- ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
+  
+  # AGB <20 mask
+  if('u20' %in% masks){
+    msk_u20 <- ras %>% terra::classify(rbind(c(-Inf, 20, NA),
+                                             c(20, Inf, 1)))
+    msk <- msk %>% terra::mask(msk_u20)
+  }
+  
+  # LC17 Water and Urban, and OSM water with 25 m buffer 
+  if('WU' %in% masks & 'wb' %in% masks){
+    msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
+    msk_WUwb <- terra::rast(msk_WUwb_fp) %>% terra::crop(ras)
+    
+    # Check extents
+    if(ext(ras) != ext(msk_WUwb)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_WUwb)
+    
+  } else if('WU' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_WaterUrban.tif")
+    msk_WU <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    # Check extents
+    if(ext(ras) != ext(msk_WU)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_WU)
+    
+  } else if('U' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_Urban.tif")
+    msk_U <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    # Check extents
+    if(ext(ras) != ext(msk_U)){
+      print("Extents don't match.")
+    }
+    
+    msk <- msk %>% terra::mask(msk_U)
+    
+  }
+  
+  # ALOS mask 
+  if('A' %in% masks){
+    msk_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
+    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    msk <- msk %>% terra::mask(msk_tmp)
+    
+  } else if('L' %in% masks) {
+    msk_fp <- file.path(masks_dir, "mask_palsar_layover_2019.tif")
+    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
+    
+    msk <- msk %>% terra::mask(msk_tmp)
+  }
+  
+  # Save mask raster
+  msk %>% terra::writeRaster(filename = msk_all_fp, 
+                             overwrite = TRUE, 
+                             datatype = 'INT1S', 
+                             gdal = 'COMPRESS=LZW')
+  
+  # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
+  r_dtype <- raster::dataType(raster::raster(in_fp))
+  r_masked <- ras %>% 
+    terra::mask(msk, 
+                filename = masked_fp, 
+                overwrite = T, 
+                datatype = r_dtype, 
+                gdal = 'COMPRESS=LZW')
+  
+  # Return
+  return(r_masked)
 }

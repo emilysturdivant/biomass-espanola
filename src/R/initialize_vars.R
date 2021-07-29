@@ -12,10 +12,11 @@ code <- 'HV_nu'
 year <- '2019'
 agb_input_level <- 'l2'
 agb_code <- 'l2_maskWUwb'
-g0_mask <- c('L', 'U', 'W', 'wb')
+g0_mask <- c('L', 'WU', 'wb')
+agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
 saturation_pt <- 300
 g0_variant <- 'med5'
-g0_variant <- 'maskLUWwb_med5_LCinterp'
+g0_variant <- 'maskLWUwb_med5_LCinterp'
 if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 
 # Filepaths
@@ -46,46 +47,46 @@ lc_pols_fp <- file.path(tidy_dir, "landcover/Lemoiner/Haiti2017_Clip_polys.gpkg"
 lc_res_fp <- file.path(tidy_dir, 'landcover', 'Lemoiner', 'Haiti2017_agbres.tif')
 g0_fp <- file.path(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
 
-# 03
+# 03 ----
 g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
 modeling_dir <- file.path('data/modeling', code)
+agb_dir <- file.path(modeling_dir, g0_variant)
 # var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
-agb_l0_fp <- file.path(modeling_dir, g0_variant, str_c("agb_l0_", g0_variant, ".tif"))
+agb_l0_fp <- file.path(agb_dir, str_c("agb_l0_", g0_variant, ".tif"))
 
-# 04 
+# 04 ----
 masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
+agb_cap_fp <- file.path(agb_dir, str_c('agb_l1_cap', saturation_pt, '.tif'))
+
+agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
 
 # 05 ----
 # Set variables 
-rmse_cv <- 21.2
-lc_stat <-  'median'
-input_level <- 'l2_mask'
-mask_level <- 'LU'
+# rmse_cv <- 21.2
+# lc_stat <-  'median'
+# input_level <- 'l2_mask'
+# mask_level <- 'LU'
 
 # Input filepaths
-agb_dir <- file.path('data', 'modeling', code, g0_variant)
 # (agb_capped_fp <- list.files(agb_dir, str_c('agb_', input_level, '.*\\.tif'), full.names = TRUE))
-(agb_masked_fp <- list.files(agb_dir, str_glue('agb_l2.*{mask_level}\\.tif'), 
-                             full.names = TRUE))
+# (agb_masked_fp <- list.files(agb_dir, str_glue('agb_l2.*{mask_level}\\.tif'), 
+#                              full.names = TRUE))
 
 lc_fps <- list(haiti = file.path(raw_lc_dir, "Lemoiner/Haiti2017_Clip.tif"), 
                dr = file.path(raw_lc_dir, "Lemoiner/DR_2017_clip.tif"))
 
-# Output filepaths
-agb_by_lc_prefix <- file.path(agb_dir, 'agb_by_landcover', 
-                              str_glue('agb_{input_level}_{mask_level}_{lc_stat}_byLC'))
-lc_pols_agb_fp <- str_c(agb_by_lc_prefix, '.gpkg')
-agb_by_lc_fp <- str_c(agb_by_lc_prefix, '.tif') 
-agb_by_lc_sd_fp <- str_c(agb_by_lc_prefix, '_sd.tif') 
-
-agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}.tif'))
-agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}_sd.tif'))
+# # Output filepaths
+# agb_by_lc_prefix <- file.path(agb_dir, 'agb_by_landcover', 
+#                               str_glue('agb_{input_level}_{mask_level}_{lc_stat}_byLC'))
+# lc_pols_agb_fp <- str_c(agb_by_lc_prefix, '.gpkg')
+# agb_by_lc_fp <- str_c(agb_by_lc_prefix, '.tif') 
+# agb_by_lc_sd_fp <- str_c(agb_by_lc_prefix, '_sd.tif') 
+# 
+# agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}.tif'))
+# agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}_sd.tif'))
 
 # 06
-
-# 07
-agb_dir <- file.path(modeling_dir, g0_variant)
 
 # 07 - External map filepaths ----
 glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/Glob_agb10_hti.tif")
@@ -93,8 +94,6 @@ esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_hti.tif")
 avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_hti.tif")
 bacc_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti.tif")
 bacc_res_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti_resCCI.tif")
-
-agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
 
 # List of AGB maps
 agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
@@ -109,8 +108,11 @@ agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
                             fp = bacc_res_fp))
 
 comparison_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
+agb_var_dir <- file.path(agb_dir, agb_code)
+comparison_dir <- file.path(agb_var_dir, 'external_comparison')
 plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
 ext_report_csv <- file.path('data/reports', str_glue('07_ext_comparison_metrics_{agb_code}.csv'))
+ext_report_csv <- file.path(agb_var_dir, 'reports', str_glue('07_ext_comparison_metrics.csv'))
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')
@@ -259,4 +261,121 @@ mask_with_options <- function(in_fp, masks_dir, code = 'HV_nu',
   
   # Return
   return(r_masked)
+}
+
+
+crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, return_bb=F) {
+  # Get intersection of the bounding boxes of the two rasters
+  r1_bbox <- terra::ext(r1) %>% as.vector() %>% sf::st_bbox() %>% sf::st_as_sfc()
+  r2_bbox <- terra::ext(r2) %>% as.vector() %>% sf::st_bbox() %>% sf::st_as_sfc()
+  bb <- sf::st_intersection(r1_bbox, r2_bbox)
+  bb <- bb %>% sf::st_bbox()
+  bb <- bb %>% as.vector()
+  
+  # Convert to terra extent object
+  bbex <- terra::ext(bb[c(1, 3, 2, 4)])
+  
+  if(return_bb){
+    if(!return_r1 & !return_r2){
+      return(bbex)
+    } else if(return_r1 & !return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      return(list(r1=r1, bb=bbex))
+    } else if(!return_r1 & return_r2) {
+      # Crop each raster
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r2=r2, bb=bbex))
+    } else if(return_r1 & return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r1=r1, r2=r2, bb=bbex))
+    }
+  } else {
+    if(!return_r1 & !return_r2){
+      return()
+    } else if(return_r1 & !return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      return(r1)
+    } else if(!return_r1 & return_r2) {
+      # Crop each raster
+      r2 <- r2 %>% terra::crop(bbex)
+      return(r2)
+    } else if(return_r1 & return_r2) {
+      # Crop each raster
+      r1 <- r1 %>% terra::crop(bbex)
+      r2 <- r2 %>% terra::crop(bbex)
+      return(list(r1=r1, r2=r2))
+    }
+  }
+}
+
+plot_agb_hist_density <- function(x, agb_pal, bwidth=5, sample_size=100000, 
+                                  xlim = c(min=0, max=300)) {
+  
+  # Get values
+  lyr_name <- x$name
+  ras <- terra::rast(x$fp)
+  df <- terra::values(ras, dataframe = TRUE) %>% 
+    rename(value = 1) %>% 
+    drop_na()
+  
+  # Get statistics
+  mu <- mean(df$value, na.rm=T)
+  sd1 <- sd(df$value, na.rm=T)
+  mn <- min(df$value, na.rm=T)
+  mx <- max(df$value, na.rm=T)
+  
+  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
+  cuts_pts <- data.frame(x = c(mn, mx), 
+                         y = c(0, 0))
+  
+  # Sample
+  if (nrow(df) > sample_size) {
+    print("Sampling...")
+    df <- df %>% sample_n(sample_size)
+  }
+  
+  # Plot
+  p <- ggplot(df, aes(x=value)) + 
+    geom_histogram(aes(y=..density.., fill = ..x..), binwidth = bwidth,
+                   show.legend = FALSE)+
+    scale_fill_gradientn(colors = agb_pal$colors, 
+                         # breaks = c(-60, -30, 0, 30, 60),
+                         # labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
+                         name = expression(paste("AGB (Mg ha"^"-1", ")")),
+                         # na.value='lightgray', 
+                         limits = c(agb_pal$min, agb_pal$max),
+                         oob = scales::squish,
+                         guide = guide_colorbar(barheight = 2)
+    ) + 
+    geom_density(alpha=.2,
+                 show.legend = FALSE) + 
+    scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
+                       # breaks = seq(min, max, 100),
+                       # limits = c(min, max)
+    ) +
+    coord_cartesian(xlim = xlim) +
+    geom_vline(mapping = aes(xintercept = value,
+                             colour = ref),
+               data = cuts,
+               color="black", 
+               # linetype="solid", 
+               linetype="dashed", 
+               size=.5,
+               show.legend = FALSE) +
+    geom_text(mapping = aes(x = value,
+                            y = Inf,
+                            label = ref,
+                            hjust = -.1,
+                            vjust = 1),
+              data = cuts) +
+    ggtitle(lyr_name) +
+    theme_minimal() +
+    theme(axis.title.y = element_blank(),
+          axis.text.y = element_blank(), 
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank())
 }

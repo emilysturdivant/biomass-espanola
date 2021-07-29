@@ -35,9 +35,6 @@ source('src/R/initialize_vars.R')
 # g0_variant <- nth(items[[1]], -1)
 
 # Apply value cap to AGB -------------------------------------------------------
-agb_cap_fp <- file.path(dirname(agb_l0_fp), 
-                        str_c('agb_l1_cap', saturation_pt, '.tif'))
-
 # Apply saturation point to AGB and save
 if(!file.exists(agb_cap_fp)){
   agb_dtype <- raster::dataType(raster::raster(agb_l0_fp))
@@ -50,175 +47,21 @@ if(!file.exists(agb_cap_fp)){
 }
 
 # Mask agb --------------------------------------------------------------
-mask_agb <- function(agb_fp, masks_dir, level_code = 'l1', 
-                     masks = c('L', 'WU', 'wb', 'u20'), overwrite = TRUE,
-                     masked_agb_fp) {
-  
-  # Get output filename
-  masks_str <- masks %>% 
-    str_c(collapse = '')
-  masked_agb_fp <- file.path(dirname(agb_fp), 
-                             str_c('agb_', level_code, '_mask', masks_str, '.tif'))
-  msk_all_fp <- file.path(dirname(agb_fp), str_c('mask', masks_str, '.tif'))
-  
-  # Stop if file already exists
-  if(file.exists(masked_agb_fp) & !overwrite) {
-    return(terra::rast(masked_agb_fp))
-  }
-  
-  # Use mask file if it already exists
-  if(file.exists(msk_all_fp) & !overwrite) {
-    agb_ras <- terra::rast(agb_fp)
-    msk <- terra::rast(msk_all_fp)
-    
-    # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-    agb_dtype <- raster::dataType(raster::raster(agb_fp))
-    agb_masked <- agb_ras %>% 
-      terra::mask(msk, filename = masked_agb_fp, overwrite = T, 
-                  wopt = list(datatype = agb_dtype, gdal = 'COMPRESS=LZW'))
-    
-    # Return
-    return(agb_masked)
-  }
-  
-  # Load AGB
-  agb_ras <- terra::rast(agb_fp)
-  
-  # Initialize mask raster (all 1's)
-  msk <- agb_ras %>% terra::classify(rbind(c(-Inf, Inf, 1)))
-  
-  # AGB <20 mask
-  if('u20' %in% masks){
-    msk_u20 <- agb_ras %>% terra::classify(rbind(c(-Inf, 20, NA),
-                                                 c(20, Inf, 1)))
-    msk <- msk %>% terra::mask(msk_u20)
-  }
-  
-  # LC17 Water and Urban, and OSM water with 25 m buffer
-  if('WU' %in% masks & 'wb' %in% masks){
-    msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
-    msk_WUwb <- terra::rast(msk_WUwb_fp) %>% terra::crop(agb_ras)
-    
-    # Check extents
-    if(ext(agb_ras) != ext(msk_WUwb)){
-      print("Extents don't match.")
-    }
-    
-    msk <- msk %>% terra::mask(msk_WUwb)
-    
-  } else if('WU' %in% masks) {
-      msk_fp <- file.path(masks_dir, "mask_WaterUrban.tif")
-      msk_WU <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
-      
-      # Check extents
-      if(ext(agb_ras) != ext(msk_WU)){
-        print("Extents don't match.")
-      }
-      
-      msk <- msk %>% terra::mask(msk_WU)
-      
-  } else if('U' %in% masks) {
-    msk_fp <- file.path(masks_dir, "mask_Urban.tif")
-    msk_U <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
-    
-    # Check extents
-    if(ext(agb_ras) != ext(msk_U)){
-      print("Extents don't match.")
-    }
-    
-    msk <- msk %>% terra::mask(msk_U)
-    
-  }
-  
-  # ALOS mask
-  if('A' %in% masks){
-    msk_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
-    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
-    
-    msk <- msk %>% terra::mask(msk_tmp)
-    
-  } else if('L' %in% masks) {
-    msk_fp <- file.path(masks_dir, "mask_palsar_layover_2019.tif")
-    msk_tmp <- terra::rast(msk_fp) %>% terra::crop(agb_ras)
-    
-    msk <- msk %>% terra::mask(msk_tmp)
-  }
-  
-  # Save mask raster
-  msk %>% terra::writeRaster(filename = msk_all_fp, 
-                             overwrite = TRUE, 
-                             datatype = 'INT1S', 
-                             gdal = 'COMPRESS=LZW')
-  
-  # Apply non-negotiable mask (msk_AWUwb_u20) to AGB from SAGA filter
-  agb_dtype <- raster::dataType(raster::raster(agb_fp))
-  agb_masked <- agb_ras %>% 
-    terra::mask(msk, 
-                filename = masked_agb_fp, 
-                overwrite = T, 
-                datatype = agb_dtype, 
-                gdal = 'COMPRESS=LZW')
-  
-  # Return
-  return(agb_masked)
-}
+# Apply masks to L2 capped AGB
+agb_l2 <- mask_with_options(in_fp = agb_l0_fp, 
+                            masks_dir, 
+                            code = 'agb_l1',
+                            masks = agb_mask_codes, 
+                            overwrite = FALSE, 
+                            agb_dir)
 
-# Apply masks ----
-# Apply layover and Urban mask to L1 capped AGB
-agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                   masks_dir, 
-                   level_code = 'l2',
-                   masks = c('L', 'U'), overwrite = FALSE)
-
-# Apply WU, wb, u20, p3 mask to L0 agb
-agb_masked <- mask_agb(agb_l0_fp,
-                       masks_dir, 
-                       level_code = 'l1',
-                       masks = c('WU', 'wb', 'u20'), overwrite = FALSE)
-
-# Apply WU, wb, u20 mask to L1 capped AGB
-agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                       masks_dir, 
-                       level_code = 'l2',
-                       masks = c('WU', 'wb', 'u20'), overwrite = FALSE)
-
-# Apply WU, wb mask to L1 capped AGB
-agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                   masks_dir, 
-                   level_code = 'l2',
-                   masks = c('WU', 'wb'), overwrite = FALSE)
-
-# Apply WU, u20 mask to L1 capped AGB
-agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                   masks_dir, 
-                   level_code = 'l2',
-                   masks = c('WU', 'u20'), overwrite = FALSE)
-
-# Apply Urban mask to L1 capped AGB
-agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                       masks_dir, 
-                       level_code = 'l2',
-                       masks = c('U'), overwrite = FALSE)
-
-# Apply L, WU, wb mask to L1 capped AGB
-agb_l2 <- mask_agb(agb_fp = agb_cap_fp, 
-                   masks_dir, 
-                   level_code = 'l2',
-                   masks = c('L', 'WU', 'wb'), overwrite = FALSE)
-
-# Apply L, WU, wb mask to L1 capped AGB
+# Apply masks to L2 capped AGB
 agb_l2 <- mask_with_options(in_fp = agb_cap_fp, 
                             masks_dir, 
                             code = 'agb_l2',
-                            masks = c('L', 'WU', 'wb'), overwrite = FALSE, 
-                            dirname(agb_cap_fp))
-
-# Apply WU, wb mask to L1 capped AGB
-agb_l2 <- mask_with_options(in_fp = agb_cap_fp, 
-                            masks_dir, 
-                            code = 'agb_l2',
-                            masks = c('WU', 'wb'), overwrite = FALSE, 
-                            dirname(agb_cap_fp))
+                            masks = agb_mask_codes, 
+                            overwrite = FALSE, 
+                            agb_dir)
 
 # Report (incomplete update): Get value frequencies within masks ---------------
 get_frequencies <- function(agb_ras, msk_name){
@@ -314,10 +157,11 @@ tc_wb_cts <- total_tc_wb %>%
          pct = count / total_tc,
          pct_land = count / total_land)
 
-combo_df <- bind_rows(cts, tc_mskd_cts, tc_wb_cts)
+combo_df <- bind_rows(cts, tc_mskd_cts, tc_wb_cts) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 4)))
 
-combo_df %>% write_csv(file.path(dirname(agb_cap_fp), '04_pcts_masked.csv'))
-combo_df %>% write_csv(file.path('data/reports', '04_pcts_masked.csv'))
+combo_df %>% write_csv(file.path(agb_dir, str_glue('04_pcts_masked_{agb_code}.csv')))
+combo_df %>% write_csv(file.path('data/reports', str_glue('04_pcts_masked_{agb_code}.csv')))
 
 combo <- combo_df %>% 
   mutate(
@@ -328,15 +172,15 @@ combo <- combo_df %>%
   dplyr::summarize(pct = sum(pct), 
                    pct_land = sum(pct_land), 
                    count = sum(count)) %>% 
-  mutate(area_ha = count * (25*25*0.0001),
-         area_from_pct = pct_land * 2710675)
+  mutate(area_ha = round(count * (25*25*0.0001), 0),
+         area_from_pct = round(pct_land * 2710675, 0))
 
-combo %>% write_csv(file.path(dirname(agb_cap_fp), '04_pcts_masked_agg_w_areas.csv'))
-combo %>% write_csv(file.path('data/reports', '04_pcts_masked_agg_w_areas.csv'))
-
-
+combo %>% write_csv(file.path(agb_dir, str_glue('04_pcts_masked_agg_w_areas_{agb_code}.csv')))
+combo %>% write_csv(file.path('data/reports', str_glue('04_pcts_masked_agg_w_areas_{agb_code}.csv')))
 
 
+
+# Area of Haiti
 hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
 sf::st_area(st_read(hti_poly_fp))
 
@@ -350,76 +194,7 @@ ct_valid_pixels <- global(!is.na(agb_masked), 'sum', na.rm=T)
 
 
 # Histogram ----
-# Function from 07...Rmd
-plot_agb_hist_density <- function(x, agb_pal, bwidth=5, sample_size=100000, 
-                                  xlim = c(min=0, max=300)) {
-  
-  # Get values
-  lyr_name <- x$name
-  ras <- terra::rast(x$fp)
-  df <- terra::values(ras, dataframe = TRUE) %>% 
-    rename(value = 1) %>% 
-    drop_na()
-  
-  # Get statistics
-  mu <- mean(df$value, na.rm=T)
-  sd1 <- sd(df$value, na.rm=T)
-  mn <- min(df$value, na.rm=T)
-  mx <- max(df$value, na.rm=T)
-  
-  cuts <- quantile(df$value, probs = c(.1, .5, .9)) %>% as_tibble(rownames='ref')
-  cuts_pts <- data.frame(x = c(mn, mx), 
-                         y = c(0, 0))
-  
-  # Sample
-  if (nrow(df) > sample_size) {
-    print("Sampling...")
-    df <- df %>% sample_n(sample_size)
-  }
-  
-  # Plot
-  p <- ggplot(df, aes(x=value)) + 
-    geom_histogram(aes(y=..density.., fill = ..x..), binwidth = bwidth,
-                   show.legend = FALSE)+
-    scale_fill_gradientn(colors = agb_pal$colors, 
-                         # breaks = c(-60, -30, 0, 30, 60),
-                         # labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
-                         name = expression(paste("AGB (Mg ha"^"-1", ")")),
-                         # na.value='lightgray', 
-                         limits = c(agb_pal$min, agb_pal$max),
-                         oob = scales::squish,
-                         guide = guide_colorbar(barheight = 2)
-    ) + 
-    geom_density(alpha=.2,
-                 show.legend = FALSE) + 
-    scale_x_continuous(name = expression(paste("Aboveground biomass (Mg ha"^"-1", ")")),
-                       # breaks = seq(min, max, 100),
-                       # limits = c(min, max)
-    ) +
-    coord_cartesian(xlim = xlim) +
-    geom_vline(mapping = aes(xintercept = value,
-                             colour = ref),
-               data = cuts,
-               color="black", 
-               # linetype="solid", 
-               linetype="dashed", 
-               size=.5,
-               show.legend = FALSE) +
-    geom_text(mapping = aes(x = value,
-                            y = Inf,
-                            label = ref,
-                            hjust = -.1,
-                            vjust = 1),
-              data = cuts) +
-    ggtitle(lyr_name) +
-    theme_minimal() +
-    theme(axis.title.y = element_blank(),
-          axis.text.y = element_blank(), 
-          panel.grid.major.y = element_blank(),
-          panel.grid.minor.y = element_blank())
-}
-
 p_hist <- plot_agb_hist_density(agb_fps$internal, agb_pal)
-hist_fp <- file.path(agb_dir, 'reports', str_c('agb_', agb_code, '_hist.png'))
-dir.create(dirname(hist_fp))
+hist_fp <- file.path(agb_var_dir, str_c('agb_', agb_code, '_hist.png'))
+dir.create(dirname(hist_fp), recursive = TRUE)
 ggsave(hist_fp, p_hist, width = 5, height = 3, dpi = 120)

@@ -111,8 +111,8 @@ comparison_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
 agb_var_dir <- file.path(agb_dir, agb_code)
 comparison_dir <- file.path(agb_var_dir, 'external_comparison')
 plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
-ext_report_csv <- file.path('data/reports', str_glue('07_ext_comparison_metrics_{agb_code}.csv'))
 ext_report_csv <- file.path(agb_var_dir, 'reports', str_glue('07_ext_comparison_metrics.csv'))
+pix2pix_compare_csv <- file.path(agb_var_dir, 'reports', str_c('07_pixel_comparison_by_LC.csv'))
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')

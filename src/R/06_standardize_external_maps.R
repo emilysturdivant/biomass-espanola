@@ -258,6 +258,7 @@ crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp, na = NA, dtype = '
 # 
 
 
+# ~ Landcover: ================================================================
 # CCI Landcover ----
 # Download CCI LC 2015 v.2.0.7 using FileZilla 
 # Crop to our Haiti extent and convert 0s to NA
@@ -296,6 +297,22 @@ in_fp <- lc_fps$haiti
 lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
 resample_to_raster(in_fp, agb_fps$esa$fp, lc_res_fp, method = 'near')
 
+# Pct. pix in each LC class ----
+lc <- terra::rast(lc_res_fp)
+rvals <- values(lc)
+df <-
+  tibble(group = c("Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs"),
+         count = c(sum(rvals==1, na.rm=TRUE),
+                   sum(rvals==2, na.rm=TRUE),
+                   sum(rvals==3, na.rm=TRUE),
+                   sum(rvals==4, na.rm=TRUE),
+                   sum(rvals==5, na.rm=TRUE),
+                   sum(rvals==6, na.rm=TRUE))) %>%
+  mutate(pct = count / sum(count))
+
+df %>% write_csv(file.path('data/reports', '06_lc_pixel_counts_ALOSres.csv'))
+
+# ~ Biomass: ====================================================================
 # Resample our AGB to ESA grid for comparison ----
 agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fps$internal$fp),
                     '_resCCI.tif')

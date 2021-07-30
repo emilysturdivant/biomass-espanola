@@ -30,6 +30,7 @@ library('tidyverse')
 library('patchwork')
 
 source('src/R/initialize_vars.R')
+lc_fp <- lc_fps$haiti
 
 # Set variables ----------------------------------------------------------------
 # Input filepaths
@@ -456,7 +457,7 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_code =
                                              filename = scatter_diff_fp)
   
   # Spatial map of differences ----
-  N <- df$summary %>% filter(names=='N') %>% dplyr::select(value) %>% deframe
+  N <- df$summary %>% select(N) %>% deframe
   if (N < 3000000) {
     
     map_diff_fp <- file.path(out_dir, str_c('map_diff_', ext_name, '_v_', agb_code, '.png'))
@@ -477,8 +478,7 @@ perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_code =
 get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_code) {
   
   # Filepaths
-  out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
-  agb_res_fp <- file.path(out_dir, str_c(agb_code, '_resamp_to', ext_name, '.tif'))  
+  agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
   
   # Load and crop
   agb_res <- terra::rast(agb_res_fp)
@@ -546,124 +546,17 @@ get_pcts <- function(x) {
     select(count_land, pct_value, pct_NA)
 }
 
-# Compare to field data: r2, RMSE, bias for external maps -----------------------------
-# Get plot backscatter mean to polygons
-plots_agb <- readRDS(field_agb_fp) %>% arrange(plot_no)
-
-# Extract plot means for all AGB maps
-plots2 <- agb_fps %>% 
-  purrr::map_dfc(extract_mean, plots_agb, TRUE) %>% 
-  mutate(across(everything(), ~ replace_na(.x, 0)))
-
-plot_means <- plots_agb %>% 
-  st_drop_geometry() %>% 
-  select(plot_no, AGB_ha) %>% 
-  mutate(AGB_ha = round(AGB_ha, 2)) %>% 
-  bind_cols(plots2) 
-
-# Save
-plot_ext_csv <- file.path(comparison_dir,
-                     str_c('field_plot_means_', agb_code, '.csv'))
-dir.create(comparison_dir, recursive = TRUE)
-plot_means %>% write_csv(plot_ext_csv)
-
-# Get differences
-df <- plot_means %>% 
-  pivot_longer(cols = internal:bacc, values_to = 'est') %>% 
-  mutate(diff = est - AGB_ha) 
-
-diff_stats <- df %>% 
-  group_by(name) %>% 
-  summarize(
-    r.squared = summary(lm(est ~ AGB_ha))$r.squared,
-    adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
-    N = sum(!is.na(diff)), 
-    RMSD = sqrt(mean(diff^2, na.rm=T)),
-    bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
-    MBD = mean(diff)
-    ) %>% 
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
-
-# Percent of land area included in map ----
-ext_pcts <- agb_fps %>% purrr::map_dfr(get_pcts) %>% 
-  mutate(name = names(agb_fps),
-         map_name = map_chr(agb_fps, "name"))
-
-# Combine ----
-ext_metrics <- diff_stats %>% 
-  left_join(ext_pcts, by = c(name = 'name')) %>% 
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
-
-# Save as CSV
-ext_metrics %>% write_csv(ext_report_csv)
-
-# Compare pixel-to-pixel and get graphics ----------------------------------------------
-# Difference map, histogram, scatterplot, difference statistics
-glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
-bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
-rm(bacc_out)
-esa_out <- perform_comparison(agb_fp, esa_fp, 'ESA', hti_poly_fp, agb_code)
-rm(esa_out)
-avit_out <- perform_comparison(agb_fp, avit_fp, 'Avitabile', hti_poly_fp, agb_code)
-
-# Summary table ----
-glob_out <- get_summary_wrapper(agb_fp, glob_fp, 'GlobB', agb_code)
-bacc_out <- get_summary_wrapper(agb_fp, bacc_fp, 'Baccini', agb_code)
-esa_out <- get_summary_wrapper(agb_fp, esa_fp, 'ESA', agb_code)
-avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
-
-# Histogram
-avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
-
-ext_name <- 'Avitabile'
-hist_diff_fp <- file.path(comparison_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '_2.png'))
-p_hist <- plot_hist_density(avit_out$diffs, -300, 300, bwidth=5, sample_size=500000,
-                            ext_name, agb_code, filename = hist_diff_fp)
-
-# Join
-summary_df <- plyr::join_all(
-  list(setNames(glob_out$summary, c('name', 'GlobBiomass')),
-       setNames(esa_out$summary, c('name', 'ESA')),
-       setNames(avit_out$summary, c('name', 'Avitabile')),
-       setNames(bacc_out$summary, c('name', 'Baccini'))),
-  by = 'name', type = 'left')
-
-# Save summary table
-summary_csv <- file.path(dirname(agb_fp), 'external_comparison', 
-                         str_c('comparison_summaries_', agb_code, '.csv'))
-summary_df %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% 
-  write_csv(summary_csv)
-
-rm(bacc_out, esa_out, avit_out, glob_out)
-
-# Comparison metrics by landcover ----------------------------------------------
-# lc <- terra::rast(lc_res_fp)
-# 
-# # Percentages of pix in each LC class ----
-# rvals <- values(lc)
-# df <- 
-#   tibble(group = c("Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs"), 
-#          count = c(sum(rvals==1, na.rm=TRUE), 
-#                    sum(rvals==2, na.rm=TRUE),
-#                    sum(rvals==3, na.rm=TRUE),
-#                    sum(rvals==4, na.rm=TRUE), 
-#                    sum(rvals==5, na.rm=TRUE),
-#                    sum(rvals==6, na.rm=TRUE))) %>% 
-#   mutate(pct = count / sum(count))
-# 
-# df %>% write_csv(file.path('data/reports', '07_lc_pixel_counts_ALOSres.csv'))
-
-# Perform comparison ----
 compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
                                 mskvals = list(values = 4, code = 'TC'), 
                                 comparison_dir,
-                                return_obj = 'summary') {
+                                return_obj = 'summary', 
+                                boundary_fp = "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp") {
   
   # External names
   ext_name <- agb_x$name
   ext_fp <- agb_x$fp
   ext_masked_fp <- str_c(tools::file_path_sans_ext(ext_fp), '_', mskvals$code, 'mask.tif')
-
+  
   if (ext_name == 'Avitabile') {    
     agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
     lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
@@ -678,27 +571,10 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
     
   }
   
-  # res1 <- round(res(terra::rast(ext_fp))[[1]], 10)
-  # res2 <- round(res(terra::rast(agb_fp))[[1]], 10)
-  # 
-  # if (res1 != res2) {
-  #   # agb_fp <- agb_res_fp
-  #   agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
-  #   lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
-  #   
-  #   # Resample LC and internal to external AGB res
-  #   if(!file.exists(agb_res_fp)) resample_to_raster(agb_fp, ext_fp, agb_res_fp)
-  #   if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
-  # 
-  # } else {
-  #   agb_res_fp <- agb_fp
-  #   lc_res_fp <- lc_fp
-  # }
-  
   # Internal names
   agb_code <- str_remove(tools::file_path_sans_ext(agb_res_fp), '.*agb_')
   int_masked_fp <- str_c(tools::file_path_sans_ext(agb_res_fp), '_', mskvals$code, 'mask.tif')
-
+  
   # Mask internal AGB to given LC class
   if (!file.exists(int_masked_fp)) {
     
@@ -729,10 +605,21 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
     
   }
   
-  # Calculate metrics for landcover class ----
+  # Calculate metrics for landcover class
   out <- crop_to_intersecting_extents(terra::rast(int_masked_fp), terra::rast(ext_masked_fp))
   agb_T <- out$r1
   ext_T <- out$r2
+  
+  if (return_obj == 'map') {
+    # Subtract
+    diff_ras <- agb_T - ext_T
+    # diff_ras %>% terra::writeRaster(filename = diff_fp, overwrite = TRUE, datatype = in_dtype)
+    
+    # Plot spatial map of differences 
+    map_diff_fp <- file.path(comparison_dir, str_c('map_', agb_code, '_minus_', ext_name, '.png'))
+    p_map <- plot_differences_map(diff_ras, ext_name, agb_code, boundary_fp, filename = map_diff_fp)
+    
+  }
   
   # Summary of differences
   smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
@@ -758,10 +645,14 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   } else if (return_obj == 'summary') {
     return(df$summary)
     
+  } else if (return_obj == 'map') {
+    return(p_map)
+    
   } else if (return_obj == 'all') {
     return(list(plot = p_scatt,
-           diffs = df$diffs,
-           summary = df$summary))
+                diffs = df$diffs,
+                summary = df$summary,
+                map = p_map))
     
   } else {
     return()
@@ -770,16 +661,18 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
 }
 
 iterate_compare_by_lc <- function(mskvals = list(values = 4, code = 'TC'),
-                                  agb_fps, lc_fp, comparison_dir){
+                                  agb_fps, lc_fp, comparison_dir, plot = TRUE){
   
   agb_fp <- agb_fps$internal$fp
+  agb_fps_sub <- agb_fps[c(2,3,4,5)]
   
   # Get summary table for all externals and row bind
-  sum_tbl <- agb_fps[c(2,3,4,5)] %>% 
+  sum_tbl <- agb_fps_sub %>% 
     purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
                    mskvals = mskvals, comparison_dir,
                    return_obj = 'summary') %>% 
-    mutate(mask = mskvals$code) 
+    mutate(mask = mskvals$code) %>% 
+    mutate(map_code = names(agb_fps_sub))
   
   # Save table
   smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
@@ -787,15 +680,108 @@ iterate_compare_by_lc <- function(mskvals = list(values = 4, code = 'TC'),
   sum_tbl %>% write_csv(smmry_diff_fp)
   
   # Plots
-  agb_fps[c(2,3,4,5)] %>% 
-    purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
-                mskvals = mskvals, comparison_dir,
-                return_obj = 'plot')
+  if (plot) {
+    agb_fps_sub %>% 
+      purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
+                  mskvals = mskvals, comparison_dir,
+                  return_obj = 'plot')
+  }
 }
 
+# Compare to field data: r2, RMSE, bias for external maps -----------------------------
+# Get plot backscatter mean to polygons
+plots_agb <- readRDS(field_agb_fp) %>% arrange(plot_no)
 
-lc_fp <- lc_fps$haiti
+# Extract plot means for all AGB maps
+plots2 <- agb_fps %>% 
+  purrr::map_dfc(extract_mean, plots_agb, TRUE) %>% 
+  mutate(across(everything(), ~ replace_na(.x, 0)))
 
+plot_means <- plots_agb %>% 
+  st_drop_geometry() %>% 
+  select(plot_no, AGB_ha) %>% 
+  mutate(AGB_ha = round(AGB_ha, 2)) %>% 
+  bind_cols(plots2) 
+
+# Save
+plot_ext_csv <- file.path(comparison_dir,
+                     str_c('field_plot_means_', agb_code, '.csv'))
+dir.create(comparison_dir, recursive = TRUE, showWarnings = FALSE)
+plot_means %>% write_csv(plot_ext_csv)
+
+# Get differences
+df <- plot_means %>% 
+  pivot_longer(cols = internal:bacc, names_to = 'map_code', values_to = 'est') %>% 
+  mutate(diff = est - AGB_ha) 
+
+diff_stats <- df %>% 
+  group_by(map_code) %>% 
+  summarize(
+    r.squared = summary(lm(est ~ AGB_ha))$r.squared,
+    adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
+    N = sum(!is.na(diff)), 
+    RMSD = sqrt(mean(diff^2, na.rm=T)),
+    bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
+    MBD = mean(diff)
+    ) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+# Percent of land area included in map ----
+ext_pcts <- agb_fps %>% 
+  purrr::map_dfr(get_pcts) %>% 
+  mutate(map_code = names(agb_fps),
+         name = map_chr(agb_fps, "name"))
+
+# Combine ----
+ext_metrics <- diff_stats %>% 
+  left_join(ext_pcts, by = c('map_code')) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+# Save as CSV
+ext_metrics %>% write_csv(ext_report_csv)
+
+# # Compare pixel-to-pixel and get graphics 
+# # Difference map, histogram, scatterplot, difference statistics
+# glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
+# bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
+# rm(bacc_out)
+# esa_out <- perform_comparison(agb_fp, esa_fp, 'ESA', hti_poly_fp, agb_code)
+# rm(esa_out)
+# avit_out <- perform_comparison(agb_fp, avit_fp, 'Avitabile', hti_poly_fp, agb_code)
+# 
+# # Summary table
+# glob_out <- get_summary_wrapper(agb_fp, glob_fp, 'GlobB', agb_code)
+# bacc_out <- get_summary_wrapper(agb_fp, bacc_fp, 'Baccini', agb_code)
+# esa_out <- get_summary_wrapper(agb_fp, esa_fp, 'ESA', agb_code)
+# avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
+# 
+# # Histogram
+# avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
+# 
+# ext_name <- 'Avitabile'
+# hist_diff_fp <- file.path(comparison_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '_2.png'))
+# p_hist <- plot_hist_density(avit_out$diffs, -300, 300, bwidth=5, sample_size=500000,
+#                             ext_name, agb_code, filename = hist_diff_fp)
+# 
+# # Join
+# summary_df <- plyr::join_all(
+#   list(setNames(glob_out$summary, c('name', 'GlobBiomass')),
+#        setNames(esa_out$summary, c('name', 'ESA')),
+#        setNames(avit_out$summary, c('name', 'Avitabile')),
+#        setNames(bacc_out$summary, c('name', 'Baccini'))),
+#   by = 'name', type = 'left')
+# 
+# # Save summary table
+# summary_csv <- file.path(dirname(agb_fp), 'external_comparison', 
+#                          str_c('comparison_summaries_', agb_code, '.csv'))
+# summary_df %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% 
+#   write_csv(summary_csv)
+# 
+# rm(bacc_out, esa_out, avit_out, glob_out)
+
+# Comparison metrics by landcover ----------------------------------------------
+
+# Pixel-to-pixel comparison ----
 # testing ----
 mskvals <-  list(values = 4, code = 'TC')
 agb_x <- agb_fps$avit
@@ -829,7 +815,14 @@ agb_fps[c(2,3,4,5)] %>%
               mskvals = mskvals, comparison_dir,
               return_obj = 'plot')
 
-# Run with purrr ----
+# Difference map
+mskvals <-  list(values = 4, code = 'TC')
+agb_x <- agb_fps$avit
+p_map <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fp,
+                          mskvals = mskvals, comparison_dir,
+                          return_obj = 'map')
+
+# Summary metric tables and scatter density plots ----
 mskvals <- list(values = 4, code = 'TC')
 iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
 
@@ -842,13 +835,22 @@ iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
 mskvals <- list(values = c(1,2,3, 5, 6), code = 'WUBGS')
 iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
 
-# Combine ----
+# Row bind summary tables
 sum_tbl <- list.files(file.path(comparison_dir, 'by_LC', 'temp'), 
                       pattern = 'summary_diffs.*\\.csv',
                       full.names = TRUE) %>% 
   purrr::map_dfr(read_csv)
 
 # Save
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_BaccAvitGlobCCI.csv'))
-sum_tbl %>% write_csv(smmry_diff_fp)
+sum_tbl %>% write_csv(pix2pix_compare_csv)
+
+# Difference maps (only for all LCs) ----
+mskvals <- list(values = c(1,2,3,4,5,6), code = 'Total')
+agb_fps[c(2,3,4,5)] %>% 
+  purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
+              mskvals = mskvals, comparison_dir,
+              return_obj = 'map')
+
+# Combine field plot comparison and pix-to-pix comparison? ----
+ext_metrics <- read_csv(ext_report_csv)
+sum_tbl <- read_csv(pix2pix_compare_csv)

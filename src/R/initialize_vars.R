@@ -54,7 +54,7 @@ g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
 masks_dir <- file.path(g0_dir, 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
 lc_pols_fp <- file.path(tidy_dir, "landcover/Lemoiner/Haiti2017_Clip_polys.gpkg")
-lc_res_fp <- file.path(tidy_dir, 'landcover', 'Lemoiner', 'Haiti2017_agbres.tif')
+lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
 g0_fp <- file.path(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
 
 # 03 ----
@@ -120,8 +120,8 @@ agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
 agb_var_dir <- file.path(agb_dir, agb_code)
 comparison_dir <- file.path(agb_var_dir, 'external_comparison')
 plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
-ext_report_csv <- file.path(comparison_dir, str_glue('07_ext_comparison_metrics.csv'))
-pix2pix_compare_csv <- file.path(comparison_dir, str_c('07_pixel_comparison_by_LC.csv'))
+ground_compare_csv <- file.path(comparison_dir, str_glue('07_grounddata_comparison.csv'))
+compare_by_lc_csv <- file.path(comparison_dir, str_c('07_comparison_by_LC.csv'))
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')

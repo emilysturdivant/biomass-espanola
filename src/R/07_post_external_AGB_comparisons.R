@@ -87,83 +87,6 @@ crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_va
   }
 }
 
-# crop_and_mask_to_polygon <- function(in_fp, msk_poly, out_fp){
-#   # Function to crop and mask raster to polygon
-#   tmp_fp <- tempfile(pattern = sub(pattern = "(.*)\\..*$", replacement = "\\1", basename(in_fp)), 
-#                      tmpdir = tempdir(), 
-#                      fileext = "tif")
-#   # Crop
-#   r <- raster(in_fp)
-#   gdalwarp(srcfile=in_fp, dstfile=tmp_fp,
-#            te=st_bbox(msk_poly), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
-#   
-#   # Mask
-#   msk_land <- raster(tmp_fp)
-#   msk_land <- msk_land %>% 
-#     mask(msk_poly, inverse=FALSE) 
-#   msk_land %>% writeRaster(out_fp, overwrite=T)
-# }
-# 
-# crop_and_mask_to_poly_terra <- function(in_fp, msk_poly, out_fp, out_dtype='FLT4S'){
-#   # Function to crop and mask raster to polygon
-#   msk_poly <- if(is.character(msk_poly)) terra::vect(msk_poly)
-#   
-#   # Crop
-#   terra::rast(in_fp) %>% 
-#     terra::crop(msk_poly) %>% 
-#     terra::mask(msk_poly, inverse=FALSE, 
-#                 filename = out_fp, overwrite=T, 
-#                 wopt = list(datatype=out_dtype, gdal='COMPRESS=LZW'))
-#   
-#   return(out_fp)
-# }
-
-crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, return_bb=F) {
-  # Get intersection of the bounding boxes of the two rasters
-  bb <- sf::st_intersection(terra::ext(r1) %>% as.vector() %>% sf::st_bbox() %>% sf::st_as_sfc(), 
-                            terra::ext(r2) %>% as.vector() %>% sf::st_bbox() %>% sf::st_as_sfc()) %>% 
-    sf::st_bbox() %>% as.vector()
-  
-  # Convert to terra extent object
-  bbex <- terra::ext(bb[c(1, 3, 2, 4)])
-  
-  if(return_bb){
-    if(!return_r1 & !return_r2){
-      return(bbex)
-    } else if(return_r1 & !return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      return(list(r1=r1, bb=bbex))
-    } else if(!return_r1 & return_r2) {
-      # Crop each raster
-      r2 <- r2 %>% terra::crop(bbex)
-      return(list(r2=r2, bb=bbex))
-    } else if(return_r1 & return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      r2 <- r2 %>% terra::crop(bbex)
-      return(list(r1=r1, r2=r2, bb=bbex))
-    }
-  } else {
-    if(!return_r1 & !return_r2){
-      return()
-    } else if(return_r1 & !return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      return(r1)
-    } else if(!return_r1 & return_r2) {
-      # Crop each raster
-      r2 <- r2 %>% terra::crop(bbex)
-      return(r2)
-    } else if(return_r1 & return_r2) {
-      # Crop each raster
-      r1 <- r1 %>% terra::crop(bbex)
-      r2 <- r2 %>% terra::crop(bbex)
-      return(list(r1=r1, r2=r2))
-    }
-  }
-}
-
 summarize_raster_differences <- function(ext_r, ext_name, int_r, out_fp = NULL){
   
   # Make DF
@@ -181,8 +104,8 @@ summarize_raster_differences <- function(ext_r, ext_name, int_r, out_fp = NULL){
   diff_stats <- df %>% 
     # group_by(name) %>% 
     summarize(
-      r.squared = summary(lm(external ~ internal))$r.squared,
-      adj.r.squared = summary(lm(external ~ internal))$adj.r.squared,
+      R2 = summary(lm(external ~ internal))$r.squared,
+      adjR2 = summary(lm(external ~ internal))$adj.r.squared,
       N = sum(!is.na(value)), 
       RMSD = sqrt(mean(value^2, na.rm=T)),
       bias = abs(sum(value, na.rm=T) / sum(!is.na(value))),
@@ -327,6 +250,7 @@ scatter_differences <- function(df, ext_name, prefix, filename = NA,
     geom_abline(intercept = 0, slope = 1, col='black', size=.25) +
     geom_abline(intercept = coef(ols)[1], slope = coef(ols)[2], 
                 col='black', size=.25, linetype = 'dashed') +
+    ggtitle(ext_name) +
     theme_minimal()
 
   # Overlay plot with regression table
@@ -424,15 +348,23 @@ extract_mean <- function(x, vec, touches = FALSE, method='simple'){
 
 get_pcts <- function(x, hti_poly_fp) {
   
-  lyr_name <- x$name
+  # Load 
+  if(class(x) == 'SpatRaster') {
+    ras <- x
+  } else if(is.list(x)) {
+    ras <- terra::rast(x$fp) 
+  } else if(is.character(x)) {
+    ras <- terra::rast(x)
+  } 
+
+  msk_poly <- terra::vect(hti_poly_fp)
   
-  # Load and reclassify
-  ras_clas <- terra::rast(x$fp) %>% 
+  # Reclassify
+  ras_clas <- ras %>% 
     terra::classify(rbind(c(-Inf, Inf, 1),
                           c(NA, NA, 0)))
   
   # Crop
-  msk_poly <- terra::vect(hti_poly_fp)
   ras_msk <- ras_clas %>% 
     terra::crop(msk_poly) %>% 
     terra::mask(msk_poly, 
@@ -452,16 +384,132 @@ get_pcts <- function(x, hti_poly_fp) {
     dplyr::add_row(group = 'land', count = landct) %>% 
     dplyr::mutate(pct = count / landct)
   
+  # Structure data
   df %>% 
     pivot_wider(names_from = group, values_from = count:pct) %>% 
     select(count_land, pct_value, pct_NA)
+}
+
+mask_to_classes <- function(mask_fp, ras_fp, out_fp, class_values) {
+  # Load and pre-process layers
+  out <- crop_to_intersecting_extents(terra::rast(mask_fp), terra::rast(ras_fp))
+  lc <- out$r1
+  agb_ext <- out$r2
+  
+  # Mask by each class in list and sum
+  ext_T <- class_values %>% 
+    purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>% 
+    rast() %>% 
+    app(sum, na.rm = TRUE, filename = out_fp, overwrite = TRUE)
+}
+
+get_pcts_masked <- function(agb_x, mskvals, lc_res_fp, hti_poly_fp) {
+  # External names
+  ext_name <- agb_x$name
+  ext_fp <- agb_x$fp
+  ext_masked_fp <- str_c(tools::file_path_sans_ext(ext_fp), '_', mskvals$code, 'mask.tif')
+  
+  if (!file.exists(ext_masked_fp)) {
+    mask_to_classes(lc_res_fp, ext_fp, ext_masked_fp, mskvals$values)
+  }
+  
+  df <- get_pcts(ext_masked_fp, hti_poly_fp)
+  
+  df %>% mutate(name = ext_name, 
+                mask = mskvals$code)
+  
+  
+  
+
+  # Reclassify
+  ras_clas <- ras %>% 
+    terra::classify(rbind(c(-Inf, Inf, 1),
+                          c(NA, NA, 0)))
+  
+  # Crop
+  ras_msk <- ras_clas %>% 
+    terra::crop(msk_poly) %>% 
+    terra::mask(msk_poly, 
+                inverse = FALSE)
+  
+  # Get values
+  rvals <- terra::values(ras_msk)
+  
+  # Count pixels in each category and convert to percentage
+  df <- tibble(group = c("value", "NA"), 
+               count = c(sum(rvals == 1, na.rm = TRUE), 
+                         sum(rvals == 0, na.rm = TRUE)))
+  
+  # Convert counts to percentage of all land pixels
+  landct <- sum(df$count)
+  df <- df %>%
+    dplyr::add_row(group = 'land', count = landct) %>% 
+    dplyr::mutate(pct = count / landct)
+  
+  # Structure data
+  df %>% 
+    pivot_wider(names_from = group, values_from = count:pct) %>% 
+    select(count_land, pct_value, pct_NA)
+  
+}
+
+get_pcts_by_lc <- function(agb_x, lc_res_fp) { 
+  
+  # External names
+  ext_name <- agb_x$name
+  ext_fp <- agb_x$fp
+  
+  if (ext_name == 'Avitabile') {    
+    lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
+    
+    # Resample LC and internal to external AGB res
+    if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
+    
+  } 
+  
+  # Load 
+  out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(ext_fp))
+  lc <- out$r1; ras <- out$r2
+  
+  # Reclassify masked raster to mask (1s and 0s)
+  ras_clas <- ras %>% 
+    terra::classify(rbind(c(-Inf, Inf, 1),
+                          c(NA, NA, 0)))
+  
+  # Multiply
+  ras_lc <- ras_clas * lc
+  
+  # Get count in each class
+  lc_name = c("Null", "Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs")
+  lc_names <- tibble(code = 0:6, lc_name = lc_name)
+  
+  # Count values present in each LC
+  cnts_vals <- as.data.frame(ras_lc) %>% 
+    rename(code = 1) %>% 
+    count(code) %>% 
+    left_join(lc_names) %>% 
+    filter(code != 0) %>%
+    mutate(pct_of_values = n / sum(n))
+  
+  # Count pixels in each LC
+  cnts_lc <- as.data.frame(lc) %>% 
+    rename(code = 1) %>% 
+    count(code) %>% 
+    left_join(lc_names)
+  
+  # Join to total LC counts and get percentages
+  cnts_vals %>% 
+    left_join(cnts_lc, by = c('code', 'lc_name'), suffix = c('_vals', '_lc')) %>% 
+    mutate(pct_of_lc = n_vals / n_lc,
+           name = ext_name)
+
 }
 
 compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
                                 mskvals = list(values = 4, code = 'TC'), 
                                 comparison_dir,
                                 return_obj = 'summary', 
-                                boundary_fp = "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp") {
+                                boundary_fp) {
   
   # External names
   ext_name <- agb_x$name
@@ -488,36 +536,17 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   
   # Mask internal AGB to given LC class
   if (!file.exists(int_masked_fp)) {
-    
-    # Load and pre-process layers
-    out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(agb_res_fp))
-    lc <- out$r1
-    agb_res <- out$r2
-    
-    agb_T <- mskvals$values %>% 
-      purrr::map(~ mask(agb_res, lc, inverse = TRUE, maskvalues = .x)) %>% 
-      rast() %>% 
-      app(sum, na.rm = TRUE, filename = int_masked_fp, overwrite = TRUE)
-    
+    mask_to_classes(lc_res_fp, agb_res_fp, int_masked_fp, mskvals$values)
   } 
   
   # Mask external AGB to given LC class
   if (!file.exists(ext_masked_fp)) {
-    
-    # Load and pre-process layers
-    out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(ext_fp))
-    lc <- out$r1
-    agb_ext <- out$r2
-    
-    ext_T <- mskvals$values %>% 
-      purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>% 
-      rast() %>% 
-      app(sum, na.rm = TRUE, filename = ext_masked_fp, overwrite = TRUE)
-    
+    mask_to_classes(lc_res_fp, ext_fp, ext_masked_fp, mskvals$values)
   }
   
   # Calculate metrics for landcover class
-  out <- crop_to_intersecting_extents(terra::rast(int_masked_fp), terra::rast(ext_masked_fp))
+  out <- crop_to_intersecting_extents(terra::rast(int_masked_fp), 
+                                      terra::rast(ext_masked_fp))
   agb_T <- out$r1
   ext_T <- out$r2
   
@@ -532,13 +561,13 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
     
   }
   
-  # Summary of differences
+  # Summary of differences ----
   smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
                              str_c(mskvals$code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
   dir.create(dirname(smmry_diff_fp), recursive = TRUE, showWarnings = FALSE) 
   df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
   
-  # Scatterplot 
+  # Scatterplot ----
   if (return_obj == 'plot' | return_obj == 'all') {
     scatter_diff_fp <- file.path(comparison_dir, 'by_LC', 
                                  str_c(mskvals$code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
@@ -547,6 +576,7 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
                                    sample_size = 500000)
   }
   
+  # Return ----
   if (return_obj == 'plot') {
     return(p_scatt)
     
@@ -571,17 +601,21 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   }
 }
 
-iterate_compare_by_lc <- function(mskvals = list(values = 4, code = 'TC'),
-                                  agb_fps, lc_fp, comparison_dir, plot = TRUE){
+iterate_compare_by_lc <- function(mskvals, agb_fps, lc_fp, comparison_dir, 
+                                  plot = TRUE,
+                                  boundary_fp){
   
   agb_fp <- agb_fps$internal$fp
   agb_fps_sub <- agb_fps[c(2,3,4,5)]
   
   # Get summary table for all externals and row bind
   sum_tbl <- agb_fps_sub %>% 
-    purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
-                   mskvals = mskvals, comparison_dir,
-                   return_obj = 'summary') %>% 
+    purrr::map_dfr(compare_by_given_lc, 
+                   agb_fp, lc_fp,
+                   mskvals = mskvals, 
+                   comparison_dir,
+                   return_obj = 'summary', 
+                   boundary_fp = boundary_fp) %>% 
     mutate(mask = mskvals$code) %>% 
     mutate(map_code = names(agb_fps_sub))
   
@@ -595,8 +629,11 @@ iterate_compare_by_lc <- function(mskvals = list(values = 4, code = 'TC'),
     agb_fps_sub %>% 
       purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
                   mskvals = mskvals, comparison_dir,
-                  return_obj = 'plot')
+                  return_obj = 'plot', 
+                  boundary_fp = hti_poly_fp)
   }
+  
+  return(sum_tbl)
 }
 
 # Compare to field data: r2, RMSE, bias for external maps -----------------------------
@@ -625,11 +662,11 @@ df <- plot_means %>%
   pivot_longer(cols = internal:bacc, names_to = 'map_code', values_to = 'est') %>% 
   mutate(diff = est - AGB_ha) 
 
-diff_stats <- df %>% 
+ground_metrics <- df %>% 
   group_by(map_code) %>% 
   summarize(
-    r.squared = summary(lm(est ~ AGB_ha))$r.squared,
-    adj.r.squared = summary(lm(est ~ AGB_ha))$adj.r.squared,
+    R2 = summary(lm(est ~ AGB_ha))$r.squared,
+    adjR2 = summary(lm(est ~ AGB_ha))$adj.r.squared,
     N = sum(!is.na(diff)), 
     RMSD = sqrt(mean(diff^2, na.rm=T)),
     bias = abs(sum(diff, na.rm=T) / sum(!is.na(diff))),
@@ -637,96 +674,145 @@ diff_stats <- df %>%
     ) %>% 
   mutate(across(where(is.numeric), ~ round(.x, 3)))
 
-# Percent of land area included in map ----
-ext_pcts <- agb_fps %>% 
-  purrr::map_dfr(get_pcts, hti_poly_fp) %>% 
-  mutate(map_code = names(agb_fps),
-         name = map_chr(agb_fps, "name"))
-
-# Combine ----
-ext_metrics <- diff_stats %>% 
-  left_join(ext_pcts, by = c('map_code')) %>% 
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
-
 # Save as CSV
-ext_metrics %>% write_csv(ext_report_csv)
+ground_metrics %>% write_csv(ground_compare_csv)
 
 # Pixel-to-pixel comparison ----
 # testing ----
-mskvals <-  list(values = 4, code = 'TC')
-agb_x <- agb_fps$avit
-df <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fps$haiti,
-                    mskvals = mskvals, comparison_dir,
-                    return_obj = 'all')
+# mskvals <-  list(values = 4, code = 'TC')
+# agb_x <- agb_fps$avit
+# df <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fps$haiti,
+#                     mskvals = mskvals, comparison_dir,
+#                     return_obj = 'all', 
+#                     boundary_fp = hti_poly_fp)
+# 
+# agb_x <- agb_fps$esa
+# compare_by_given_lc(agb_x, agb_res_fp, lc_fp = lc_res_fp,
+#                           mskvals = mskvals, comparison_dir,
+#                           return_obj = 'plot', 
+#                     boundary_fp = hti_poly_fp)
+# 
+# p_scatt <- scatter_differences(df, ext_name, agb_code, 
+#                                sample_size = 500000)
+# 
+# # TC
+# mskvals <- list(values = 4, code = 'TC')
+# tc_sum_tbl <- agb_fps[c(2,3,4,5)] %>% 
+#   purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
+#                  mskvals = mskvals, comparison_dir,
+#                  return_obj = 'summary', 
+#                  boundary_fp = hti_poly_fp) %>% 
+#   mutate(mask = mskvals$code) 
+# 
+# smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
+#                            str_c('summary_diffs_', mskvals$code, '.csv'))
+# tc_sum_tbl %>% write_csv(smmry_diff_fp)
+# 
+# # Plots
+# agb_fps[c(2,3,4,5)] %>% 
+#   purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
+#               mskvals = mskvals, comparison_dir,
+#               return_obj = 'plot', 
+#               boundary_fp = hti_poly_fp)
+# 
+# # Difference map
+# mskvals <-  list(values = 4, code = 'TC')
+# agb_x <- agb_fps$avit
+# p_map <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fp,
+#                           mskvals = mskvals, comparison_dir,
+#                           return_obj = 'map', 
+#                           boundary_fp = hti_poly_fp)
 
-agb_x <- agb_fps$esa
-compare_by_given_lc(agb_x, agb_res_fp, lc_fp = lc_res_fp,
-                          mskvals = mskvals, comparison_dir,
-                          return_obj = 'plot')
+# ~ Summary metric tables and scatter density plots ----
+mskvals_list <- list(
+  list(values = 4, code = 'TC'),
+  list(values = c(1,2,3,4,5,6), code = 'Total'),
+  list(values = c(3,5,6), code = 'BGS'),
+  list(values = c(1,2,3,5,6), code = 'WUBGS')
+)
 
-p_scatt <- scatter_differences(df, ext_name, agb_code, 
-                               sample_size = 500000)
+# Parallelize
+# library('furrr')
+# options(future.fork.enable = TRUE)
+# plan(multicore, workers = 7)
+# 
+# # Fails with plot = TRUE
+# sum_tbl <- mskvals_list %>%
+#   furrr::future_map(iterate_compare_by_lc, agb_fps, lc_fp, comparison_dir, 
+#                     plot = FALSE,
+#                  boundary_fp = hti_poly_fp, 
+#                  .options = furrr_options(seed = TRUE)) %>% 
+#   bind_rows()
 
-# TC
-mskvals <- list(values = 4, code = 'TC')
-tc_sum_tbl <- agb_fps[c(2,3,4,5)] %>% 
-  purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
-                 mskvals = mskvals, comparison_dir,
-                 return_obj = 'summary') %>% 
-  mutate(mask = mskvals$code) 
+# Create plots 
+sum_tbl <- mskvals_list %>%
+  purrr::map_dfr(iterate_compare_by_lc, agb_fps, lc_fp, comparison_dir,
+                 boundary_fp = hti_poly_fp)
 
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_', mskvals$code, '.csv'))
-tc_sum_tbl %>% write_csv(smmry_diff_fp)
-
-# Plots
-agb_fps[c(2,3,4,5)] %>% 
-  purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
-              mskvals = mskvals, comparison_dir,
-              return_obj = 'plot')
-
-# Difference map
-mskvals <-  list(values = 4, code = 'TC')
-agb_x <- agb_fps$avit
-p_map <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fp,
-                          mskvals = mskvals, comparison_dir,
-                          return_obj = 'map')
-
-# Summary metric tables and scatter density plots ----
-mskvals <- list(values = 4, code = 'TC')
-iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
-
-mskvals <- list(values = c(1,2,3,4,5,6), code = 'Total')
-iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
-
-mskvals <- list(values = c(3,5,6), code = 'BGS')
-iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
-
-mskvals <- list(values = c(1,2,3, 5, 6), code = 'WUBGS')
-iterate_compare_by_lc(mskvals, agb_fps, lc_fp, comparison_dir)
-
-# Row bind summary tables
-sum_tbl <- list.files(file.path(comparison_dir, 'by_LC', 'temp'), 
-                      pattern = 'summary_diffs.*\\.csv',
-                      full.names = TRUE) %>% 
+# Combine
+sum_tbl <- list.files(file.path(comparison_dir, 'by_LC', 'temp'),
+           pattern = 'summary_diffs.*\\.csv', 
+           full.names = TRUE) %>% 
   purrr::map_dfr(read_csv)
 
 # Save
-sum_tbl %>% write_csv(pix2pix_compare_csv)
+pix2pix_csv <- file.path(comparison_dir, str_c('07_pixel_comparison_by_LC.csv'))
+sum_tbl %>% write_csv(pix2pix_csv)
 
-# Difference maps (only for all LCs) ----
+# Get masked percentages by LC ----
+res_fps <- agb_fps
+res_fps$internal <- list(
+  name = str_glue('Internal {agb_code}, 100m'),
+  fp = str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
+)
+
+map_names <- res_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
+ext_pcts <- res_fps %>% 
+  purrr::map_dfr(get_pcts_by_lc, lc_res_fp) %>% 
+  left_join(map_names, by = c(name = 'value'))
+
+# Save
+ext_pcts_csv <- file.path(comparison_dir, str_c('07_pcts_by_lc_', agb_code, '.csv'))
+ext_pcts %>% write_csv(ext_pcts_csv)
+
+# Aggregate to mask categories
+ext_pcts <- read_csv(ext_pcts_csv)
+agg_fun <- function(mskvals, ext_pcts) {
+  ext_pcts %>% 
+    filter(code %in% mskvals$values) %>% 
+    group_by(name, map_code) %>% 
+    summarize(across(starts_with(c('n', 'pct')), sum)) %>% 
+    mutate(pct_of_lc =  n_vals / n_lc, 
+           mask = mskvals$code)
+}
+
+pcts_masked <- mskvals_list %>% purrr::map_dfr(agg_fun, ext_pcts)
+
+# Combine pix-to-pix comparison ----
+sum_tbl <- read_csv(pix2pix_csv)
+p2p_tbl <- right_join(sum_tbl, pcts_masked, by = c('map_code', 'mask', 'name'))
+
+# Save
+p2p_tbl %>% write_csv(compare_by_lc_csv)
+
+# Look
+# p2p_tbl %>% 
+#   filter(map_code == 'internal') %>% 
+#   select(mask, pct_of_lc) 
+
+# join pix2pix with field data comparison (for unmasked)
+ground_metrics <- read_csv(ground_compare_csv) %>% mutate(mask = 'Total')
+agg_tbl <- p2p_tbl %>%
+  filter(mask == 'Total') %>% 
+  right_join(ground_metrics, by = 'map_code', suffix = c('', '_ground'))
+
+agg_tbl_csv <- file.path(comparison_dir, str_c('07_aggregated_comparison_', agb_code, '.csv'))
+agg_tbl %>% write_csv(agg_tbl_csv)
+
+# ~ Difference maps (only for all LCs) -----------------------------------------
 mskvals <- list(values = c(1,2,3,4,5,6), code = 'Total')
 agb_fps[c(2,3,4,5)] %>% 
   purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
               mskvals = mskvals, comparison_dir,
-              return_obj = 'map')
-
-# Combine field plot comparison and pix-to-pix comparison? ----
-ext_metrics <- read_csv(ext_report_csv)
-sum_tbl <- read_csv(pix2pix_compare_csv)
-
-
-left_join(ext_metrics, sum_tbl, suffix = c('_field', '_pix'))
-
-
-out <- bind_rows(sum_tbl, ext_metrics)
+              return_obj = 'map', 
+              boundary_fp = hti_poly_fp)

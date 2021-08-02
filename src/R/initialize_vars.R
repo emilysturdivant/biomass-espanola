@@ -7,17 +7,27 @@ library("sf")
 library("tidyverse")
 
 # Codes
+# Backscatter pre-processing
 code <- 'HV_nu'
-# suffix <- 'cappt2_conserv13'
 year <- '2019'
-agb_input_level <- 'l2'
-agb_code <- 'l2_maskWUwb'
+g0_filt <- 'med5'
 g0_mask <- c('L', 'WU', 'wb')
-agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
-saturation_pt <- 300
-g0_variant <- 'med5'
-g0_variant <- 'maskLWUwb_med5_LCinterp'
+g0_interp <- 'LC'
+g0_mask <- c()
+g0_interp <- ''
+g0msk_code <- ifelse(length(g0_mask > 0), 
+                     str_c('mask', str_c(g0_mask, collapse = ''), '_'), 
+                     '')
+g0interp_code <- ifelse(g0_interp == 'LC', '_LCinterp', '')
+g0_variant <- str_c(g0msk_code, g0_filt, g0interp_code)
+# g0_variant <- 'maskLWUwb_med5_LCinterp'
 if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
+
+# AGB processing
+saturation_pt <- 300
+agb_input_level <- 'l2'
+agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
+agb_code <- str_c(agb_input_level, '_mask', str_c(agb_mask_codes, collapse = ''))
 
 # Filepaths
 results_dir <- 'data/results'
@@ -107,12 +117,11 @@ agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
                 bacc = list(name = 'Baccini',
                             fp = bacc_res_fp))
 
-comparison_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
 agb_var_dir <- file.path(agb_dir, agb_code)
 comparison_dir <- file.path(agb_var_dir, 'external_comparison')
 plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
-ext_report_csv <- file.path(agb_var_dir, 'reports', str_glue('07_ext_comparison_metrics.csv'))
-pix2pix_compare_csv <- file.path(agb_var_dir, 'reports', str_c('07_pixel_comparison_by_LC.csv'))
+ext_report_csv <- file.path(comparison_dir, str_glue('07_ext_comparison_metrics.csv'))
+pix2pix_compare_csv <- file.path(comparison_dir, str_c('07_pixel_comparison_by_LC.csv'))
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')

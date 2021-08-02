@@ -386,95 +386,6 @@ plot_differences_map <- function(diff_ras, ext_name, prefix, boundary_fp, filena
   
 }
 
-perform_comparison <- function(agb_fp, ext_fp, ext_name, boundary_fp, agb_code = 'l3'){
-  # Compare our AGB to External AGB
-  
-  # Get filenames
-  out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code)
-  tif_dir <- file.path(out_dir, 'diff_tifs')
-  agb_res_fp <- file.path(tif_dir, str_c(agb_code, '_resamp_to', ext_name, '.tif'))
-  diff_fp <- file.path(tif_dir, str_c('diff_', ext_name, '_v_', agb_code, '.tif'))
-  dir.create(tif_dir, recursive = TRUE) 
-  
-  # Input datatype
-  in_dtype <- raster::dataType(raster::raster(agb_fp))
-  
-  # Resample AGB to External ----
-  if(!file.exists(agb_res_fp)){
-    
-    # Crop to intersection of the two extents
-    out <- crop_to_intersecting_extents(terra::rast(agb_fp), terra::rast(ext_fp))
-    agb_ras <- out[[1]]
-    agb_ext <- out[[2]]
-    
-    # Resample our AGB to external resolution
-    agb_res <- agb_ras %>% terra::resample(agb_ext, method="bilinear")
-    
-    # Crop internal again
-    agb_res <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r2=F)
-    
-    # Save resampled AGB
-    agb_res %>% terra::writeRaster(filename = agb_res_fp, 
-                                   overwrite = TRUE, 
-                                   datatype = in_dtype)
-  } 
-  
-  # Difference map ----
-  if(file.exists(diff_fp)){
-    
-    diff_ras <- terra::rast(diff_fp)
-    
-  } else {
-    
-    # Crop external to intersection of the two extents
-    agb_res <- terra::rast(agb_res_fp)
-    agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
-    
-    # Subtract
-    diff_ras <- agb_res - agb_ext
-    diff_ras %>% terra::writeRaster(filename = diff_fp, 
-                                    overwrite = TRUE, 
-                                    datatype = in_dtype)
-  }
-  
-  # Summarize differences ----
-  # Crop external to intersection of the two extents
-  agb_res <- terra::rast(agb_res_fp)
-  agb_ext <- crop_to_intersecting_extents(agb_res, terra::rast(ext_fp), return_r1=F)
-  
-  # Summary of differences
-  smmry_diff_fp <- file.path(out_dir, str_c('summary_diff_', ext_name, '_v_', agb_code, '.csv'))
-  df <- summarize_raster_differences(agb_ext, ext_name, agb_res, smmry_diff_fp)
-
-  # Histogram ----
-  hist_diff_fp <- file.path(out_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '.png'))
-  p_hist <- plot_hist_density(df$diffs, -300, 300, bwidth=10, sample_size=500000,
-                              ext_name, agb_code, filename = hist_diff_fp)
-  
-  # Scatterplot ----
-  scatter_diff_fp <- file.path(out_dir, str_c('scatter_diff_', ext_name, '_v_', agb_code, '.png'))
-  p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
-                                             filename = scatter_diff_fp)
-  
-  # Spatial map of differences ----
-  N <- df$summary %>% select(N) %>% deframe
-  if (N < 3000000) {
-    
-    map_diff_fp <- file.path(out_dir, str_c('map_diff_', ext_name, '_v_', agb_code, '.png'))
-    p_map <- plot_differences_map(diff_ras, ext_name, agb_code, boundary_fp, filename = map_diff_fp)
-    
-  } else {
-    p_map <- NULL
-  }
-  
-  # Return
-  out <- list(p_hist = p_hist, 
-       p_scatt = p_scatt, 
-       p_map = p_map, 
-       summary = df$summary)
-  return(out)
-}
-
 get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_code) {
   
   # Filepaths
@@ -511,7 +422,7 @@ extract_mean <- function(x, vec, touches = FALSE, method='simple'){
     deframe()
 }
 
-get_pcts <- function(x) {
+get_pcts <- function(x, hti_poly_fp) {
   
   lyr_name <- x$name
   
@@ -728,7 +639,7 @@ diff_stats <- df %>%
 
 # Percent of land area included in map ----
 ext_pcts <- agb_fps %>% 
-  purrr::map_dfr(get_pcts) %>% 
+  purrr::map_dfr(get_pcts, hti_poly_fp) %>% 
   mutate(map_code = names(agb_fps),
          name = map_chr(agb_fps, "name"))
 
@@ -739,47 +650,6 @@ ext_metrics <- diff_stats %>%
 
 # Save as CSV
 ext_metrics %>% write_csv(ext_report_csv)
-
-# # Compare pixel-to-pixel and get graphics 
-# # Difference map, histogram, scatterplot, difference statistics
-# glob_out <- perform_comparison(agb_fp, glob_fp, 'GlobB', hti_poly_fp, agb_code)
-# bacc_out <- perform_comparison(agb_fp, bacc_fp, 'Baccini', hti_poly_fp, agb_code)
-# rm(bacc_out)
-# esa_out <- perform_comparison(agb_fp, esa_fp, 'ESA', hti_poly_fp, agb_code)
-# rm(esa_out)
-# avit_out <- perform_comparison(agb_fp, avit_fp, 'Avitabile', hti_poly_fp, agb_code)
-# 
-# # Summary table
-# glob_out <- get_summary_wrapper(agb_fp, glob_fp, 'GlobB', agb_code)
-# bacc_out <- get_summary_wrapper(agb_fp, bacc_fp, 'Baccini', agb_code)
-# esa_out <- get_summary_wrapper(agb_fp, esa_fp, 'ESA', agb_code)
-# avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
-# 
-# # Histogram
-# avit_out <- get_summary_wrapper(agb_fp, avit_fp, 'Avitabile', agb_code)
-# 
-# ext_name <- 'Avitabile'
-# hist_diff_fp <- file.path(comparison_dir, str_c('hist_diff_', ext_name, '_v_', agb_code, '_2.png'))
-# p_hist <- plot_hist_density(avit_out$diffs, -300, 300, bwidth=5, sample_size=500000,
-#                             ext_name, agb_code, filename = hist_diff_fp)
-# 
-# # Join
-# summary_df <- plyr::join_all(
-#   list(setNames(glob_out$summary, c('name', 'GlobBiomass')),
-#        setNames(esa_out$summary, c('name', 'ESA')),
-#        setNames(avit_out$summary, c('name', 'Avitabile')),
-#        setNames(bacc_out$summary, c('name', 'Baccini'))),
-#   by = 'name', type = 'left')
-# 
-# # Save summary table
-# summary_csv <- file.path(dirname(agb_fp), 'external_comparison', 
-#                          str_c('comparison_summaries_', agb_code, '.csv'))
-# summary_df %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% 
-#   write_csv(summary_csv)
-# 
-# rm(bacc_out, esa_out, avit_out, glob_out)
-
-# Comparison metrics by landcover ----------------------------------------------
 
 # Pixel-to-pixel comparison ----
 # testing ----
@@ -854,3 +724,9 @@ agb_fps[c(2,3,4,5)] %>%
 # Combine field plot comparison and pix-to-pix comparison? ----
 ext_metrics <- read_csv(ext_report_csv)
 sum_tbl <- read_csv(pix2pix_compare_csv)
+
+
+left_join(ext_metrics, sum_tbl, suffix = c('_field', '_pix'))
+
+
+out <- bind_rows(sum_tbl, ext_metrics)

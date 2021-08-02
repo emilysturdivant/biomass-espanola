@@ -309,25 +309,26 @@ if(go_variant == 'med5') {
 }
 
 # Interpolate by landcover ----
-lc_stat <-  'median'
-fn_prefix <- tools::file_path_sans_ext(filt_fp) %>% basename()
-# g0_filled_fp <- file.path(mod_dir, str_c(fn_prefix, '_LCinterp.tif'))
-g0_filled_fp <- str_c(tools::file_path_sans_ext(filt_fp), '_LCinterp.tif')
-g0_variant <- g0_filled_fp %>% str_extract(str_glue('(?<={code}_).*(?=\\.tif)'))
-mod_dir <- file.path('data', 'modeling', code, g0_variant)
-
-summary_pols_fp <- file.path(mod_dir, 'by_landcover', str_glue('{fn_prefix}_{lc_stat}.gpkg'))
-dir.create(dirname(summary_pols_fp), recursive = TRUE)
-
-# Load g0 raster (filtered)
-filt_ras <- terra::rast(filt_fp)
-
-# Get zonal values - write as polygons with median g0 value
-summarize_raster_by_polygons(lc_pols_fp, filt_ras, summary_pols_fp) 
-
-# Use zonal value to fill gaps in g0 raster
-fill_gaps_from_polygons(filt_ras, filt_fp, summary_pols_fp, g0_filled_fp)
-
+if(g0_interp == 'LC') {
+  lc_stat <-  'median'
+  fn_prefix <- tools::file_path_sans_ext(filt_fp) %>% basename()
+  # g0_filled_fp <- file.path(mod_dir, str_c(fn_prefix, '_LCinterp.tif'))
+  g0_filled_fp <- str_c(tools::file_path_sans_ext(filt_fp), '_LCinterp.tif')
+  g0_variant <- g0_filled_fp %>% str_extract(str_glue('(?<={code}_).*(?=\\.tif)'))
+  mod_dir <- file.path('data', 'modeling', code, g0_variant)
+  
+  summary_pols_fp <- file.path(mod_dir, 'by_landcover', str_glue('{fn_prefix}_{lc_stat}.gpkg'))
+  dir.create(dirname(summary_pols_fp), recursive = TRUE)
+  
+  # Load g0 raster (filtered)
+  filt_ras <- terra::rast(filt_fp)
+  
+  # Get zonal values - write as polygons with median g0 value
+  summarize_raster_by_polygons(lc_pols_fp, filt_ras, summary_pols_fp) 
+  
+  # Use zonal value to fill gaps in g0 raster
+  fill_gaps_from_polygons(filt_ras, filt_fp, summary_pols_fp, g0_filled_fp)
+}
 
 # ~ Create masks (which are used by mask_with_options()) ----
 # Masks: ALOS ----

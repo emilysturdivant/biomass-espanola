@@ -36,32 +36,42 @@ source('src/R/initialize_vars.R')
 
 # Apply value cap to AGB -------------------------------------------------------
 # Apply saturation point to AGB and save
-if(!file.exists(agb_cap_fp)){
-  agb_dtype <- raster::dataType(raster::raster(agb_l0_fp))
-  agb_sat <- terra::rast(agb_l0_fp) %>% 
-    terra::classify(rbind(c(saturation_pt, Inf, saturation_pt),
-                          c(-Inf, 0, 0)), 
-                    filename = agb_cap_fp, 
-                    overwrite=T, 
-                    wopt = list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
+if(!is.na(saturation_pt)) {
+  if(!file.exists(agb_cap_fp)){
+    agb_dtype <- raster::dataType(raster::raster(agb_l0_fp))
+    agb_sat <- terra::rast(agb_l0_fp) %>% 
+      terra::classify(rbind(c(saturation_pt, Inf, saturation_pt),
+                            c(-Inf, 0, 0)), 
+                      filename = agb_cap_fp, 
+                      overwrite=T, 
+                      wopt = list(datatype = agb_dtype, gdal='COMPRESS=LZW'))
+  }
 }
 
 # Mask agb --------------------------------------------------------------
 # Apply masks to L2 capped AGB
-agb_l2 <- mask_with_options(in_fp = agb_l0_fp, 
-                            masks_dir, 
-                            code = 'agb_l1',
-                            masks = agb_mask_codes, 
-                            overwrite = FALSE, 
-                            agb_dir)
+if(!is.na(saturation_pt)) {
+  agb_l2 <- mask_with_options(in_fp = agb_cap_fp, 
+                              masks_dir, 
+                              agb_fp,
+                              masks = agb_mask_codes, 
+                              overwrite = FALSE, 
+                              agb_dir)
+} else {
+  # Apply masks to L0 capped AGB
+  agb_l2 <- mask_with_options(in_fp = agb_l0_fp, 
+                              masks_dir, 
+                              agb_fp,
+                              masks = agb_mask_codes, 
+                              overwrite = FALSE, 
+                              agb_dir)
+}
 
-# Apply masks to L2 capped AGB
-agb_l2 <- mask_with_options(in_fp = agb_cap_fp, 
-                            masks_dir, 
-                            code = 'agb_l2',
-                            masks = agb_mask_codes, 
-                            overwrite = FALSE, 
-                            agb_dir)
+# Histogram ----
+p_hist <- plot_agb_hist_density(agb_fps$internal, agb_pal)
+hist_fp <- file.path(agb_var_dir, str_c('agb_', agb_code, '_hist.png'))
+dir.create(dirname(hist_fp), recursive = TRUE)
+ggsave(hist_fp, p_hist, width = 5, height = 3, dpi = 120)
 
 # Report (incomplete update): Get value frequencies within masks ---------------
 get_frequencies <- function(agb_ras, msk_name){
@@ -100,11 +110,9 @@ get_frequencies <- function(agb_ras, msk_name){
 agb_ras <- terra::rast(agb_l0_fp)
 msk_land <- terra::rast(landmask_fp)
 agb_masked <- agb_l2
-# mask_name <- 'WUu20'
 
 # Get name of mask
-mask_name <- agb_ras@ptr$filenames %>% basename() %>% 
-  str_extract("(?<=mask).*(?=\\.tif)")
+# g0_variant
 mask_name <- agb_masked@ptr$filenames %>% basename() %>% 
   str_extract("(?<=mask).*(?=\\.tif)")
 mask_name <- ifelse(mask_name == '', 'none', mask_name)
@@ -192,9 +200,3 @@ ct_valid_pixels <- global(!is.na(agb_masked), 'sum', na.rm=T)
 (est_total_AGB <- mn * est_area_ha)
 
 
-
-# Histogram ----
-p_hist <- plot_agb_hist_density(agb_fps$internal, agb_pal)
-hist_fp <- file.path(agb_var_dir, str_c('agb_', agb_code, '_hist.png'))
-dir.create(dirname(hist_fp), recursive = TRUE)
-ggsave(hist_fp, p_hist, width = 5, height = 3, dpi = 120)

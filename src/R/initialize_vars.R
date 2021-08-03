@@ -25,9 +25,13 @@ if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 
 # AGB processing
 saturation_pt <- 400
-agb_input_level <- 'l2'
+# agb_input_level <- 'l2'
 agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
-agb_code <- str_c(agb_input_level, '_mask', str_c(agb_mask_codes, collapse = ''))
+sat_code <- ifelse(!is.na(saturation_pt), str_c('cap', saturation_pt), '')
+agbmsk_code <- ifelse(length(agb_mask_codes > 0), 
+                     str_c('mask', str_c(agb_mask_codes, collapse = '')), 
+                     '')
+agb_code <- str_c(sat_code, agbmsk_code, sep = '_')
 
 # Filepaths
 results_dir <- 'data/results'
@@ -67,7 +71,7 @@ agb_l0_fp <- file.path(agb_dir, str_c("agb_l0_", g0_variant, ".tif"))
 # 04 ----
 masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
 landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-agb_cap_fp <- file.path(agb_dir, str_c('agb_l1_cap', saturation_pt, '.tif'))
+agb_cap_fp <- file.path(agb_dir, str_c('agb_', sat_code, '.tif'))
 
 agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
 
@@ -167,14 +171,14 @@ resample_to_raster <- function(agb_fp, ext_fp, agb_res_fp, method = 'bilinear') 
 }
 
 
-mask_with_options <- function(in_fp, masks_dir, code = 'HV_nu', 
+mask_with_options <- function(in_fp, masks_dir, masked_fp, 
                               masks = c('L', 'WU', 'wb'), overwrite = TRUE,
                               out_mask_dir) {
   
   # Get output filenames
   masks_str <- masks %>% str_c(collapse = '')
-  masked_fp <- file.path(dirname(in_fp), 
-                         str_c(code, '_mask', masks_str, '.tif'))
+  # masked_fp <- file.path(dirname(in_fp), 
+  #                        str_c(code, '_mask', masks_str, '.tif'))
   msk_all_fp <- file.path(out_mask_dir, str_c('mask', masks_str, '.tif'))
   
   # Stop if file already exists

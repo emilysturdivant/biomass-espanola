@@ -398,50 +398,6 @@ get_pcts_by_lc <- function(agb_x, lc_res_fp) {
   
 }
 
-get_pcts <- function(x, hti_poly_fp) {
-  
-  # Load 
-  if(class(x) == 'SpatRaster') {
-    ras <- x
-  } else if(is.list(x)) {
-    ras <- terra::rast(x$fp) 
-  } else if(is.character(x)) {
-    ras <- terra::rast(x)
-  } 
-
-  msk_poly <- terra::vect(hti_poly_fp)
-  
-  # Reclassify
-  ras_clas <- ras %>% 
-    terra::classify(rbind(c(-Inf, Inf, 1),
-                          c(NA, NA, 0)))
-  
-  # Crop
-  ras_msk <- ras_clas %>% 
-    terra::crop(msk_poly) %>% 
-    terra::mask(msk_poly, 
-                inverse = FALSE)
-  
-  # Get values
-  rvals <- terra::values(ras_msk)
-  
-  # Count pixels in each category and convert to percentage
-  df <- tibble(group = c("value", "NA"), 
-               count = c(sum(rvals == 1, na.rm = TRUE), 
-                         sum(rvals == 0, na.rm = TRUE)))
-  
-  # Convert counts to percentage of all land pixels
-  landct <- sum(df$count)
-  df <- df %>%
-    dplyr::add_row(group = 'land', count = landct) %>% 
-    dplyr::mutate(pct = count / landct)
-  
-  # Structure data
-  df %>% 
-    pivot_wider(names_from = group, values_from = count:pct) %>% 
-    select(count_land, pct_value, pct_NA)
-}
-
 mask_to_classes <- function(mask_fp, ras_fp, out_fp, class_values) {
   # Load and pre-process layers
   out <- crop_to_intersecting_extents(terra::rast(mask_fp), terra::rast(ras_fp))
@@ -681,13 +637,14 @@ ext_pcts_csv <- file.path(comparison_dir, 'by_LC',
 # Sums by LC ----
 map_names <- agb_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
 out_dir <- file.path(comparison_dir, 'by_LC', 'temp')
+dir.create(out_dir, recursive = TRUE)
 sum_tbl <- agb_fps %>%
   purrr::map_dfr(get_masked_agb_totals, lc_res_fp, out_dir) %>% 
   left_join(map_names, by = c(name = 'value'))
 
-sum_tbl <- list.files(out_dir, 'agb_sum', full.names = TRUE) %>% 
-  purrr::map_dfr(read_csv) %>% 
-  left_join(map_names, by = c(name = 'value'))
+# sum_tbl <- list.files(out_dir, 'agb_sum', full.names = TRUE) %>% 
+#   purrr::map_dfr(read_csv) %>% 
+#   left_join(map_names, by = c(name = 'value'))
 
 # Save
 sum_tbl %>% write_csv(sums_csv)
@@ -697,10 +654,15 @@ sum_tbl %>% write_csv(sums_csv)
 # sum_tbl %>% filter(LC == 4)
 
 # Pct masked by LC ----
+# Resample our AGB to ESA grid for comparison
+agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
+if(!file.exists(agb_res_fp)) 
+  resample_to_raster(agb_fps$internal$fp, agb_fps$esa$fp, agb_res_fp)
+
 res_fps <- agb_fps
 res_fps$internal <- list(
   name = str_glue('Internal {agb_code}, 100m'),
-  fp = str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
+  fp = agb_res_fp
 )
 
 map_names <- res_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
@@ -714,7 +676,7 @@ ext_pcts %>% write_csv(ext_pcts_csv)
 # Combine sums and percents
 sum_tbl <- read_csv(sums_csv)
 ext_pcts <- read_csv(ext_pcts_csv)
-out_by_lc <- full_join(sum_tbl, ext_pcts, by = c('name', LC = 'code', 'map_code'))
+out_by_lc <- full_join(sum_tbl, ext_pcts, by = c('name', 'LC', 'map_code'))
 
 smmry_csv <- file.path(comparison_dir, '07_overview_by_LC.csv')
 out_by_lc %>% write_csv(smmry_csv)
@@ -784,15 +746,12 @@ sum_tbl <- list.files(file.path(comparison_dir, 'by_LC', 'temp'),
 pix2pix_csv <- file.path(comparison_dir, str_c('07_pixel_comparison_by_LC.csv'))
 sum_tbl %>% write_csv(pix2pix_csv)
 
-
 # Combine pix-to-pix comparison ----
 sum_tbl <- read_csv(pix2pix_csv)
 p2p_tbl <- right_join(sum_tbl, pcts_masked, by = c('map_code', 'mask', 'name'))
 
 # Save
 p2p_tbl %>% write_csv(compare_by_lc_csv)
-
-ext_pcts
 
 # Look
 # p2p_tbl %>% 
@@ -816,5 +775,5 @@ agb_fps[c(2,3,4,5)] %>%
               return_obj = 'map', 
               boundary_fp = hti_poly_fp)
 
-r <- terra::rast(avit_fp)
+r <- terra::rast(agb_fp)
 min(r)

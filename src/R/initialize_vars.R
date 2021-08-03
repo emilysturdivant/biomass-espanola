@@ -13,8 +13,8 @@ year <- '2019'
 g0_filt <- 'med5'
 g0_mask <- c('L', 'WU', 'wb')
 g0_interp <- 'LC'
-g0_mask <- c()
-g0_interp <- ''
+# g0_mask <- c()
+# g0_interp <- ''
 g0msk_code <- ifelse(length(g0_mask > 0), 
                      str_c('mask', str_c(g0_mask, collapse = ''), '_'), 
                      '')
@@ -24,7 +24,7 @@ g0_variant <- str_c(g0msk_code, g0_filt, g0interp_code)
 if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 
 # AGB processing
-saturation_pt <- 300
+saturation_pt <- 400
 agb_input_level <- 'l2'
 agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
 agb_code <- str_c(agb_input_level, '_mask', str_c(agb_mask_codes, collapse = ''))
@@ -116,6 +116,13 @@ agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
                             fp = avit_fp), 
                 bacc = list(name = 'Baccini',
                             fp = bacc_res_fp))
+
+mskvals_list <- list(
+  list(values = 4, code = 'TC'),
+  list(values = c(1,2,3,4,5,6), code = 'Total'),
+  list(values = c(3,5,6), code = 'BGS'),
+  list(values = c(1,2,3,5,6), code = 'WUBGS')
+)
 
 agb_var_dir <- file.path(agb_dir, agb_code)
 comparison_dir <- file.path(agb_var_dir, 'external_comparison')

@@ -46,30 +46,30 @@ crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_va
     # Resample raster to template raster with crop from GDAL for speed. 
     
     if(class(template)=='character'){
-      template <- read_stars(template)
+      template <- stars::read_stars(template)
     }
     
     # Crop using GDAL
     print('Cropping...')
-    fp_crop <- tempfile(pattern = str_glue(file_path_sans_ext(basename(in_fp)),'_crop'), 
+    fp_crop <- tempfile(pattern = str_glue(tools::file_path_sans_ext(basename(in_fp)),'_crop'), 
                         tmpdir = tempdir(), 
                         fileext = "tif")
     # fp_crop <- str_glue(file_path_sans_ext(basename(in_fp)),'_crop.',file_ext(in_fp))
-    r <- raster(in_fp)
-    gdalwarp(srcfile=in_fp, dstfile=fp_crop,
-             te=st_bbox(template), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
+    r <- terra::rast(in_fp)
+    gdalUtils::gdalwarp(srcfile=in_fp, dstfile=fp_crop,
+             te=sf::st_bbox(template), tr=c(xres(r), yres(r)), tap=T, overwrite=T)
     
     # Load and resample
     print('Resampling...')
-    r <- read_stars(fp_crop)
+    r <- stars::read_stars(fp_crop)
     
     if(!is.na(na_value)){
       r[r == na_value] <- NA
     }
     
-    r <- r %>% st_warp(template, method=warp_method, use_gdal=TRUE)
+    r <- r %>% stars::st_warp(template, method=warp_method, use_gdal=TRUE)
     r %>% as("Raster") %>%
-      writeRaster(out_fp, options=c("dstnodata=-99999"), overwrite=T)
+      raster::writeRaster(out_fp, options=c("dstnodata=-99999"), overwrite=T)
     return(r) # output raster is stars format
   }
   
@@ -82,7 +82,7 @@ crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_va
     
     # If the file exists, load it
     print("File already exists. Loading.")
-    r <- read_stars(out_fp)
+    r <- stars::read_stars(out_fp)
     
   }
 }
@@ -346,6 +346,58 @@ extract_mean <- function(x, vec, touches = FALSE, method='simple'){
     deframe()
 }
 
+get_pcts_by_lc <- function(agb_x, lc_res_fp) { 
+  
+  # External names
+  ext_name <- agb_x$name
+  ext_fp <- agb_x$fp
+  
+  if (ext_name == 'Avitabile') {    
+    lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
+    
+    # Resample LC and internal to external AGB res
+    if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
+    
+  } 
+  
+  # Load 
+  out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(ext_fp))
+  lc <- out$r1; ras <- out$r2
+  
+  # Reclassify masked raster to mask (1s and 0s)
+  ras_clas <- ras %>% 
+    terra::classify(rbind(c(-Inf, Inf, 1),
+                          c(NA, NA, 0)))
+  
+  # Multiply
+  ras_lc <- ras_clas * lc
+  
+  # Get count in each class
+  lc_name = c("Null", "Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs")
+  lc_names <- tibble(LC = 0:6, lc_name = lc_name)
+  
+  # Count values present in each LC
+  cnts_vals <- as.data.frame(ras_lc) %>% 
+    rename(LC = 1) %>% 
+    count(LC) %>% 
+    left_join(lc_names) %>% 
+    filter(LC != 0) %>%
+    mutate(pct_of_values = n / sum(n))
+  
+  # Count pixels in each LC
+  cnts_lc <- as.data.frame(lc) %>% 
+    rename(LC = 1) %>% 
+    count(LC) %>% 
+    left_join(lc_names)
+  
+  # Join to total LC counts and get percentages
+  cnts_vals %>% 
+    left_join(cnts_lc, by = c('LC', 'lc_name'), suffix = c('_vals', '_lc')) %>% 
+    mutate(pct_of_lc = n_vals / n_lc,
+           name = ext_name)
+  
+}
+
 get_pcts <- function(x, hti_poly_fp) {
   
   # Load 
@@ -393,116 +445,60 @@ get_pcts <- function(x, hti_poly_fp) {
 mask_to_classes <- function(mask_fp, ras_fp, out_fp, class_values) {
   # Load and pre-process layers
   out <- crop_to_intersecting_extents(terra::rast(mask_fp), terra::rast(ras_fp))
-  lc <- out$r1
-  agb_ext <- out$r2
+  lc <- out$r1; ras <- out$r2
   
   # Mask by each class in list and sum
-  ext_T <- class_values %>% 
-    purrr::map(~ mask(agb_ext, lc, inverse = TRUE, maskvalues = .x)) %>% 
+  msk_rs <- class_values %>% 
+    purrr::map(~ mask(ras, lc, inverse = TRUE, maskvalues = .x)) %>% 
     rast() %>% 
     app(sum, na.rm = TRUE, filename = out_fp, overwrite = TRUE)
 }
 
-get_pcts_masked <- function(agb_x, mskvals, lc_res_fp, hti_poly_fp) {
+get_masked_agb_totals <- function(agb_x, lc_fp, out_dir) {
   # External names
   ext_name <- agb_x$name
   ext_fp <- agb_x$fp
-  ext_masked_fp <- str_c(tools::file_path_sans_ext(ext_fp), '_', mskvals$code, 'mask.tif')
-  
-  if (!file.exists(ext_masked_fp)) {
-    mask_to_classes(lc_res_fp, ext_fp, ext_masked_fp, mskvals$values)
-  }
-  
-  df <- get_pcts(ext_masked_fp, hti_poly_fp)
-  
-  df %>% mutate(name = ext_name, 
-                mask = mskvals$code)
-  
-  
-  
 
-  # Reclassify
-  ras_clas <- ras %>% 
-    terra::classify(rbind(c(-Inf, Inf, 1),
-                          c(NA, NA, 0)))
-  
-  # Crop
-  ras_msk <- ras_clas %>% 
-    terra::crop(msk_poly) %>% 
-    terra::mask(msk_poly, 
-                inverse = FALSE)
-  
-  # Get values
-  rvals <- terra::values(ras_msk)
-  
-  # Count pixels in each category and convert to percentage
-  df <- tibble(group = c("value", "NA"), 
-               count = c(sum(rvals == 1, na.rm = TRUE), 
-                         sum(rvals == 0, na.rm = TRUE)))
-  
-  # Convert counts to percentage of all land pixels
-  landct <- sum(df$count)
-  df <- df %>%
-    dplyr::add_row(group = 'land', count = landct) %>% 
-    dplyr::mutate(pct = count / landct)
-  
-  # Structure data
-  df %>% 
-    pivot_wider(names_from = group, values_from = count:pct) %>% 
-    select(count_land, pct_value, pct_NA)
-  
-}
-
-get_pcts_by_lc <- function(agb_x, lc_res_fp) { 
-  
-  # External names
-  ext_name <- agb_x$name
-  ext_fp <- agb_x$fp
-  
-  if (ext_name == 'Avitabile') {    
+  # Conditionally resample LC
+  if (str_detect(ext_name, '^This')) {
+    pix_area_ha <- (25^2)/(100^2)
+    lc_res_fp <- 'data/tidy/landcover/Lemoiner/Haiti2017_agbres.tif'
+    
+    if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
+    
+  } else if (ext_name == 'Avitabile') {    
+    pix_area_ha <- (1000^2)/(100^2)
     lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
     
     # Resample LC and internal to external AGB res
     if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
-    
-  } 
-  
-  # Load 
-  out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), terra::rast(ext_fp))
-  lc <- out$r1; ras <- out$r2
-  
-  # Reclassify masked raster to mask (1s and 0s)
-  ras_clas <- ras %>% 
-    terra::classify(rbind(c(-Inf, Inf, 1),
-                          c(NA, NA, 0)))
-  
-  # Multiply
-  ras_lc <- ras_clas * lc
-  
-  # Get count in each class
-  lc_name = c("Null", "Water", "Urban", "Bareland", "Tree cover", "Grassland", "Shrubs")
-  lc_names <- tibble(code = 0:6, lc_name = lc_name)
-  
-  # Count values present in each LC
-  cnts_vals <- as.data.frame(ras_lc) %>% 
-    rename(code = 1) %>% 
-    count(code) %>% 
-    left_join(lc_names) %>% 
-    filter(code != 0) %>%
-    mutate(pct_of_values = n / sum(n))
-  
-  # Count pixels in each LC
-  cnts_lc <- as.data.frame(lc) %>% 
-    rename(code = 1) %>% 
-    count(code) %>% 
-    left_join(lc_names)
-  
-  # Join to total LC counts and get percentages
-  cnts_vals %>% 
-    left_join(cnts_lc, by = c('code', 'lc_name'), suffix = c('_vals', '_lc')) %>% 
-    mutate(pct_of_lc = n_vals / n_lc,
-           name = ext_name)
 
+  } else {
+    pix_area_ha <- (100^2)/(100^2)
+    lc_res_fp <- lc_fp
+  }
+  
+  out <- crop_to_intersecting_extents(terra::rast(lc_res_fp), 
+                                      terra::rast(ext_fp))
+
+  # Convert LC and AGB to dataframe
+  rstack <- c(out$r1, out$r2)
+  r_df <- as.data.frame(rstack) %>% rename(LC = 1, agb = 2)
+  
+  # Convert from density to volume
+  sum_tbl <- r_df %>% 
+    group_by(LC) %>% 
+    summarize(
+      mean_agb_ha = mean(agb, na.rm = TRUE),
+      sum_agb = sum(agb, na.rm = TRUE) * pix_area_ha,
+      name = ext_name)
+  
+  # Save
+  out_fp <- file.path(out_dir, str_glue('agb_sum_by_LC_{ext_name}.csv'))
+  sum_tbl %>% write_csv(out_fp)
+  
+  # Return
+  return(sum_tbl)
 }
 
 compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
@@ -677,60 +673,89 @@ ground_metrics <- df %>%
 # Save as CSV
 ground_metrics %>% write_csv(ground_compare_csv)
 
-# Pixel-to-pixel comparison ----
-# testing ----
-# mskvals <-  list(values = 4, code = 'TC')
-# agb_x <- agb_fps$avit
-# df <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fps$haiti,
-#                     mskvals = mskvals, comparison_dir,
-#                     return_obj = 'all', 
-#                     boundary_fp = hti_poly_fp)
-# 
-# agb_x <- agb_fps$esa
-# compare_by_given_lc(agb_x, agb_res_fp, lc_fp = lc_res_fp,
-#                           mskvals = mskvals, comparison_dir,
-#                           return_obj = 'plot', 
-#                     boundary_fp = hti_poly_fp)
-# 
-# p_scatt <- scatter_differences(df, ext_name, agb_code, 
-#                                sample_size = 500000)
-# 
-# # TC
-# mskvals <- list(values = 4, code = 'TC')
-# tc_sum_tbl <- agb_fps[c(2,3,4,5)] %>% 
-#   purrr::map_dfr(compare_by_given_lc, agb_fp, lc_fp,
-#                  mskvals = mskvals, comparison_dir,
-#                  return_obj = 'summary', 
-#                  boundary_fp = hti_poly_fp) %>% 
-#   mutate(mask = mskvals$code) 
-# 
-# smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-#                            str_c('summary_diffs_', mskvals$code, '.csv'))
-# tc_sum_tbl %>% write_csv(smmry_diff_fp)
-# 
-# # Plots
-# agb_fps[c(2,3,4,5)] %>% 
-#   purrr::walk(compare_by_given_lc, agb_fp, lc_fp,
-#               mskvals = mskvals, comparison_dir,
-#               return_obj = 'plot', 
-#               boundary_fp = hti_poly_fp)
-# 
-# # Difference map
-# mskvals <-  list(values = 4, code = 'TC')
-# agb_x <- agb_fps$avit
-# p_map <- compare_by_given_lc(agb_x, agb_fp, lc_fp = lc_fp,
-#                           mskvals = mskvals, comparison_dir,
-#                           return_obj = 'map', 
-#                           boundary_fp = hti_poly_fp)
+# ~ Sums and percents by LC ----
+sums_csv <- file.path(comparison_dir, 'by_LC', '07_sums_by_LC.csv')
+ext_pcts_csv <- file.path(comparison_dir, 'by_LC', 
+                          str_c('07_pcts_by_lc_', agb_code, '.csv'))
 
-# ~ Summary metric tables and scatter density plots ----
-mskvals_list <- list(
-  list(values = 4, code = 'TC'),
-  list(values = c(1,2,3,4,5,6), code = 'Total'),
-  list(values = c(3,5,6), code = 'BGS'),
-  list(values = c(1,2,3,5,6), code = 'WUBGS')
+# Sums by LC ----
+map_names <- agb_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
+out_dir <- file.path(comparison_dir, 'by_LC', 'temp')
+sum_tbl <- agb_fps %>%
+  purrr::map_dfr(get_masked_agb_totals, lc_res_fp, out_dir) %>% 
+  left_join(map_names, by = c(name = 'value'))
+
+sum_tbl <- list.files(out_dir, 'agb_sum', full.names = TRUE) %>% 
+  purrr::map_dfr(read_csv) %>% 
+  left_join(map_names, by = c(name = 'value'))
+
+# Save
+sum_tbl %>% write_csv(sums_csv)
+
+# Look at values for Tree Cover class
+# sum_tbl <- read_csv(sums_csv)
+# sum_tbl %>% filter(LC == 4)
+
+# Pct masked by LC ----
+res_fps <- agb_fps
+res_fps$internal <- list(
+  name = str_glue('Internal {agb_code}, 100m'),
+  fp = str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
 )
 
+map_names <- res_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
+ext_pcts <- res_fps %>% 
+  purrr::map_dfr(get_pcts_by_lc, lc_res_fp) %>% 
+  left_join(map_names, by = c(name = 'value'))
+
+# Save
+ext_pcts %>% write_csv(ext_pcts_csv)
+
+# Combine sums and percents
+sum_tbl <- read_csv(sums_csv)
+ext_pcts <- read_csv(ext_pcts_csv)
+out_by_lc <- full_join(sum_tbl, ext_pcts, by = c('name', LC = 'code', 'map_code'))
+
+smmry_csv <- file.path(comparison_dir, '07_overview_by_LC.csv')
+out_by_lc %>% write_csv(smmry_csv)
+
+# Aggregate to mask categories ----
+# Sums
+sum_fun <- function(mskvals, x) {
+  x %>% 
+    filter(LC %in% mskvals$values) %>% 
+    group_by(name, map_code) %>% 
+    summarize(sum_agb = sum(sum_agb, na.rm = TRUE),
+              mean_agb_ha = mean(mean_agb_ha, na.rm = TRUE)) %>% 
+    mutate(mask = mskvals$code)
+}
+
+sum_tbl <- read_csv(sums_csv)
+sums_by_mask <- mskvals_list %>% purrr::map_dfr(sum_fun, sum_tbl)
+
+# Percents
+agg_fun <- function(mskvals, ext_pcts) {
+  ext_pcts %>% 
+    filter(code %in% mskvals$values) %>% 
+    group_by(name, map_code) %>% 
+    summarize(across(starts_with(c('n', 'pct')), sum)) %>% 
+    mutate(pct_of_lc =  n_vals / n_lc, 
+           mask = mskvals$code)
+}
+
+ext_pcts <- read_csv(ext_pcts_csv)
+pcts_masked <- mskvals_list %>% purrr::map_dfr(agg_fun, ext_pcts)
+
+# Combine
+out_by_mask <- full_join(sums_by_mask, pcts_masked, by = c('name', 'mask', 'map_code'))
+smmry_masks_csv <- file.path(comparison_dir, '07_overview_by_mask.csv')
+out_by_mask %>% write_csv(smmry_masks_csv)
+
+out_by_mask %>% filter(mask == 'TC')
+
+# ~ Pix-to-pix comparison ----
+
+# Comparison metrics & scatter density plots ----
 # Parallelize
 # library('furrr')
 # options(future.fork.enable = TRUE)
@@ -759,34 +784,6 @@ sum_tbl <- list.files(file.path(comparison_dir, 'by_LC', 'temp'),
 pix2pix_csv <- file.path(comparison_dir, str_c('07_pixel_comparison_by_LC.csv'))
 sum_tbl %>% write_csv(pix2pix_csv)
 
-# Get masked percentages by LC ----
-res_fps <- agb_fps
-res_fps$internal <- list(
-  name = str_glue('Internal {agb_code}, 100m'),
-  fp = str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
-)
-
-map_names <- res_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
-ext_pcts <- res_fps %>% 
-  purrr::map_dfr(get_pcts_by_lc, lc_res_fp) %>% 
-  left_join(map_names, by = c(name = 'value'))
-
-# Save
-ext_pcts_csv <- file.path(comparison_dir, str_c('07_pcts_by_lc_', agb_code, '.csv'))
-ext_pcts %>% write_csv(ext_pcts_csv)
-
-# Aggregate to mask categories
-ext_pcts <- read_csv(ext_pcts_csv)
-agg_fun <- function(mskvals, ext_pcts) {
-  ext_pcts %>% 
-    filter(code %in% mskvals$values) %>% 
-    group_by(name, map_code) %>% 
-    summarize(across(starts_with(c('n', 'pct')), sum)) %>% 
-    mutate(pct_of_lc =  n_vals / n_lc, 
-           mask = mskvals$code)
-}
-
-pcts_masked <- mskvals_list %>% purrr::map_dfr(agg_fun, ext_pcts)
 
 # Combine pix-to-pix comparison ----
 sum_tbl <- read_csv(pix2pix_csv)
@@ -794,6 +791,8 @@ p2p_tbl <- right_join(sum_tbl, pcts_masked, by = c('map_code', 'mask', 'name'))
 
 # Save
 p2p_tbl %>% write_csv(compare_by_lc_csv)
+
+ext_pcts
 
 # Look
 # p2p_tbl %>% 
@@ -816,3 +815,6 @@ agb_fps[c(2,3,4,5)] %>%
               mskvals = mskvals, comparison_dir,
               return_obj = 'map', 
               boundary_fp = hti_poly_fp)
+
+r <- terra::rast(avit_fp)
+min(r)

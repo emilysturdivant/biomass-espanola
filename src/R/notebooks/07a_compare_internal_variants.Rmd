@@ -1,0 +1,83 @@
+---
+title: "Compare internal AGB variants"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+[GlobBiomass](http://globbiomass.org/wp-content/uploads/GB_Maps/Globbiomass_global_dataset.html)
+
+```{r initialize, echo=FALSE, message=FALSE, warning=FALSE}
+library('sf')
+library('terra')
+library('tidyverse')
+library('patchwork')
+
+source('src/R/initialize_vars.R')
+
+agb_code1 <- 'cap300_maskWUwb'
+agb_code2 <- 'cap400_maskWUwb'
+int_agb_fps <- list(
+  agb1 = list(fp = file.path(agb_dir, str_glue('agb_{agb_code1}.tif')), 
+              name = agb_code1),
+  agb2 = list(fp = file.path(agb_dir, str_glue('agb_{agb_code2}.tif')), 
+              name = agb_code2)
+)
+comp_dir1 <- file.path(agb_dir, agb_code1, 'external_comparison')
+comp_dir2 <- file.path(agb_dir, agb_code2, 'external_comparison')
+
+# rename l2_maskWUwb to cap300_maskWUwb
+# (old_fps <- list.files(file.path(comparison_dir, 'by_LC'),
+#                       pattern = str_glue('{agb_code}.*\\.csv'), full.names = TRUE))
+# (new_fps <- old_fps %>% str_remove_all(str_glue('_{agb_code}(?=\\.csv)')))
+# file.rename(old_fps, new_fps)
+```
+
+### All four externals
+
+
+```{r agb-histograms}
+agb_fp1 <- file.path(agb_dir, str_glue('agb_{agb_code1}.tif'))
+agb1_hist <- plot_agb_hist_density(list(fp = agb_fp1, name = agb_code1), agb_pal)
+
+agb_fp2 <- file.path(agb_dir, str_glue('agb_{agb_code2}.tif'))
+(agb1_hist <- plot_agb_hist_density(list(fp = agb_fp2, name = agb_code2), agb_pal))
+```
+
+
+```{r pct-na}
+smmry_masks_csv <- file.path(comp_dir1, '07_overview_by_mask.csv')
+out_by_mask1 <- read_csv(smmry_masks_csv)
+out_by_mask1 %>% filter((mask == 'TC' | mask == 'Total') &
+                          map_code == 'internal')
+
+smmry_masks_csv <- file.path(comp_dir2, '07_overview_by_mask.csv')
+out_by_mask2 <- read_csv(smmry_masks_csv)
+out_by_mask2 %>% filter((mask == 'TC' | mask == 'Total') &
+                          map_code == 'internal')
+```
+
+```{r pix2pix metrics}
+compare_by_lc_csv1 <- file.path(comp_dir1, str_c('07_comparison_by_LC.csv'))
+p2p_tbl1 <- read_csv(compare_by_lc_csv1)
+p2p_tbl1 %>% 
+  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
+  filter(mask %in% c('Total'))
+
+compare_by_lc_csv2 <- file.path(comp_dir2, str_c('07_comparison_by_LC.csv'))
+p2p_tbl2 <- read_csv(compare_by_lc_csv2)
+p2p_tbl2 %>% 
+  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
+  filter(mask %in% c('Total'))
+
+p2p_tbl1 %>% 
+  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
+  filter(mask %in% c('TC'))
+
+p2p_tbl2 %>% 
+  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
+  filter(mask %in% c('TC'))
+```

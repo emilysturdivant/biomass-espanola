@@ -630,10 +630,6 @@ ground_metrics <- df %>%
 ground_metrics %>% write_csv(ground_compare_csv)
 
 # ~ Sums and percents by LC ----
-sums_csv <- file.path(comparison_dir, 'by_LC', '07_sums_by_LC.csv')
-ext_pcts_csv <- file.path(comparison_dir, 'by_LC', 
-                          str_c('07_pcts_by_lc_', agb_code, '.csv'))
-
 # Sums by LC ----
 map_names <- agb_fps %>% map_chr('name') %>% as_tibble(rownames = 'map_code')
 out_dir <- file.path(comparison_dir, 'by_LC', 'temp')
@@ -675,41 +671,40 @@ ext_pcts %>% write_csv(ext_pcts_csv)
 
 # Combine sums and percents
 sum_tbl <- read_csv(sums_csv)
-ext_pcts <- read_csv(ext_pcts_csv)
-out_by_lc <- full_join(sum_tbl, ext_pcts, by = c('name', 'LC', 'map_code'))
+ext_pcts <- read_csv(ext_pcts_csv) %>% 
+  select(-name) %>%
+  rename(
+    LC = code,
+    n_vals_100m = n_vals,
+         n_lc_100m = n_lc, 
+         pct_of_vals_100m = pct_of_values, 
+         pct_of_lc_100m = pct_of_lc)
+out_by_lc <- full_join(sum_tbl, ext_pcts, 
+                       by = c('LC', 'map_code'))
 
 smmry_csv <- file.path(comparison_dir, '07_overview_by_LC.csv')
 out_by_lc %>% write_csv(smmry_csv)
 
 # Aggregate to mask categories ----
-# Sums
-sum_fun <- function(mskvals, x) {
+# Sums and percents
+out_by_lc <- read_csv(smmry_csv)
+
+agg_fun <- function(mskvals, x) {
   x %>% 
     filter(LC %in% mskvals$values) %>% 
     group_by(name, map_code) %>% 
     summarize(sum_agb = sum(sum_agb, na.rm = TRUE),
-              mean_agb_ha = mean(mean_agb_ha, na.rm = TRUE)) %>% 
-    mutate(mask = mskvals$code)
-}
-
-sum_tbl <- read_csv(sums_csv)
-sums_by_mask <- mskvals_list %>% purrr::map_dfr(sum_fun, sum_tbl)
-
-# Percents
-agg_fun <- function(mskvals, ext_pcts) {
-  ext_pcts %>% 
-    filter(code %in% mskvals$values) %>% 
-    group_by(name, map_code) %>% 
-    summarize(across(starts_with(c('n', 'pct')), sum)) %>% 
-    mutate(pct_of_lc =  n_vals / n_lc, 
+              mean_agb_ha = mean(mean_agb_ha, na.rm = TRUE),
+              n_vals_100m = sum(n_vals_100m, na.rm = TRUE),
+              n_lc_100m = sum(n_lc_100m, na.rm = TRUE),
+              pct_of_vals_100m = sum(pct_of_vals_100m, na.rm = TRUE)) %>% 
+    mutate(pct_of_lc_100m =  n_vals_100m / n_lc_100m, 
            mask = mskvals$code)
 }
 
-ext_pcts <- read_csv(ext_pcts_csv)
-pcts_masked <- mskvals_list %>% purrr::map_dfr(agg_fun, ext_pcts)
+out_by_mask <- mskvals_list %>% purrr::map_dfr(agg_fun, out_by_lc)
 
-# Combine
-out_by_mask <- full_join(sums_by_mask, pcts_masked, by = c('name', 'mask', 'map_code'))
+# Save
 smmry_masks_csv <- file.path(comparison_dir, '07_overview_by_mask.csv')
 out_by_mask %>% write_csv(smmry_masks_csv)
 
@@ -748,7 +743,7 @@ sum_tbl %>% write_csv(pix2pix_csv)
 
 # Combine pix-to-pix comparison ----
 sum_tbl <- read_csv(pix2pix_csv)
-p2p_tbl <- right_join(sum_tbl, pcts_masked, by = c('map_code', 'mask', 'name'))
+p2p_tbl <- right_join(sum_tbl, out_by_mask, by = c('map_code', 'mask', 'name'))
 
 # Save
 p2p_tbl %>% write_csv(compare_by_lc_csv)
@@ -764,7 +759,6 @@ agg_tbl <- p2p_tbl %>%
   filter(mask == 'Total') %>% 
   right_join(ground_metrics, by = 'map_code', suffix = c('', '_ground'))
 
-agg_tbl_csv <- file.path(comparison_dir, str_c('07_aggregated_comparison_', agb_code, '.csv'))
 agg_tbl %>% write_csv(agg_tbl_csv)
 
 # ~ Difference maps (only for all LCs) -----------------------------------------

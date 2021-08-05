@@ -25,6 +25,7 @@ if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 
 # AGB processing
 saturation_pt <- 400
+saturation_pt <- 300
 # agb_input_level <- 'l2'
 agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
 sat_code <- ifelse(!is.na(saturation_pt), str_c('cap', saturation_pt), '')
@@ -133,6 +134,9 @@ comparison_dir <- file.path(agb_var_dir, 'external_comparison')
 plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
 ground_compare_csv <- file.path(comparison_dir, str_glue('07_grounddata_comparison.csv'))
 compare_by_lc_csv <- file.path(comparison_dir, str_c('07_comparison_by_LC.csv'))
+sums_csv <- file.path(comparison_dir, 'by_LC', '07_sums_by_LC.csv')
+ext_pcts_csv <- file.path(comparison_dir, 'by_LC', '07_pcts_by_lc.csv')
+agg_tbl_csv <- file.path(comparison_dir, '07_aggregated_comparison.csv')
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')

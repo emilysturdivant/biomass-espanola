@@ -41,7 +41,7 @@ comp_dir2 <- file.path(agb_dir, agb_code2, 'external_comparison')
 
 ```{r agb-histograms}
 agb_fp1 <- file.path(agb_dir, str_glue('agb_{agb_code1}.tif'))
-agb1_hist <- plot_agb_hist_density(list(fp = agb_fp1, name = agb_code1), agb_pal)
+(agb1_hist <- plot_agb_hist_density(list(fp = agb_fp1, name = agb_code1), agb_pal))
 
 agb_fp2 <- file.path(agb_dir, str_glue('agb_{agb_code2}.tif'))
 (agb1_hist <- plot_agb_hist_density(list(fp = agb_fp2, name = agb_code2), agb_pal))
@@ -49,35 +49,31 @@ agb_fp2 <- file.path(agb_dir, str_glue('agb_{agb_code2}.tif'))
 
 
 ```{r pct-na}
-smmry_masks_csv <- file.path(comp_dir1, '07_overview_by_mask.csv')
-out_by_mask1 <- read_csv(smmry_masks_csv)
-out_by_mask1 %>% filter((mask == 'TC' | mask == 'Total') &
-                          map_code == 'internal')
+out_by_mask1 <- read_csv(file.path(comp_dir1, '07_overview_by_mask.csv'))
+out_by_mask2 <- read_csv(file.path(comp_dir2, '07_overview_by_mask.csv'))
 
-smmry_masks_csv <- file.path(comp_dir2, '07_overview_by_mask.csv')
-out_by_mask2 <- read_csv(smmry_masks_csv)
-out_by_mask2 %>% filter((mask == 'TC' | mask == 'Total') &
-                          map_code == 'internal')
+out <- bind_rows(out_by_mask1, out_by_mask2)
+out %>% filter(mask == 'TC', map_code == 'internal') %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+out %>% filter(mask == 'Total', map_code == 'internal') %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
 ```
 
 ```{r pix2pix metrics}
-compare_by_lc_csv1 <- file.path(comp_dir1, str_c('07_comparison_by_LC.csv'))
-p2p_tbl1 <- read_csv(compare_by_lc_csv1)
-p2p_tbl1 %>% 
-  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
-  filter(mask %in% c('Total'))
+p2p_tbl1 <- read_csv(file.path(comp_dir1, str_c('07_comparison_by_LC.csv'))) %>% 
+  mutate(var = 'cap300')
+p2p_tbl2 <- read_csv(file.path(comp_dir2, str_c('07_comparison_by_LC.csv'))) %>% 
+  mutate(var = 'cap400')
 
-compare_by_lc_csv2 <- file.path(comp_dir2, str_c('07_comparison_by_LC.csv'))
-p2p_tbl2 <- read_csv(compare_by_lc_csv2)
-p2p_tbl2 %>% 
-  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
-  filter(mask %in% c('Total'))
+out <- bind_rows(p2p_tbl1, p2p_tbl2) %>% 
+  select(var, map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m)
 
-p2p_tbl1 %>% 
-  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
-  filter(mask %in% c('TC'))
+out %>% filter(mask %in% c('Total')) %>% 
+  select(-mask) %>% 
+  arrange(map_code)
 
-p2p_tbl2 %>% 
-  select(map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m) %>% 
-  filter(mask %in% c('TC'))
+out %>% filter(mask %in% c('TC')) %>% 
+  select(-mask) %>% 
+  arrange(map_code)
 ```

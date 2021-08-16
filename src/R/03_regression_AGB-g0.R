@@ -19,23 +19,13 @@ library("tidyverse")
 
 # # Set variables ----
 source('src/R/initialize_vars.R')
-# year <- '2019'
-# code <- 'HV_nu'
-# suffix <- g0_variant <- 'med5'
-# 
-# # raw_dir <- file.path('data/raw/ALOS', year)
-# tidy_dir <- 'data/tidy'
-# g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
-# modeling_dir <- file.path('data/modeling', code)
-# field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
-# field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # Set output filepaths ----
 # List palsar mosaic files
 (fps <- list.files(file.path(g0_dir, 'mosaic_variants'), 
                   str_glue('{code}.*\\.tif$'), 
                   full.names = TRUE))
-(g0_fp <- ifelse(g0_variant == 'simple',
+(g0prepd_fp <- ifelse(g0_variant == 'simple',
                 fps %>% str_subset(str_glue('{code}\\.tif')),
                 fps %>% str_subset(str_glue('{code}_{g0_variant}'))))
 
@@ -159,7 +149,7 @@ fxn.bias <- function(data, lev = NULL, model = NULL) {
 
 # Get mean backscatter for each plot --------------------------------------------------------------
 # Load raster and polygon data
-g0 <- terra::rast(g0_fp)             # pre-processed in 02_process_ALOS_tiles.R 
+g0 <- terra::rast(g0prepd_fp)             # pre-processed in 02_process_ALOS_tiles.R 
 
 # Add plot backscatter mean to polygons
 plots_agb <- readRDS(field_agb_fp)
@@ -316,7 +306,7 @@ ggsave(file.path(mod_dir, str_glue('scatter_agb_g0_{g0_variant}_table.png')),
 
 # Create AGB raster --------------------------------------------------------------------------------
 # Load data 
-g0 <- rast(g0_fp); names(g0) <- 'backscatter'
+g0 <- rast(g0prepd_fp); names(g0) <- 'backscatter'
 ols <- readRDS(ols_fp)
 
 # Apply linear regression model to create AGB map

@@ -8,6 +8,10 @@ editor_options:
   chunk_output_type: console
 ---
 
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
 [GlobBiomass](http://globbiomass.org/wp-content/uploads/GB_Maps/Globbiomass_global_dataset.html)
 
 ```{r initialize, echo=FALSE, message=FALSE, warning=FALSE}
@@ -15,6 +19,7 @@ library('sf')
 library('terra')
 library('tidyverse')
 library('patchwork')
+library('tmap')
 
 source('src/R/initialize_vars.R')
 
@@ -48,17 +53,43 @@ agb_fp2 <- file.path(agb_dir, str_glue('agb_{agb_code2}.tif'))
 ```
 
 
-```{r pct-na}
+```{r pct-na-TC}
 out_by_mask1 <- read_csv(file.path(comp_dir1, '07_overview_by_mask.csv'))
 out_by_mask2 <- read_csv(file.path(comp_dir2, '07_overview_by_mask.csv'))
 
 out <- bind_rows(out_by_mask1, out_by_mask2)
-out %>% filter(mask == 'TC', map_code == 'internal') %>% 
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
 
-out %>% filter(mask == 'Total', map_code == 'internal') %>% 
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
+# Tree cover
+(comp_tbl <- out %>% 
+  filter(mask == 'TC', map_code == 'internal', !is.na(mean_agb_ha)) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3))))
+
+tc_stock <- comp_tbl %>% select(sum_agb)
+(diff <- tc_stock[[2,1]] - tc_stock[[1,1]])
+diff / tc_stock[[2,1]]
+
+tc_stock <- comp_tbl %>% select(mean_agb_ha)
+tc_stock[[2,1]] - tc_stock[[1,1]]
 ```
+
+When we cap AGB at 300 instead of 400, the biomass stock for tree cover area decreases by **13,684 Mg**, which is a **0.02%** decrease. It decreases the mean AGB density by **0.013 Mg/ha**. 
+
+```{r pct-na-total}
+(comp_tbl <- out %>% 
+  filter(mask == 'Total', map_code == 'internal', !is.na(mean_agb_ha)) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3))))
+
+t_stock <- comp_tbl %>% 
+  select(sum_agb)
+(diff <- t_stock[[2,1]] - t_stock[[1,1]])
+diff / t_stock[[2,1]]
+
+t_stock <- comp_tbl %>% 
+  select(mean_agb_ha)
+t_stock[[2,1]] - t_stock[[1,1]]
+```
+
+The total biomass stock for the country decreases **20,989 Mg**, a **0.016%** decrease when we apply the cap at 300 Mg/ha instead of 400. That's a decrease of **0.006 Mg/ha** in mean density. 
 
 ```{r pix2pix metrics}
 p2p_tbl1 <- read_csv(file.path(comp_dir1, str_c('07_comparison_by_LC.csv'))) %>% 
@@ -69,11 +100,45 @@ p2p_tbl2 <- read_csv(file.path(comp_dir2, str_c('07_comparison_by_LC.csv'))) %>%
 out <- bind_rows(p2p_tbl1, p2p_tbl2) %>% 
   select(var, map_code, mask, R2, RMSD, bias, MBD, MAD, cor.coef, mean_agb_ha, pct_of_lc_100m)
 
-out %>% filter(mask %in% c('Total')) %>% 
+out %>% filter(mask %in% c('Total'), map_code != 'internal') %>% 
   select(-mask) %>% 
   arrange(map_code)
+```
 
-out %>% filter(mask %in% c('TC')) %>% 
+There is almost no change in the comparison metrics with the external maps, but what there is indicates that cap300 is slightly more similar. The GlobBiomass and ESA bias decrease slightly (0.01) when we cap at 300 Mg/ha. The R^{2} increases slightly for Baccini and ESA. The RMSD decreases 0.1 for ESA. 
+
+```{r pix2pix metrics TC}
+out %>% filter(mask %in% c('TC'), map_code != 'internal') %>% 
   select(-mask) %>% 
   arrange(map_code)
+```
+
+For tree cover, the metrics for GlobBiomass are the same for the two versions. The metrics only change between versions in the ESA comparison: ESA is slightly more similar to cap300, with slightly better R^{2}, RMSD,  and bias. 
+
+```{r compare maps}
+# Load AGB versions
+agb_stack <- c(
+  terra::rast(file.path(agb_dir, str_glue('agb_cap300_maskWUwb.tif'))),
+  terra::rast(file.path(agb_dir, str_glue('agb_cap400_maskWUwb.tif')))
+)
+names(agb_stack) <- c('cap300', 'cap400')
+
+# Crop to extent
+crop_ext <- ext(-72.4, -72.25, 18.3, 18.41)
+agb_crop <- agb_stack %>% terra::crop(crop_ext)
+
+# Plot
+tmap_mode('view')
+vir <- viridisLite::viridis(9)
+tmap_leaflet(
+  agb_crop %>% 
+  tm_shape() + tm_raster(palette = vir, 
+                         style = 'cont') +
+  tm_basemap(server = 'Esri.WorldImagery')
+)
+
+# tmap_mode('plot')
+# basemap <- tmaptools::read_osm(st_bbox(agb_crop), type="bing")
+# tm_shape(basemap) + tm_rgb() +
+#   tm_shape(agb_crop) + tm_raster(palette = vir)
 ```

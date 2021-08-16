@@ -447,6 +447,7 @@ get_masked_agb_totals <- function(agb_x, lc_fp, out_dir) {
     summarize(
       mean_agb_ha = mean(agb, na.rm = TRUE),
       sum_agb = sum(agb, na.rm = TRUE) * pix_area_ha,
+      max_agb_ha = max(agb, na.rm = TRUE),
       name = ext_name)
   
   # Save
@@ -652,8 +653,9 @@ sum_tbl %>% write_csv(sums_csv)
 # Pct masked by LC ----
 # Resample our AGB to ESA grid for comparison
 agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
-if(!file.exists(agb_res_fp)) 
+if(!file.exists(agb_res_fp)) {
   resample_to_raster(agb_fps$internal$fp, agb_fps$esa$fp, agb_res_fp)
+}
 
 res_fps <- agb_fps
 res_fps$internal <- list(
@@ -674,11 +676,10 @@ sum_tbl <- read_csv(sums_csv)
 ext_pcts <- read_csv(ext_pcts_csv) %>% 
   select(-name) %>%
   rename(
-    LC = code,
-    n_vals_100m = n_vals,
-         n_lc_100m = n_lc, 
-         pct_of_vals_100m = pct_of_values, 
-         pct_of_lc_100m = pct_of_lc)
+    n_vals_100m = 'n_vals',
+         n_lc_100m = 'n_lc', 
+         pct_of_vals_100m = 'pct_of_values', 
+         pct_of_lc_100m = 'pct_of_lc')
 out_by_lc <- full_join(sum_tbl, ext_pcts, 
                        by = c('LC', 'map_code'))
 
@@ -695,6 +696,7 @@ agg_fun <- function(mskvals, x) {
     group_by(name, map_code) %>% 
     summarize(sum_agb = sum(sum_agb, na.rm = TRUE),
               mean_agb_ha = mean(mean_agb_ha, na.rm = TRUE),
+              max_agb_ha = max(max_agb_ha, na.rm = TRUE),
               n_vals_100m = sum(n_vals_100m, na.rm = TRUE),
               n_lc_100m = sum(n_lc_100m, na.rm = TRUE),
               pct_of_vals_100m = sum(pct_of_vals_100m, na.rm = TRUE)) %>% 

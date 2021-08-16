@@ -34,6 +34,12 @@ source('src/R/initialize_vars.R')
 # (items <- str_split(dirname(agb_l0_fp), '/') )
 # g0_variant <- nth(items[[1]], -1)
 
+if(is.character(saturation_pt) & saturation_pt == '99.9 percentile') {
+  p999 <- global(terra::rast(agb_l0_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+  saturation_pt <- deframe(p999)
+  agb_cap_fp <- str_c(tools::file_path_sans_ext(agb_cap_fp), '_', saturation_pt, '.tif')
+}
+
 # Apply value cap to AGB -------------------------------------------------------
 # Apply saturation point to AGB and save
 if(!is.na(saturation_pt)) {
@@ -185,18 +191,5 @@ combo <- combo_df %>%
 
 combo %>% write_csv(file.path(agb_dir, str_glue('04_pcts_masked_agg_w_areas_{agb_code}.csv')))
 combo %>% write_csv(file.path('data/reports', str_glue('04_pcts_masked_agg_w_areas_{agb_code}.csv')))
-
-
-
-# Area of Haiti
-hti_poly_fp <- "data/tidy/contextual_data/HTI_adm/HTI_adm0_fix.shp"
-sf::st_area(st_read(hti_poly_fp))
-
-# Get stats 
-# Get mean and count
-(mn <- global(agb_masked, 'mean', na.rm=T))
-ct_valid_pixels <- global(!is.na(agb_masked), 'sum', na.rm=T)
-(est_area_ha <- (25*25*0.0001) * ct_valid_pixels)
-(est_total_AGB <- mn * est_area_ha)
 
 

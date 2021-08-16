@@ -330,6 +330,36 @@ if(g0_interp == 'LC') {
   fill_gaps_from_polygons(filt_ras, filt_fp, summary_pols_fp, g0_filled_fp)
 }
 
+# Check difference in 99.9th percentile before and after pre-processing
+# Finding: filtering (whether median, Lee, or aggregation, greatly reduces the 99.9th percentile)
+g0_999 <- global(terra::rast(g0_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+fps <- list.files(file.path(g0_dir, 'mosaic_variants'), 
+                   str_glue('{code}.*\\.tif$'), 
+                   full.names = TRUE)
+(g0prepd_fp <- fps %>% str_subset(str_glue('{code}_{g0_variant}')))
+global(terra::rast(g0prepd_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+(g0maskfilt_fp <- fps %>% str_subset(str_glue('{code}_maskLWUwb_med5\\.')))
+global(terra::rast(g0maskfilt_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+(g0mask_fp <- fps %>% str_subset(str_glue('{code}_maskLWUwb\\.')))
+global(terra::rast(g0mask_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+(g0filt_fp <- fps %>% str_subset(str_glue('{code}_med5\\.')))
+global(terra::rast(g0filt_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+# applying the median filter greatly reduces the 99.9th percentile. 
+
+(g0filt_fp <- fps %>% str_subset(str_glue('{code}_lee11s10\\.')))
+global(terra::rast(g0filt_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+(g0filt_fp <- fps %>% str_subset(str_glue('{code}_agg50\\.')))
+global(terra::rast(g0filt_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+(g0filt_fp <- fps %>% str_subset(str_glue('{code}_cap0\\.25_med5\\.')))
+global(terra::rast(g0filt_fp), function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+
+
 # ~ Create masks (which are used by mask_with_options()) ----
 # Masks: ALOS ----
 # Replicate ALOS normal 

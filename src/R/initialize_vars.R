@@ -25,14 +25,18 @@ if(is.na(g0_variant) | g0_variant == '') g0_variant <- 'simple'
 
 # AGB processing
 saturation_pt <- 400
-saturation_pt <- 300
+saturation_pt <- '99.9 percentile'
+# saturation_pt <- 300
 # agb_input_level <- 'l2'
-agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20')
-sat_code <- ifelse(!is.na(saturation_pt), str_c('cap', saturation_pt), '')
+agb_mask_codes <- c('WU', 'wb') # c('L', 'WU', 'U', 'wb', 'u20', 'o400')
+sat_code <- ifelse(is.na(saturation_pt), '', 
+                   ifelse(is.numeric(saturation_pt), str_c('cap', saturation_pt),
+                          ifelse(saturation_pt == '99.9 percentile', 'cap999pctl', 
+                                 'UNKNOWN')))
 agbmsk_code <- ifelse(length(agb_mask_codes > 0), 
                      str_c('mask', str_c(agb_mask_codes, collapse = '')), 
                      '')
-agb_code <- str_c(sat_code, agbmsk_code, sep = '_')
+agb_code <- str_c(sat_code, agbmsk_code, sep = '_') %>% str_remove_all('^_')
 
 # Filepaths
 results_dir <- 'data/results'
@@ -213,9 +217,28 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
   
   # AGB <20 mask
   if('u20' %in% masks){
-    msk_u20 <- ras %>% terra::classify(rbind(c(-Inf, 20, NA),
-                                             c(20, Inf, 1)))
+    msk_u20 <- ras %>% terra::classify(rbind(c(-Inf, 20, NA), c(20, Inf, 1)))
     msk <- msk %>% terra::mask(msk_u20)
+  }
+  
+  # AGB > X
+  oX <- str_subset(masks, 'o\\d+')
+  if(length(oX) > 0){
+
+    if(str_detect(oX, '999pctl')){
+      # if mask is on 99.9th percentile... 
+      p999 <- global(ras, function(x) quantile(x, probs = 0.999, na.rm = TRUE))
+      cap_val <- deframe(p999)
+      
+    } else {
+      # if not, use the value specified
+      cap_val <- as.numeric(str_extract(oX, '\\d+'))
+      
+    }
+    
+    # Apply mask
+    msk_oX <- ras %>% terra::classify(rbind(c(-Inf, cap_val, 1), c(cap_val, Inf, NA)))
+    msk <- msk %>% terra::mask(msk_oX)
   }
   
   # LC17 Water and Urban, and OSM water with 25 m buffer 

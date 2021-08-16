@@ -318,3 +318,11 @@ tab2 <- gridExtra::tableGrob(d2,
 wrap_plots(list(tab1, tab2), ncol=2) +
   plot_annotation(title = g0_variant)
 ```
+
+```{r percentiles}
+r <- terra::rast(agb_l0_fp)
+quants <- global(r, function(x) quantile(x, probs = seq(0.9, 1, 0.01), na.rm = TRUE))
+(p99 <- global(r, function(x) quantile(x, probs = 0.99, na.rm = TRUE)))
+(p999 <- global(r, function(x) quantile(x, probs = 0.999, na.rm = TRUE)))
+(p9999 <- global(r, function(x) quantile(x, probs = 0.9999, na.rm = TRUE)))
+```

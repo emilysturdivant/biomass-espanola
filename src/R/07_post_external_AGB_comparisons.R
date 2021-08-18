@@ -30,7 +30,6 @@ library('tidyverse')
 library('patchwork')
 
 source('src/R/initialize_vars.R')
-lc_fp <- lc_fps$haiti
 
 # Set variables ----------------------------------------------------------------
 # Input filepaths
@@ -85,49 +84,6 @@ crop_and_resample <- function(in_fp, out_fp, template, warp_method="near", na_va
     r <- stars::read_stars(out_fp)
     
   }
-}
-
-summarize_raster_differences <- function(ext_r, ext_name, int_r, out_fp = NULL){
-  
-  # Make DF
-  r_stack <- rast(list(internal = int_r, external = ext_r))
-  names(r_stack) <- c('internal', 'external')
-  df <- terra::as.data.frame(r_stack, na.rm = TRUE)
-  df <- df %>% mutate(value = internal - external)
-  
-  # Distribution of external values
-  dist_ext <- summary(df$external) %>% 
-    tibble(names=names(.), value=.) %>% 
-    mutate(value = as.numeric(value))
-  
-  # Get metrics for differences
-  diff_stats <- df %>% 
-    # group_by(name) %>% 
-    summarize(
-      R2 = summary(lm(external ~ internal))$r.squared,
-      adjR2 = summary(lm(external ~ internal))$adj.r.squared,
-      N = sum(!is.na(value)), 
-      RMSD = sqrt(mean(value^2, na.rm=T)),
-      bias = abs(sum(value, na.rm=T) / sum(!is.na(value))),
-      MBD = mean(value), 
-      IQR = IQR(value), 
-      SD = sd(value), 
-      MAD = mean(abs(value)),
-      cor.coef = cor.test(x=internal, y=external, method = 'pearson')$estimate,
-      min_diff = min(value),
-      max_diff = max(value),
-      med_diff = median(value)
-    ) %>% 
-    mutate(across(where(is.numeric), ~ round(.x, 3)),
-           name = ext_name)
-  
-  # Save
-  if(is.character(out_fp)){
-    diff_stats %>% write_csv(out_fp)
-  }
-  
-  # Return
-  return(list(diffs=df, summary=diff_stats))
 }
 
 plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=10000, 
@@ -200,74 +156,6 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
   return(p)
 }
 
-scatter_differences <- function(df, ext_name, prefix, filename = NA,
-                                sample_size = 5000000, xlim = c(0, 300)){
-  
-  # Sample
-  if (length(df[[1]]) > sample_size) {
-    print("Sampling...")
-    df <- df %>% sample_n(sample_size)
-  }
-  
-  ols <- lm(external ~ internal, data=df)
-
-  # Table with slope and intercept
-  rep1 <- coef(ols) %>%
-    as_tibble() %>% 
-    mutate(value = round(value, 2), 
-           name = c('intercept', 'slope')) %>% 
-    column_to_rownames('name')
-  
-  tab <- gridExtra::tableGrob(rep1, 
-                              cols = NULL,
-                              theme = gridExtra::ttheme_minimal(base_size = 9,
-                                                                padding = unit(c(2,2), 'mm')))
-  
-  # Plot
-  p <- ggplot(df, aes(x=internal, y=external)) + 
-    # geom_point() +
-    stat_density2d(geom="tile",
-                   aes(fill = after_stat(density),
-                       alpha = after_stat(density)^0.1),
-                   contour_var = 'count',
-                   contour=FALSE) +
-    # geom_bin2d(bins = 75) +
-    # geom_hex(bins = 150) +
-    scale_fill_viridis_c(option = 'magma', direction = -1) +
-    scale_alpha('alpha') +
-    scale_y_continuous(name = str_c("External AGB estimate (t/ha)"),
-                       breaks = seq(xlim[[1]], xlim[[2]], 100), 
-                       limits = xlim,
-                       expand = expansion()
-    ) +
-    scale_x_continuous(name = str_c("Internal AGB estimate (t/ha)"),
-                       breaks = seq(xlim[[1]], xlim[[2]], 100), 
-                       limits = xlim,
-                       expand = expansion()
-    ) +
-    coord_fixed(ratio = 1, xlim = xlim) +
-    theme_minimal() + 
-    geom_abline(intercept = 0, slope = 1, col='black', size=.25) +
-    geom_abline(intercept = coef(ols)[1], slope = coef(ols)[2], 
-                col='black', size=.25, linetype = 'dashed') +
-    ggtitle(ext_name) +
-    theme_minimal()
-
-  # Overlay plot with regression table
-  p <- p + inset_element(tab, 
-                  left = 0, bottom = 0.8,
-                  right = 0.2, top = 1, 
-                  on_top = TRUE) +
-    theme(plot.background = NULL)
-  
-  # Save/Return
-  if(!is.na(filename)) ggsave(filename, plot=p, width=6, height=6)
- 
-  # Return
-  return(p)
-
-}
-
 plot_differences_map <- function(diff_ras, ext_name, prefix, boundary_fp, filename = NA){
   
   # Convert raster to dataframe
@@ -283,7 +171,7 @@ plot_differences_map <- function(diff_ras, ext_name, prefix, boundary_fp, filena
     # Land poly
     geom_sf(data=hti_poly, lwd=0, fill='darkgray') +
     # Difference surface
-    geom_tile(aes(x=x, y=y, fill=diff)) +
+    geom_raster(aes(x=x, y=y, fill=diff)) +
     scale_fill_gradientn(colors=c('#ca0020', '#f4a582', '#f7f7f7', '#92c5de', '#0571b0'), 
                          breaks = c(-60, -30, 0, 30, 60),
                          labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
@@ -456,102 +344,6 @@ get_masked_agb_totals <- function(agb_x, lc_fp, out_dir) {
   
   # Return
   return(sum_tbl)
-}
-
-compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
-                                mskvals = list(values = 4, code = 'TC'), 
-                                comparison_dir,
-                                return_obj = 'summary', 
-                                boundary_fp) {
-  
-  # External names
-  ext_name <- agb_x$name
-  ext_fp <- agb_x$fp
-  ext_masked_fp <- str_c(tools::file_path_sans_ext(ext_fp), '_', mskvals$code, 'mask.tif')
-  
-  if (ext_name == 'Avitabile') {    
-    agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_res', ext_name, '.tif')
-    lc_res_fp <- str_c(tools::file_path_sans_ext(lc_fp), '_res', ext_name, '.tif')
-    
-    # Resample LC and internal to external AGB res
-    if(!file.exists(agb_res_fp)) resample_to_raster(agb_fp, ext_fp, agb_res_fp)
-    if(!file.exists(lc_res_fp)) resample_to_raster(lc_fp, ext_fp, lc_res_fp, method = 'near')
-    
-  } else {
-    agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
-    lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
-    
-  }
-  
-  # Internal names
-  agb_code <- str_remove(tools::file_path_sans_ext(agb_res_fp), '.*agb_')
-  int_masked_fp <- str_c(tools::file_path_sans_ext(agb_res_fp), '_', mskvals$code, 'mask.tif')
-  
-  # Mask internal AGB to given LC class
-  if (!file.exists(int_masked_fp)) {
-    mask_to_classes(lc_res_fp, agb_res_fp, int_masked_fp, mskvals$values)
-  } 
-  
-  # Mask external AGB to given LC class
-  if (!file.exists(ext_masked_fp)) {
-    mask_to_classes(lc_res_fp, ext_fp, ext_masked_fp, mskvals$values)
-  }
-  
-  # Calculate metrics for landcover class
-  out <- crop_to_intersecting_extents(terra::rast(int_masked_fp), 
-                                      terra::rast(ext_masked_fp))
-  agb_T <- out$r1
-  ext_T <- out$r2
-  
-  if (return_obj == 'map') {
-    # Subtract
-    diff_ras <- agb_T - ext_T
-    # diff_ras %>% terra::writeRaster(filename = diff_fp, overwrite = TRUE, datatype = in_dtype)
-    
-    # Plot spatial map of differences 
-    map_diff_fp <- file.path(comparison_dir, str_c('map_', agb_code, '_minus_', ext_name, '.png'))
-    p_map <- plot_differences_map(diff_ras, ext_name, agb_code, boundary_fp, filename = map_diff_fp)
-    
-  }
-  
-  # Summary of differences ----
-  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
-                             str_c(mskvals$code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
-  dir.create(dirname(smmry_diff_fp), recursive = TRUE, showWarnings = FALSE) 
-  df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
-  
-  # Scatterplot ----
-  if (return_obj == 'plot' | return_obj == 'all') {
-    scatter_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                                 str_c(mskvals$code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
-    p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
-                                   filename = scatter_diff_fp,
-                                   sample_size = 500000)
-  }
-  
-  # Return ----
-  if (return_obj == 'plot') {
-    return(p_scatt)
-    
-  } else if (return_obj == 'diffs') {
-    return(df$diffs)
-    
-  } else if (return_obj == 'summary') {
-    return(df$summary)
-    
-  } else if (return_obj == 'map') {
-    return(p_map)
-    
-  } else if (return_obj == 'all') {
-    return(list(plot = p_scatt,
-                diffs = df$diffs,
-                summary = df$summary,
-                map = p_map))
-    
-  } else {
-    return()
-    
-  }
 }
 
 iterate_compare_by_lc <- function(mskvals, agb_fps, lc_fp, comparison_dir, 

@@ -11,16 +11,10 @@ editor_options:
 [GlobBiomass](http://globbiomass.org/wp-content/uploads/GB_Maps/Globbiomass_global_dataset.html)
 
 ```{r initialize, echo=FALSE, message=FALSE, warning=FALSE}
-library('sf')
-library('terra')
-library('tidyverse')
-library('patchwork')
-
 source('src/R/initialize_vars.R')
 ```
 
-### All four externals
-
+## Look at distribution of AGB values
 
 ```{r external-histograms}
 # Histogram of external map ----
@@ -42,37 +36,87 @@ hist_fp <- file.path('data/reports/external_agb', str_glue('agb_hist_Avit.png'))
 # ggsave(hist_fp, width = 5, height = 3, dpi = 120)
 ```
 
+## Compare overall coverage of each map
 
-```{r external-pct-na}
-ext_metrics <- read_csv(ext_report_csv)
-df <- ext_metrics %>% 
-  pivot_longer(cols = starts_with('pct'), 
-               names_prefix = 'pct_', 
+```{r pct-na-by-lc}
+# Load data
+smmry_csv <- file.path(comparison_dir, '07_overview_by_LC.csv')
+stats_by_lc <- read_csv(smmry_csv) %>% 
+  filter(!is.na(name))
+
+# Helpers
+lc_tbl <- list(`4` = 'Tree cover', `6` = 'Shrubs', `5` = 'Grassland', 
+               `3` = 'Bareland', `2` = 'Urban', `1` = 'Water')
+(map_order <- stats_by_lc %>% 
+  mutate(map_code = factor(map_code, levels = c('internal', 'esa', 'glob', 'avit', 'bacc'))) %>% 
+  arrange(desc(map_code)) %>% 
+  distinct(name) %>% 
+  deframe())
+
+# Prep DF
+df_lc <- stats_by_lc %>% 
+  filter(!is.na(name)) %>% 
+  mutate(pct_of_lc_NA = 1 - pct_of_lc_100m) %>% 
+  pivot_longer(cols = starts_with('pct_of_lc'),
+               names_prefix = 'pct_of_lc_', 
                names_to = 'group', 
                values_to = 'pct') %>% 
-  filter(name != 'internal')
+  mutate(group = factor(group, levels = c('NA', '100m')), 
+         name = factor(name, levels = map_order),
+         LC = recode_factor(LC, !!!lc_tbl))
 
-(bp <- ggplot(df, 
-              aes(x=pct, y=map_name, fill=group)) +
-    geom_bar(stat = "identity", position = 'fill') +
-    theme_minimal() + 
-    labs(fill="",x=NULL,y=NULL,title="",caption=""))
+# Plot
+(bp <- df_lc %>% 
+    ggplot(aes(x = pct, y = name, fill = group)) +
+    geom_col(position = 'fill', show.legend = FALSE) +
+    scale_x_continuous(n.breaks = 3) +
+    theme_minimal() +
+    labs(fill="",x=NULL,y=NULL,title="",caption="") +
+    facet_wrap(facets = vars(LC)))
 
-# ggsave(file.path('data/reports/external_agb', '07_external_pcts_masked.png'),
-#        width = 4, height = 2, dpi = 120)
+# Save
+ggsave(file.path(comparison_dir, '07_pct_masked_by_lc.png'),
+       width = 6, height = 4, dpi = 120)
 
+# Get percent of total
+pct_total <- df_lc %>% 
+    group_by(name, map_code) %>% 
+    summarize(n_vals_100m = sum(n_vals_100m, na.rm = TRUE),
+              n_lc_100m = sum(n_lc_100m, na.rm = TRUE)) %>% 
+    mutate(pct_of_lc_100m =  n_vals_100m / n_lc_100m,
+           pct_of_lc_NA = 1 - pct_of_lc_100m) %>% 
+  pivot_longer(cols = starts_with('pct_of_lc'),
+               names_prefix = 'pct_of_lc_', 
+               names_to = 'group', 
+               values_to = 'pct') %>% 
+  mutate(group = factor(group, levels = c('NA', '100m')))
+
+# Plot
+(bp <- pct_total %>% 
+    ggplot(aes(x = pct, y = name, fill = group)) +
+    geom_col(position = 'fill', show.legend = FALSE) +
+    scale_x_continuous(n.breaks = 3) +
+    theme_minimal() +
+    labs(fill="",x=NULL,y=NULL,title="",caption="") +
+    ggtitle('Percent of all pixels (aggregated to 100m)'))
+```
+
+
+```{r pct-na-by-tc}
 # Table
 (d2 <- df %>% 
     mutate(pct_coverage = str_c(round(pct*100, digits = 1), '%')) %>% 
     arrange(desc(pct)) %>% 
     filter(!group %in% c('NA')) %>% 
-    select(map_name, pct_coverage))
+    select(name, pct_coverage))
 
 tab <- gridExtra::tableGrob(d2, rows = NULL, cols = c('Map', 'Percent of land'))
 
 # Display side-by-side
 wrap_plots(tab, bp)
 ```
+
+## Compare external maps to our field data
 
 ```{r scatterplot}
 # Scatterplot - AGB against backscatter ----------------------------------------
@@ -105,49 +149,47 @@ p3 <- plot_scatter_ext(plot_means, 'avit', name='Avitabile')
 p4 <- plot_scatter_ext(plot_means, 'bacc', name='Baccini')
 
 # Save
-plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
+plot_fp <- file.path(comparison_dir,
                      str_c('comparison_scatter_', agb_code, '_ourAGB.png'))
 ggsave(plot_fp, p0, width=10, height=10, units='cm')
 
 (p1 | p2 )/ (p3 | p4)
-plot_fp <- file.path(dirname(agb_fp), 'external_comparison', agb_code,
+plot_fp <- file.path(comparison_dir,
                      str_c('comparison_scatter_', agb_code, '.png'))
 ggsave(plot_fp, width=20, height=20, units='cm')
 
 ```
 
+## Compare pixel-to-pixel difference metrics (R^{2}, RMSD, Bias)
+
 ```{r pixel-comparison-metrics}
 # Load
-smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 
-                           str_c('summary_diffs_BaccGlobCCI.csv'))
-sum_tbl <- read_csv(smmry_diff_fp)
+sum_tbl <- read_csv(compare_by_lc_csv) %>% 
+  filter(!is.na(R2), 
+         mask != 'WUBGS')
 
 # Experiment with views
-sum_tbl %>% select(MBD, name, mask) %>% 
-  ggplot(aes(x=mask, y = MBD, color = name)) +
-  geom_point() 
-
 long_tbl <- sum_tbl %>% 
   rename(product = name) %>% 
-  pivot_longer(r.squared:med_diff, names_repair = 'unique')
+  pivot_longer(R2:med_diff, names_repair = 'unique')
 
 long_tbl %>% 
-  filter(mask == 'Total',
-         name %in% c('r.squared', 'RMSD', 'MBD', 'bias')) %>% 
-  ggplot(aes(x = product, y = value, color = product)) +
-  geom_point() +
-  facet_wrap(vars(name), scales = 'free_y') +
-  theme(axis.title = element_blank())
-
-long_tbl %>% 
-  filter(name %in% c('r.squared', 'RMSD', 'MBD', 'bias')) %>% 
+  filter(name %in% c('R2', 'RMSD', 'bias')) %>% 
   ggplot(aes(x = product, y = value, color = product)) +
   geom_point() +
   facet_grid(rows = vars(name), cols = vars(mask), scales = 'free_y') +
   theme(axis.title = element_blank())
 
 long_tbl %>% 
-  filter(name %in% c('r.squared', 'RMSD', 'MBD', 'bias'), 
+  filter(name %in% c('MBD')) %>% 
+  ggplot(aes(x = product, y = value, color = product)) +
+  geom_point() +
+  geom_hline(yintercept = 0) +
+  facet_grid(rows = vars(name), cols = vars(mask), scales = 'free_y') +
+  theme(axis.title = element_blank())
+
+long_tbl %>% 
+  filter(name %in% c('R2', 'RMSD', 'bias'), 
          mask %in% c('TC', 'BGS')) %>% 
   ggplot(aes(x = mask, y = value, color = product)) +
   geom_point() +
@@ -155,6 +197,152 @@ long_tbl %>%
   theme(axis.title = element_blank())
 ```
 
+## Compare pixel-to-pixel scatter density plots
+
+```{r pix2pix-density-plots}
+# Tree cover
+mskvals <- mskvals_list[[1]]
+agb_fps_sub <- agb_fps[c(2,3,4,5)]
+  
+plots_tc <- agb_fps_sub %>% 
+      purrr::map(compare_by_given_lc, agb_fp, lc_fp,
+                  mskvals = mskvals, comparison_dir,
+                  return_obj = 'plot', 
+                  boundary_fp = hti_poly_fp) %>% 
+    flatten()
+
+plots_tc %>% saveRDS(file.path(comparison_dir, 'plot_tc.rds'))
+
+# Plots for given mask
+(patches <- plots_tc %>% 
+  wrap_plots(nrow = 4, guides = 'collect') &
+    theme(axis.title = element_blank()))
+map_fp <- file.path(comparison_dir, str_glue("scattdens_{mskvals$code}.png"))
+ggsave(map_fp, width=4, height=12, dpi=120)
+
+# Total 
+mskvals <- mskvals_list[[2]]
+agb_fps_sub <- agb_fps[c(2,3,4,5)]
+  
+plots_total <- agb_fps_sub %>% 
+      purrr::map(compare_by_given_lc, agb_fp, lc_fp,
+                  mskvals = mskvals, comparison_dir,
+                  return_obj = 'plot', 
+                  boundary_fp = hti_poly_fp) %>% 
+    flatten()
+
+plots_total %>% saveRDS(file.path(comparison_dir, 'plots_total.rds'))
+
+# Plots for given mask
+(patches <- plots_total %>% 
+  wrap_plots(nrow = 4, guides = 'collect') &
+    theme(axis.title = element_blank()))
+map_fp <- file.path(comparison_dir, str_glue("scattdens_{mskvals$code}.png"))
+ggsave(map_fp, width=4, height=12, dpi=120)
+
+# BGS 
+mskvals <- mskvals_list[[3]]
+agb_fps_sub <- agb_fps[c(2,3,4,5)]
+  
+plots_bgs <- agb_fps_sub %>% 
+      purrr::map(compare_by_given_lc, agb_fp, lc_fp,
+                  mskvals = mskvals, comparison_dir,
+                  return_obj = 'plot', 
+                  boundary_fp = hti_poly_fp) %>% 
+    flatten()
+
+plots_bgs %>% saveRDS(file.path(comparison_dir, 'plots_bgs.rds'))
+
+# Plots for given mask
+(patches <- plots_bgs %>% 
+  wrap_plots(nrow = 4) &
+    theme(axis.title = element_blank()))
+map_fp <- file.path(comparison_dir, str_glue("scattdens_{mskvals$code}.png"))
+ggsave(map_fp, width=4, height=12, dpi=120)
+
+# Combine
+
+(patches <- c(plots_tc, plots_bgs, plots_total) %>% 
+  wrap_plots(nrow = 4, ncol = 3, 
+             byrow = FALSE,
+             guides = 'collect') &
+    theme(axis.title = element_blank()))
+
+map_fp <- file.path(comparison_dir, str_glue("scattdens_all.png"))
+ggsave(map_fp, width=12, height=12, dpi=120)
+
+
+plots_tc$glob +
+  guides(color = guide_legend('density'),
+         alpha = guide_legend('density'))
+
+plots_tc$glob + guides(alpha = FALSE)
+```
+```{r testing}
+# Tree cover
+mskvals <- mskvals_list[[1]]
+agb_fps_sub <- agb_fps[c(2,3,4,5)]
+  
+df <- compare_by_given_lc(agb_fps_sub[[1]], agb_fp, lc_fp,
+                  mskvals = mskvals, comparison_dir,
+                  return_obj = 'diffs', 
+                  boundary_fp = hti_poly_fp)
+ext_name = ''
+sample_size = 50000
+xlim = c(0, 300)
+
+
+
+# Guides are integrated where possible
+p + guides(colour = guide_legend("title"), size = guide_legend("title"),
+  shape = guide_legend("title"))
+
+
+# ggplot object
+dat <- data.frame(x = 1:5, y = 1:5, p = 1:5, q = factor(1:5),
+ r = factor(1:5))
+p <- ggplot(dat, aes(x, y, colour = p, size = q, shape = r)) + geom_point()
+
+# without guide specification
+p
+
+# Show colorbar guide for colour.
+# All these examples below have a same effect.
+p + guides(colour = "colorbar", size = "legend", shape = "legend")
+p + guides(colour = guide_colorbar(), size = guide_legend(),
+  shape = guide_legend())
+p +
+ scale_colour_continuous(guide = "colorbar") +
+ scale_size_discrete(guide = "legend") +
+ scale_shape(guide = "legend")
+
+ # Remove some guides
+ p + guides(colour = "none")
+ p + guides(colour = "colorbar",size = "none")
+
+# Guides are integrated where possible
+p + guides(colour = guide_legend("title"), size = guide_legend("title"),
+  shape = guide_legend("title"))
+
+# same as
+g <- guide_legend("title")
+p + guides(colour = g, size = g, shape = g)
+
+p + theme(legend.position = "bottom")
+
+# position of guides
+
+# Set order for multiple guides
+ggplot(mpg, aes(displ, cty)) +
+  geom_point(aes(size = hwy, colour = cyl, shape = drv)) +
+  guides(
+   colour = guide_colourbar(order = 1),
+   shape = guide_legend(order = 2),
+   size = guide_legend(order = 3)
+ )
+```
+
+## Look at AGB maps
 
 ```{r side-by-side maps1}
 plot_agb_map <- function(x, mask_poly = NULL, borders = NULL, resolution = 200) {
@@ -199,8 +387,8 @@ plot_agb_map <- function(x, mask_poly = NULL, borders = NULL, resolution = 200) 
   
   # Plot
   agb_map <- ggplot(agb_a_df) +
-    # geom_raster(aes(x = x, y = y, fill = agb)) +
-    geom_tile(aes(x = x, y = y, fill = agb)) +
+    geom_raster(aes(x = x, y = y, fill = agb)) +
+    # geom_tile(aes(x = x, y = y, fill = agb)) +
     geom_sf(data = mask_poly, fill = "gray63", color = NA) +
     geom_sf(data = borders, fill = NA, color = "gray39", size = 0.3) +
     scale_fill_gradientn(expression(paste("Aboveground\nbiomass (Mg ha"^"-1", ")")), 
@@ -237,43 +425,51 @@ if(!file.exists(urb_poly_fp)) {
 hti_adm1 <- st_read(file.path(tidy_dir, 'contextual_data', 'HTI_adm', 'HTI_adm1.shp'))
 ```
 
+### Our AGB map
 
 ```{r individual maps}
 (agb_map <- plot_agb_map(agb_fps$internal, urban, hti_adm1, 400))
 ```
 
+### Look at AGB maps side-by-side
 
 ```{r side-by-side maps}
 resolution <- 400
 
 # Extract plot means for all AGB maps
+agb_fps$internal$name <- 'This study'
 maps <- agb_fps %>% 
   purrr::map(plot_agb_map, urban, hti_adm1, resolution = resolution) 
 
 # Set output dir for side-by-side maps
-out_dir <- file.path(dirname(agb_fp), 'external_comparison', agb_code, 'sidebyside')
+out_dir <- file.path(comparison_dir, 'sidebyside')
 dir.create(out_dir)
 
 # Ours, with GlobBiomass, ESA, and Baccini
-(all_maps <- maps[c(1,2,3,5)] %>% 
+(all_maps <- maps[c(1,3,2,5)] %>% 
   wrap_plots(nrow = 2, guides = 'collect'))
-map_fp <- file.path(out_dir, str_glue("sidebyside_Us_GlobB_ESA_Bacc_{resolution}m.png"))
-# ggsave(map_fp, width=12, height=10, dpi=120)
+map_fp <- file.path(out_dir, str_glue("sidebyside_Us_ESA_GlobB_Bacc_{resolution}m.png"))
+ggsave(map_fp, width=12, height=10, dpi=120)
 
 # 4 external maps
 (all_maps <- maps[c(4,2,3,5)] %>% 
   wrap_plots(nrow = 2, guides = 'collect'))
 map_fp <- file.path(out_dir, str_glue("sidebyside_Avit_GlobB_ESA_Bacc_{resolution}m.png"))
-# ggsave(map_fp, width=12, height=10, dpi=120)
+ggsave(map_fp, width=12, height=10, dpi=120)
+
+# All 5, equal sizes
+maps$space <- guide_area()
+(all_maps <- maps[c(1, 3, 2, 6, 4, 5)] %>% 
+  wrap_plots(guides = 'collect'))
+map_fp <- file.path(out_dir, str_glue("all5_equal_{resolution}m.png"))
+ggsave(map_fp, width=14, height=9, dpi=120)
 
 # All 5, with ours bigger
-# four <- ((maps$bacc + maps$avit) / (maps$glob + maps$esa)) &
-#   theme(legend.position = 'none')
-# all_maps <- (maps$internal + plot_layout(guides = 'keep')) / four
-# map_fp <- file.path(out_dir, str_glue("all5_{resolution}m.png"))
-# ggsave(map_fp, all_maps, width=5, height=8, dpi=120)
-
-
+four <- ((maps$bacc + maps$avit) / (maps$glob + maps$esa)) &
+  theme(legend.position = 'none')
+all_maps <- (maps$internal + plot_layout(guides = 'keep')) / four
+map_fp <- file.path(out_dir, str_glue("all5_{resolution}m.png"))
+ggsave(map_fp, all_maps, width=5, height=8, dpi=120)
 
 # # Layout maps
 # maps$avit + maps$glob +
@@ -301,4 +497,21 @@ map_fp <- file.path(out_dir, str_glue("sidebyside_Avit_GlobB_ESA_Bacc_{resolutio
 # agb_map <- plot_agb_map(list(name = 'Internal', fp = agb_fp), urban, hti_adm1)
 ```
 
+## Difference maps
 
+```{r difference-maps}
+# ~ Difference maps (only for all LCs) -----------------------------------------
+mskvals <- list(values = c(1,2,3,4,5,6), code = 'Total')
+diffmaps <- agb_fps[c(2,3,4,5)] %>% 
+  purrr::map(compare_by_given_lc, agb_fp, lc_fp,
+              mskvals = mskvals, comparison_dir,
+              return_obj = 'map', 
+              boundary_fp = hti_poly_fp)
+
+# 4 external maps
+(all_maps <- diffmaps %>% 
+  wrap_plots(nrow = 2, guides = 'collect') &
+    ggthemes::theme_map())
+map_fp <- file.path(out_dir, str_glue("difference_maps.png"))
+ggsave(map_fp, width=14, height=10, dpi=120)
+```

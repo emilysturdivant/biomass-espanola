@@ -1,0 +1,33 @@
+---
+title: "Above-ground biomass map for Haiti from 2019 L-band backscatter"
+author: "Emily Sturdivant, JL, CR, SB, RB, RL, AG"
+date: "7/16/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      root.dir = normalizePath("../"))
+```
+
+```{r cars}
+source("R/01_calculate_AGB.R")
+```
+## Abstract
+
+The island of Hispaniola has a complex forest dynamic that to date lacks reliable estimates of above-ground biomass (AGB). Such estimates are important to understanding dynamics of forest loss and recovery in the evolving landscape mosaic. Here, we develop a map of AGB in 2019 for Haiti and the Dominican Republic at 25 meter resolution. The map is created by calibrating the 2019 ALOS-2 PALSAR-2 mosaic from JAXA to in situ AGB at 36 sites in Haiti, with the following steps: a) inventory trees at 36 plots in Haiti in fall 2019; b) calculate AGB per hectare for each plot using the pan-tropical allometric model developed by Chave et al. (2014; Eq. 4); c) calibrate plot mean backscatter values from the 2019 L-band mosaic (25 m resolution) to observed AGB per ha using an OLS regression model (n=36) with repeated k-fold cross-validation; d) apply the resulting linear model (validation RMSE=19.8 ± 6.9 Mg/ha) to the backscatter mosaic. The resulting AGB map has a mean value of 40.5 ± 29.5 Mg/ha (median=33.9), with about 96% of the values falling below 100 Mg/ha.
+
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

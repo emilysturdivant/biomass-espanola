@@ -45,36 +45,36 @@ tidy_lc_dir <- 'data/tidy/landcover'
 # 01 ----
 stems_fp_in <- "data/species_and_wds/haiti_data_wds2.csv"
 plots_fp_in <- "data/species_and_wds/mplots_geoms.csv"
-plots_shp <- file.path(tidy_dir, 'survey_plots', 'all_plots.shp')
-# mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
-# mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb_noXtrms.rds')
-mstems_fp <- file.path(tidy_dir, 'survey_plots/mstems_agb.rds')
-# field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
-field_agb_fp <- file.path(tidy_dir, 'survey_plots', 'plots_agb.rds')
+plots_shp <- here::here(tidy_dir, 'survey_plots', 'all_plots.shp')
+# mstems_fp <- here::here(tidy_dir, 'survey_plots/mstems_agb_alldbh.rds')
+# mstems_fp <- here::here(tidy_dir, 'survey_plots/mstems_agb_noXtrms.rds')
+mstems_fp <- here::here(tidy_dir, 'survey_plots/mstems_agb.rds')
+# field_agb_fp <- here::here(tidy_dir, 'survey_plots', 'plots_agb_noXtrms.rds')
+field_agb_fp <- here::here(tidy_dir, 'survey_plots', 'plots_agb.rds')
 
 # 02 ----
-hti_poly_fp <- file.path(tidy_dir, "contextual_data/HTI_adm/HTI_adm0_fix.shp")
-raw_dir <- file.path('data/raw/ALOS', year)
-g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
-masks_dir <- file.path(g0_dir, 'masks')
-landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-lc_pols_fp <- file.path(tidy_dir, "landcover/Lemoiner/Haiti2017_Clip_polys.gpkg")
-lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
-g0_fp <- file.path(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
+hti_poly_fp <- here::here(tidy_dir, "contextual_data/HTI_adm/HTI_adm0_fix.shp")
+raw_dir <- here::here('data/raw/ALOS', year)
+g0_dir <- here::here(tidy_dir, str_c('palsar_', year))
+masks_dir <- here::here(g0_dir, 'masks')
+landmask_fp <- here::here(masks_dir, 'hti_land_palsar.tif')
+lc_pols_fp <- here::here(tidy_dir, "landcover/Lemoiner/Haiti2017_Clip_polys.gpkg")
+lc_res_fp <- here::here(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
+g0_fp <- here::here(g0_dir, 'mosaic_variants', str_glue("{code}.tif"))
 
 # 03 ----
-g0_dir <- file.path(tidy_dir, str_c('palsar_', year))
-modeling_dir <- file.path('data/modeling', code)
-agb_dir <- file.path(modeling_dir, g0_variant)
+g0_dir <- here::here(tidy_dir, str_c('palsar_', year))
+modeling_dir <- here::here('data/modeling', code)
+agb_dir <- here::here(modeling_dir, g0_variant)
 # var_order <- c('simple', 'cappt2_conserv13', 'cappt2_conserv13_mean5', 'med5', 'lee11s10', 'maskLU_lee11s10_LCinterp')
-agb_l0_fp <- file.path(agb_dir, str_c("agb_l0_", g0_variant, ".tif"))
+agb_l0_fp <- here::here(agb_dir, str_c("agb_l0_", g0_variant, ".tif"))
 
 # 04 ----
-masks_dir <- file.path('data', 'tidy', str_c('palsar_', year), 'masks')
-landmask_fp <- file.path(masks_dir, 'hti_land_palsar.tif')
-agb_cap_fp <- file.path(agb_dir, str_c('agb_', sat_code, '.tif'))
+masks_dir <- here::here('data', 'tidy', str_c('palsar_', year), 'masks')
+landmask_fp <- here::here(masks_dir, 'hti_land_palsar.tif')
+agb_cap_fp <- here::here(agb_dir, str_c('agb_', sat_code, '.tif'))
 
-agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
+agb_fp <- here::here(agb_dir, str_glue('agb_{agb_code}.tif'))
 
 # 05 ----
 # Set variables 
@@ -88,28 +88,28 @@ agb_fp <- file.path(agb_dir, str_glue('agb_{agb_code}.tif'))
 # (agb_masked_fp <- list.files(agb_dir, str_glue('agb_l2.*{mask_level}\\.tif'), 
 #                              full.names = TRUE))
 
-lc_fps <- list(haiti = file.path(raw_lc_dir, "Lemoiner/Haiti2017_Clip.tif"), 
-               dr = file.path(raw_lc_dir, "Lemoiner/DR_2017_clip.tif"))
+lc_fps <- list(haiti = here::here(raw_lc_dir, "Lemoiner/Haiti2017_Clip.tif"), 
+               dr = here::here(raw_lc_dir, "Lemoiner/DR_2017_clip.tif"))
 lc_fp <- lc_fps$haiti
 
 # # Output filepaths
-# agb_by_lc_prefix <- file.path(agb_dir, 'agb_by_landcover', 
+# agb_by_lc_prefix <- here::here(agb_dir, 'agb_by_landcover', 
 #                               str_glue('agb_{input_level}_{mask_level}_{lc_stat}_byLC'))
 # lc_pols_agb_fp <- str_c(agb_by_lc_prefix, '.gpkg')
 # agb_by_lc_fp <- str_c(agb_by_lc_prefix, '.tif') 
 # agb_by_lc_sd_fp <- str_c(agb_by_lc_prefix, '_sd.tif') 
 # 
-# agb_filled_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}.tif'))
-# agb_filled_sd_fp <- file.path(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}_sd.tif'))
+# agb_filled_fp <- here::here(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}.tif'))
+# agb_filled_sd_fp <- here::here(agb_dir, str_glue('agb_l3_fillLC{lc_stat}_{input_level}_{mask_level}_sd.tif'))
 
 # 06
 
 # 07 - External map filepaths ----
-glob_fp <- file.path(tidy_maps_dir, "GlobBiomass/Glob_agb10_hti.tif")
-esa_fp <- file.path(tidy_maps_dir, "ESA_CCI/ESA_agb17_hti.tif")
-avit_fp <- file.path(tidy_maps_dir, "Avitabile/Avitabile_AGB_hti.tif")
-bacc_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti.tif")
-bacc_res_fp <- file.path(tidy_maps_dir, "Baccini/Baccini_agb00_hti_resCCI.tif")
+glob_fp <- here::here(tidy_maps_dir, "GlobBiomass/Glob_agb10_hti.tif")
+esa_fp <- here::here(tidy_maps_dir, "ESA_CCI/ESA_agb17_hti.tif")
+avit_fp <- here::here(tidy_maps_dir, "Avitabile/Avitabile_AGB_hti.tif")
+bacc_fp <- here::here(tidy_maps_dir, "Baccini/Baccini_agb00_hti.tif")
+bacc_res_fp <- here::here(tidy_maps_dir, "Baccini/Baccini_agb00_hti_resCCI.tif")
 
 # List of AGB maps
 agb_fps <- list(internal = list(name = str_glue('This study ({agb_code})'),
@@ -130,14 +130,14 @@ mskvals_list <- list(
   wubgs = list(values = c(1,2,3,5,6), code = 'WUBGS')
 )
 
-agb_var_dir <- file.path(agb_dir, agb_code)
-comparison_dir <- file.path(agb_var_dir, 'external_comparison')
-plot_ext_csv <- file.path(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
-ground_compare_csv <- file.path(comparison_dir, str_glue('07_grounddata_comparison.csv'))
-compare_by_lc_csv <- file.path(comparison_dir, str_c('07_comparison_by_LC.csv'))
-sums_csv <- file.path(comparison_dir, 'by_LC', '07_sums_by_LC.csv')
-ext_pcts_csv <- file.path(comparison_dir, 'by_LC', '07_pcts_by_lc.csv')
-agg_tbl_csv <- file.path(comparison_dir, '07_aggregated_comparison.csv')
+agb_var_dir <- here::here(agb_dir, agb_code)
+comparison_dir <- here::here(agb_var_dir, 'external_comparison')
+plot_ext_csv <- here::here(comparison_dir, str_c('field_plot_means_', agb_code, '.csv'))
+ground_compare_csv <- here::here(comparison_dir, str_glue('07_grounddata_comparison.csv'))
+compare_by_lc_csv <- here::here(comparison_dir, str_c('07_comparison_by_LC.csv'))
+sums_csv <- here::here(comparison_dir, 'by_LC', '07_sums_by_LC.csv')
+ext_pcts_csv <- here::here(comparison_dir, 'by_LC', '07_pcts_by_lc.csv')
+agg_tbl_csv <- here::here(comparison_dir, '07_aggregated_comparison.csv')
 
 # AGB palettes ----
 agb1_palette <- c('#4c006f', '#8d4d00', '#f7e700', '#4ee43d', '#006016')
@@ -182,9 +182,9 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
   
   # Get output filenames
   masks_str <- masks %>% str_c(collapse = '')
-  # masked_fp <- file.path(dirname(in_fp), 
+  # masked_fp <- here::here(dirname(in_fp), 
   #                        str_c(code, '_mask', masks_str, '.tif'))
-  msk_all_fp <- file.path(out_mask_dir, str_c('mask', masks_str, '.tif'))
+  msk_all_fp <- here::here(out_mask_dir, str_c('mask', masks_str, '.tif'))
   
   # Stop if file already exists
   if(file.exists(masked_fp) & !overwrite) {
@@ -240,7 +240,7 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
   
   # LC17 Water and Urban, and OSM water with 25 m buffer 
   if('WU' %in% masks & 'wb' %in% masks){
-    msk_WUwb_fp <- file.path(masks_dir, "mask_WaterUrban_water25.tif")
+    msk_WUwb_fp <- here::here(masks_dir, "mask_WaterUrban_water25.tif")
     msk_WUwb <- terra::rast(msk_WUwb_fp) %>% terra::crop(ras)
     
     # Check extents
@@ -251,7 +251,7 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
     msk <- msk %>% terra::mask(msk_WUwb)
     
   } else if('WU' %in% masks) {
-    msk_fp <- file.path(masks_dir, "mask_WaterUrban.tif")
+    msk_fp <- here::here(masks_dir, "mask_WaterUrban.tif")
     msk_WU <- terra::rast(msk_fp) %>% terra::crop(ras)
     
     # Check extents
@@ -262,7 +262,7 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
     msk <- msk %>% terra::mask(msk_WU)
     
   } else if('U' %in% masks) {
-    msk_fp <- file.path(masks_dir, "mask_Urban.tif")
+    msk_fp <- here::here(masks_dir, "mask_Urban.tif")
     msk_U <- terra::rast(msk_fp) %>% terra::crop(ras)
     
     # Check extents
@@ -276,13 +276,13 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
   
   # ALOS mask 
   if('A' %in% masks){
-    msk_fp <- file.path(masks_dir, "mask_palsar_normal_2019.tif")
+    msk_fp <- here::here(masks_dir, "mask_palsar_normal_2019.tif")
     msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
     
     msk <- msk %>% terra::mask(msk_tmp)
     
   } else if('L' %in% masks) {
-    msk_fp <- file.path(masks_dir, "mask_palsar_layover_2019.tif")
+    msk_fp <- here::here(masks_dir, "mask_palsar_layover_2019.tif")
     msk_tmp <- terra::rast(msk_fp) %>% terra::crop(ras)
     
     msk <- msk %>% terra::mask(msk_tmp)
@@ -307,6 +307,18 @@ mask_with_options <- function(in_fp, masks_dir, masked_fp,
   return(r_masked)
 }
 
+
+mask_to_classes <- function(mask_fp, ras_fp, out_fp, class_values) {
+  # Load and pre-process layers
+  out <- crop_to_intersecting_extents(terra::rast(mask_fp), terra::rast(ras_fp))
+  lc <- out$r1; ras <- out$r2
+  
+  # Mask by each class in list and sum
+  msk_rs <- class_values %>% 
+    purrr::map(~ mask(ras, lc, inverse = TRUE, maskvalues = .x)) %>% 
+    rast() %>% 
+    app(sum, na.rm = TRUE, filename = out_fp, overwrite = TRUE)
+}
 
 crop_to_intersecting_extents <- function(r1, r2, return_r1=T, return_r2=T, return_bb=F) {
   # Get intersection of the bounding boxes of the two rasters
@@ -565,7 +577,7 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
     
   } else {
     agb_res_fp <- str_c(tools::file_path_sans_ext(agb_fp), '_resCCI.tif')
-    lc_res_fp <- file.path(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
+    lc_res_fp <- here::here(tidy_lc_dir, "Lemoiner", "Lemoiner_lc17_hti_resCCI.tif")
     
   }
   
@@ -594,20 +606,20 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
     diff_ras <- agb_T - ext_T
     
     # Plot spatial map of differences 
-    map_diff_fp <- file.path(comparison_dir, str_c('map_', agb_code, '_minus_', ext_name, '.png'))
+    map_diff_fp <- here::here(comparison_dir, str_c('map_', agb_code, '_minus_', ext_name, '.png'))
     p_map <- plot_differences_map(diff_ras, ext_name, agb_code, boundary_fp, filename = map_diff_fp)
     
   }
   
   # Summary of differences ----
-  smmry_diff_fp <- file.path(comparison_dir, 'by_LC', 'temp',
+  smmry_diff_fp <- here::here(comparison_dir, 'by_LC', 'temp',
                              str_c(mskvals$code, '_summary_diff_', ext_name, '_v_', agb_code, '.csv'))
   dir.create(dirname(smmry_diff_fp), recursive = TRUE, showWarnings = FALSE) 
   df <- summarize_raster_differences(ext_T, ext_name, agb_T, out_fp=smmry_diff_fp)
   
   # Scatterplot ----
   if (return_obj == 'plot' | return_obj == 'all') {
-    scatter_diff_fp <- file.path(comparison_dir, 'by_LC', 
+    scatter_diff_fp <- here::here(comparison_dir, 'by_LC', 
                                  str_c(mskvals$code, '_scatt_', agb_code, '_v_', ext_name, '.png'))
     p_scatt <- scatter_differences(df$diffs, ext_name, agb_code, 
                                    filename = scatter_diff_fp,
@@ -676,4 +688,47 @@ compare_by_given_lc <- function(agb_x, agb_fp, lc_fp,
   #   return()
   #   
   # }
+}
+
+
+plot_differences_map <- function(diff_ras, ext_name, prefix, boundary_fp, filename = NA){
+  
+  # Convert raster to dataframe
+  diff_df <- as.data.frame(diff_ras, xy=TRUE) %>% 
+    drop_na() %>% 
+    rename(diff = all_of(names(diff_ras)))
+  
+  # Load land polygon
+  hti_poly <- st_read(boundary_fp)
+  
+  # Plot
+  p <- ggplot(diff_df) +
+    # Land poly
+    geom_sf(data=hti_poly, lwd=0, fill='darkgray') +
+    # Difference surface
+    geom_raster(aes(x=x, y=y, fill=diff)) +
+    scale_fill_gradientn(colors=c('#ca0020', '#f4a582', '#f7f7f7', '#92c5de', '#0571b0'), 
+                         breaks = c(-60, -30, 0, 30, 60),
+                         labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
+                         name = 'Difference in AGB (t/ha)',
+                         # na.value='lightgray', 
+                         limits = c(-60, 60), 
+                         oob = scales::squish,
+                         guide = guide_colorbar(barheight = 2)) + 
+    coord_sf() +
+    theme_minimal() + 
+    theme(axis.title = element_blank(), 
+          axis.text = element_text(color='gray'),
+          legend.position = c(.16, .85))
+  
+  # Save figure
+  if(!is.na(filename)) {
+    
+    ggsave(filename, plot=p, width=8, height=6)
+    
+  } 
+  
+  # Return
+  return(p)
+  
 }

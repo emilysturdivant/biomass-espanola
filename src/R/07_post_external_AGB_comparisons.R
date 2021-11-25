@@ -156,48 +156,6 @@ plot_hist_density <- function(df, min=-200, max=200, bwidth=50, sample_size=1000
   return(p)
 }
 
-plot_differences_map <- function(diff_ras, ext_name, prefix, boundary_fp, filename = NA){
-  
-  # Convert raster to dataframe
-  diff_df <- as.data.frame(diff_ras, xy=TRUE) %>% 
-    drop_na() %>% 
-    rename(diff = all_of(names(diff_ras)))
-  
-  # Load land polygon
-  hti_poly <- st_read(boundary_fp)
-  
-  # Plot
-  p <- ggplot(diff_df) +
-    # Land poly
-    geom_sf(data=hti_poly, lwd=0, fill='darkgray') +
-    # Difference surface
-    geom_raster(aes(x=x, y=y, fill=diff)) +
-    scale_fill_gradientn(colors=c('#ca0020', '#f4a582', '#f7f7f7', '#92c5de', '#0571b0'), 
-                         breaks = c(-60, -30, 0, 30, 60),
-                         labels = c('-60 (internal < external)', '', '0', '', '60 (internal > external)'),
-                         name = 'Difference in AGB (t/ha)',
-                         # na.value='lightgray', 
-                         limits = c(-60, 60), 
-                         oob = scales::squish,
-                         guide = guide_colorbar(barheight = 2)) + 
-    coord_sf() +
-    theme_minimal() + 
-    theme(axis.title = element_blank(), 
-          axis.text = element_text(color='gray'),
-          legend.position = c(.16, .85))
-  
-  # Save figure
-  if(!is.na(filename)) {
-    
-    ggsave(filename, plot=p, width=8, height=6)
-
-  } 
-  
-  # Return
-  return(p)
-  
-}
-
 get_summary_wrapper <- function(agb_fp, ext_fp, ext_name, agb_code) {
   
   # Filepaths
@@ -284,18 +242,6 @@ get_pcts_by_lc <- function(agb_x, lc_res_fp) {
     mutate(pct_of_lc = n_vals / n_lc,
            name = ext_name)
   
-}
-
-mask_to_classes <- function(mask_fp, ras_fp, out_fp, class_values) {
-  # Load and pre-process layers
-  out <- crop_to_intersecting_extents(terra::rast(mask_fp), terra::rast(ras_fp))
-  lc <- out$r1; ras <- out$r2
-  
-  # Mask by each class in list and sum
-  msk_rs <- class_values %>% 
-    purrr::map(~ mask(ras, lc, inverse = TRUE, maskvalues = .x)) %>% 
-    rast() %>% 
-    app(sum, na.rm = TRUE, filename = out_fp, overwrite = TRUE)
 }
 
 get_masked_agb_totals <- function(agb_x, lc_fp, out_dir) {
